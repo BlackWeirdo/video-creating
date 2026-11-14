@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Trạm việc tay ($0 gói thuê bao) — Video Creator{% endblock %}
 {% block content %}
-<div class="page-header" style="display:flex;justify-content:space-between;align-items:center;">
+<div class="page-header">
   <div>
     <h1>Trạm việc tay (Tạo clip trong Muse / Gemini / Flow)</h1>
     <p class="muted">Tạo phiếu prompt chuẩn 9:16, làm clip trong ứng dụng gói thuê bao ($0 API), rồi tải file MP4 lên đây hoặc thả vào thư mục <code>inbox/ticket_&lt;id&gt;.mp4</code>.</p>
@@ -27,7 +27,7 @@
   {% if not tickets %}
     <p class="muted empty-state">Chưa có phiếu việc tay nào.</p>
   {% else %}
-    <table class="table">
+    <div class="table-wrap"><table class="table">
       <thead>
         <tr>
           <th>Phiếu</th>
@@ -55,7 +55,7 @@
         </tr>
         {% endfor %}
       </tbody>
-    </table>
+    </table></div>
   {% endif %}
 </section>
 {% endblock %}

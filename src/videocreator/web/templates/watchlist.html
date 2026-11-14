@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Danh sách theo dõi Xu hướng — Video Creator{% endblock %}
 {% block content %}
-<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;">
+<div class="page-header">
   <h1>Danh sách Theo dõi Xu hướng (Watchlist)</h1>
   <div>
     <a href="/trends" class="btn">Xem kết quả xếp hạng</a>
@@ -23,7 +23,7 @@
 <div class="grid-2">
   <section class="card">
     <h2>1. Trạng thái các Nguồn Xu hướng</h2>
-    <table class="table">
+    <div class="table-wrap"><table class="table">
       <thead>
         <tr>
           <th>Nguồn</th>
@@ -46,7 +46,7 @@
         </tr>
         {% endfor %}
       </tbody>
-    </table>
+    </table></div>
   </section>
 
   <section class="card">
@@ -84,7 +84,7 @@
 <section class="card">
   <h2>Danh sách đang theo dõi ({{ watch_items|length }})</h2>
   {% if watch_items %}
-    <table class="table">
+    <div class="table-wrap"><table class="table">
       <thead>
         <tr>
           <th>ID</th>
@@ -127,7 +127,7 @@
         </tr>
         {% endfor %}
       </tbody>
-    </table>
+    </table></div>
   {% else %}
     <p class="muted empty-state">Chưa có mục theo dõi nào.</p>
   {% endif %}

@@ -29,6 +29,8 @@
   --color-nav-bg: #141923;
   --color-nav-text: #cbd5e1;
   --color-nav-text-strong: #ffffff;
+  --color-nav-text-muted: #9aa6b8;
+  --color-nav-accent: #7db4ee;
   --color-nav-hover: #2b3648;
   --color-nav-border: #2b3648;
   --color-overlay: rgba(10, 14, 20, 0.55);
@@ -84,6 +86,8 @@
   --color-nav-bg: #0b0e13;
   --color-nav-text: #c3cbd8;
   --color-nav-text-strong: #ffffff;
+  --color-nav-text-muted: #8e99ab;
+  --color-nav-accent: #7db4ee;
   --color-nav-hover: #1f2735;
   --color-nav-border: #232b39;
   --color-overlay: rgba(0, 0, 0, 0.65);
@@ -182,50 +186,230 @@ img {
 }
 
 /* ==========================================================================
-   Top bar
+   App shell: fixed sidebar, thin header, only <main> scrolls
    ========================================================================== */
-.topbar {
-  background: var(--color-nav-bg);
-  color: var(--color-nav-text-strong);
-  padding: 0.65rem 1.25rem;
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+}
+
+.app-shell {
   display: flex;
-  flex-wrap: wrap;
+  height: 100vh;
+}
+
+.sidebar {
+  flex: none;
+  width: 15rem;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-nav-bg);
+  color: var(--color-nav-text);
+  border-right: 1px solid var(--color-nav-border);
+}
+
+.sidebar-brand {
+  flex: none;
+  display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
+  height: 3.25rem;
+  padding: 0 var(--space-3) 0 var(--space-4);
   font-weight: 700;
   font-size: 1.05rem;
+  border-bottom: 1px solid var(--color-nav-border);
 }
 
-.brand a {
+.sidebar-brand a {
   color: var(--color-nav-text-strong);
   text-decoration: none;
-}
-
-.nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-}
-
-.nav a {
-  color: var(--color-nav-text);
-  text-decoration: none;
-  font-size: 0.88rem;
-  padding: 0.3rem 0.55rem;
   border-radius: var(--radius-sm);
 }
 
-.nav a:hover,
-.nav a.active {
+.sidebar .sidebar-close {
+  display: none;
+}
+
+.sidebar .icon-btn:hover {
   background: var(--color-nav-hover);
   color: var(--color-nav-text-strong);
+}
+
+.sidebar-nav {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-3) var(--space-2);
+}
+
+.nav-group + .nav-group {
+  margin-top: var(--space-4);
+}
+
+.nav-group-title {
+  margin: 0 0 var(--space-1);
+  padding: 0 var(--space-2);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-nav-text-muted);
+}
+
+.nav-group ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0.45rem var(--space-2);
+  border-radius: var(--radius-md);
+  color: var(--color-nav-text);
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+
+.nav-link:hover {
+  background: var(--color-nav-hover);
+  color: var(--color-nav-text-strong);
+}
+
+.nav-link[aria-current="page"] {
+  background: var(--color-nav-hover);
+  color: var(--color-nav-text-strong);
+  font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--color-nav-accent);
+}
+
+.sidebar-footer {
+  flex: none;
+  padding: var(--space-3) var(--space-4);
+  font-size: 0.78rem;
+  color: var(--color-nav-text-muted);
+  border-top: 1px solid var(--color-nav-border);
+}
+
+.sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: var(--color-overlay);
+}
+
+.app-body {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: 3.25rem;
+  padding: 0 var(--space-4);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.app-header-title {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  font-size: 1rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-header .badge {
+  text-transform: uppercase;
+}
+
+.app-header .icon-btn:hover {
+  background: var(--color-surface-hover);
+}
+
+.app-header .menu-toggle {
+  display: none;
+}
+
+.app-main {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.app-main:focus {
+  outline: none;
+}
+
+/* Wide tables scroll inside their card instead of stretching the page. */
+.table-wrap {
+  overflow-x: auto;
+}
+
+/* Narrow window: the sidebar becomes a drawer opened from the header button. */
+@media (max-width: 899px) {
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 100;
+    width: min(17rem, 85vw);
+    box-shadow: var(--shadow-lg);
+    transform: translateX(-100%);
+    visibility: hidden;
+  }
+
+  .sidebar.is-open {
+    transform: none;
+    visibility: visible;
+  }
+
+  .sidebar .sidebar-close,
+  .app-header .menu-toggle {
+    display: inline-flex;
+  }
+
+  .drawer-open .app-main {
+    overflow: hidden;
+  }
+
+  .container {
+    margin: var(--space-4) auto;
+    padding: 0 var(--space-3);
+  }
+
+  .card {
+    padding: var(--space-3);
+  }
+}
+
+@media (min-width: 900px) {
+  .sidebar-backdrop {
+    display: none;
+  }
+}
+
+@media (max-width: 899px) and (prefers-reduced-motion: no-preference) {
+  /* Closing: stay visible until the slide ends. Opening: visible at once, so focus can move in. */
+  .sidebar {
+    transition: transform 200ms ease-out, visibility 0s linear 200ms;
+  }
+
+  .sidebar.is-open {
+    transition: transform 200ms ease-out;
+  }
 }
 
 /* Inline SVG icons: stroke follows the text colour. */
@@ -259,10 +443,6 @@ img {
   outline-offset: 2px;
 }
 
-.topbar .icon-btn:hover {
-  background: var(--color-nav-hover);
-}
-
 /* The toggle shows the theme it switches to: moon in light mode, sun in dark mode. */
 .theme-toggle .icon-sun,
 :root[data-theme="dark"] .theme-toggle .icon-moon {
@@ -279,7 +459,7 @@ img {
 .container {
   max-width: 1280px;
   margin: var(--space-5) auto;
-  padding: 0 var(--space-4);
+  padding: 0 var(--space-5);
 }
 
 .grid-2 {
@@ -463,13 +643,6 @@ img {
   background: var(--color-accent-soft);
   color: var(--color-accent);
   border-color: transparent;
-}
-
-.topbar .badge {
-  background: var(--color-nav-hover);
-  color: var(--color-nav-text);
-  border-color: transparent;
-  text-transform: uppercase;
 }
 
 .stat-chips {
@@ -1018,6 +1191,12 @@ small {
   display: none;
 }
 
+.page-skeleton {
+  max-width: 1280px;
+  margin: var(--space-5) auto;
+  padding: 0 var(--space-5);
+}
+
 .empty-state {
   margin: var(--space-2) 0 0;
   padding: var(--space-4);
@@ -1053,7 +1232,7 @@ small {
 @media (prefers-reduced-motion: no-preference) {
   .btn,
   .icon-btn,
-  .nav a,
+  .nav-link,
   .input,
   .select,
   .textarea,
@@ -1079,7 +1258,7 @@ small {
   /* Active: press in. */
   .btn:active:not(:disabled),
   .icon-btn:active,
-  .nav a:active,
+  .nav-link:active,
   .chip:active {
     transform: scale(0.97);
     box-shadow: none;

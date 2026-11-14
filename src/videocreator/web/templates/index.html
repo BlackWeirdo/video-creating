@@ -6,7 +6,7 @@
 <div class="grid-2">
   <section class="card">
     <h2>Footage theo trạng thái</h2>
-    <table class="table">
+    <div class="table-wrap"><table class="table">
       <thead>
         <tr>
           <th>Trạng thái</th>
@@ -19,12 +19,12 @@
         <tr><td>Đã phân tích (analysed)</td><td><strong>{{ stats.footage_counts.analysed }}</strong></td></tr>
         <tr><td>Lỗi (failed)</td><td><strong>{{ stats.footage_counts.failed }}</strong></td></tr>
       </tbody>
-    </table>
+    </table></div>
   </section>
 
   <section class="card">
     <h2>Chi phí & Lượt gọi AI hôm nay ({{ stats.ai_today.day }})</h2>
-    <table class="table">
+    <div class="table-wrap"><table class="table">
       <tbody>
         <tr>
           <td>Lượt qua gói thuê bao (CLI)</td>
@@ -47,7 +47,7 @@
           <td><strong>${{ "%.4f"|format(stats.ai_today.studio_api_cost_usd) }}</strong> / ${{ "%.2f"|format(stats.ai_today.studio_limit_usd) }}</td>
         </tr>
       </tbody>
-    </table>
+    </table></div>
   </section>
 </div>
 
@@ -75,7 +75,7 @@
       {% endfor %}
     </div>
     {% if stats.recent_jobs %}
-      <table class="table">
+      <div class="table-wrap"><table class="table">
         <thead>
           <tr>
             <th>ID</th>
@@ -96,7 +96,7 @@
           </tr>
           {% endfor %}
         </tbody>
-      </table>
+      </table></div>
     {% else %}
       <p class="muted empty-state">Chưa có công việc nào trong hàng đợi.</p>
     {% endif %}
@@ -105,7 +105,7 @@
   <section class="card">
     <h2>Tình trạng nhà cung cấp AI</h2>
     {% if stats.provider_states %}
-      <table class="table">
+      <div class="table-wrap"><table class="table">
         <thead>
           <tr>
             <th>Nhà cung cấp</th>
@@ -122,7 +122,7 @@
           </tr>
           {% endfor %}
         </tbody>
-      </table>
+      </table></div>
     {% else %}
       <p class="muted empty-state">Tất cả nhà cung cấp đều ở trạng thái sẵn sàng.</p>
     {% endif %}

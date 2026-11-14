@@ -117,7 +117,7 @@
 <section class="card">
   <h2>Danh sách Tài khoản đã kết nối ({{ accounts|length }})</h2>
   {% if accounts %}
-    <table class="table">
+    <div class="table-wrap"><table class="table">
       <thead>
         <tr>
           <th>ID</th>
@@ -176,7 +176,7 @@
         </tr>
         {% endfor %}
       </tbody>
-    </table>
+    </table></div>
   {% else %}
     <p class="muted empty-state">Chưa có tài khoản nào được kết nối.</p>
   {% endif %}

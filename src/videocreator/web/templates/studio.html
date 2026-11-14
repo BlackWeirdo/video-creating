@@ -22,7 +22,7 @@
   </label>
 {% endmacro %}
 {% block content %}
-<div class="page-header" style="display:flex;justify-content:space-between;align-items:center;">
+<div class="page-header">
   <div>
     <h1>Chế độ Studio (Agent + <code>rea-video</code> + <code>video-shotcraft</code>)</h1>
     <p class="muted">Dựng theo prompt tự do, ưu tiên chạy qua <code>claude -p</code> bằng gói thuê bao ($0). Kiểm tra mã <code>.tsx</code> nghiêm ngặt theo <code>BR-PRD-02</code>. Ngân sách Studio hôm nay: ${{ '%.2f'|format(studio_spent) }} / ${{ '%.2f'|format(settings.budget.studio_daily_usd) }}</p>
@@ -56,7 +56,7 @@
   {% if not templates %}
     <p class="muted empty-state">Chưa có mẫu Studio nào được lưu.</p>
   {% else %}
-    <table class="table">
+    <div class="table-wrap"><table class="table">
       <thead>
         <tr>
           <th>ID</th>
@@ -87,7 +87,7 @@
         </tr>
         {% endfor %}
       </tbody>
-    </table>
+    </table></div>
   {% endif %}
 </section>
 
@@ -96,7 +96,7 @@
   {% if not sessions %}
     <p class="muted empty-state">Chưa có phiên Studio nào.</p>
   {% else %}
-    <table class="table">
+    <div class="table-wrap"><table class="table">
       <thead>
         <tr>
           <th>Phiên</th>
@@ -114,7 +114,7 @@
             <div>{{ s.prompt }}</div>
             <small class="muted">Số phiên bản: {{ s.versions|length }}</small>
             {% if s.plan_rows %}
-              <table class="table" style="margin-top:0.5rem;">
+              <div class="table-wrap"><table class="table" style="margin-top:0.5rem;">
                 <thead><tr><th>Cảnh</th><th>Shot của mình</th><th>Đoạn lấy</th><th>Phụ đề / lời</th></tr></thead>
                 <tbody>
                   {% for row in s.plan_rows %}
@@ -126,7 +126,7 @@
                   </tr>
                   {% endfor %}
                 </tbody>
-              </table>
+              </table></div>
               <form method="post" action="/studio/{{ s.id }}/confirm">
                 <button type="submit" class="btn">Kịch bản ổn, dựng video</button>
               </form>
@@ -152,7 +152,7 @@
         </tr>
         {% endfor %}
       </tbody>
-    </table>
+    </table></div>
   {% endif %}
 </section>
 {% endblock %}

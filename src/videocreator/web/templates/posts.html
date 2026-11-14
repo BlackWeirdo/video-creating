@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Lịch đăng & Lịch sử bài đăng — Video Creator{% endblock %}
 {% block content %}
-<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;">
+<div class="page-header">
   <h1>Lịch đăng & Lịch sử xuất bản</h1>
   <form method="post" action="/schedule/toggle-pause">
     {% if posting_paused %}
@@ -32,7 +32,7 @@
   <h2>1. Video đã duyệt — Đăng ngay hoặc Hẹn giờ ({{ approved_videos|length }})</h2>
   <p class="small muted">Khung giờ tự động mặc định ({{ settings.schedule.timezone }}): <code>{{ settings.schedule.slots|join(", ") }}</code></p>
   {% if approved_videos %}
-    <table class="table">
+    <div class="table-wrap"><table class="table">
       <thead>
         <tr>
           <th>Video ID</th>
@@ -74,7 +74,7 @@
         </tr>
         {% endfor %}
       </tbody>
-    </table>
+    </table></div>
   {% else %}
     <p class="muted empty-state">Chưa có video nào ở trạng thái <code>approved</code>. Hãy duyệt video tại mục <a href="/approval">Chờ duyệt</a>.</p>
   {% endif %}
@@ -83,7 +83,7 @@
 <section class="card">
   <h2>2. Lịch sử & Hàng đợi Posts ({{ posts|length }})</h2>
   {% if posts %}
-    <table class="table">
+    <div class="table-wrap"><table class="table">
       <thead>
         <tr>
           <th>Post ID</th>
@@ -143,7 +143,7 @@
         </tr>
         {% endfor %}
       </tbody>
-    </table>
+    </table></div>
   {% else %}
     <p class="muted empty-state">Chưa có lệnh đăng bài nào.</p>
   {% endif %}

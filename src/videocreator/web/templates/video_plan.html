@@ -69,7 +69,7 @@
       </div>
 
       <h3>Các đoạn shot trong kịch bản ({{ editing_video.shots|length }} đoạn)</h3>
-      <table class="table">
+      <div class="table-wrap"><table class="table">
         <thead>
           <tr>
             <th>Thứ tự</th>
@@ -101,7 +101,7 @@
           </tr>
           {% endfor %}
         </tbody>
-      </table>
+      </table></div>
 
       <h3>4 Bộ Caption riêng từng nền tảng (FR-PLN-05)</h3>
       <div class="grid-2">
@@ -138,7 +138,7 @@
 <section class="card">
   <h2>Tất cả Video & Kịch bản</h2>
   {% if videos %}
-    <table class="table">
+    <div class="table-wrap"><table class="table">
       <thead>
         <tr>
           <th>ID</th>
@@ -189,7 +189,7 @@
         </tr>
         {% endfor %}
       </tbody>
-    </table>
+    </table></div>
   {% else %}
     <p class="muted empty-state">Chưa có kịch bản nào. Hãy vào trang <a href="/footage">Footage</a> và bấm "Tạo kịch bản".</p>
   {% endif %}

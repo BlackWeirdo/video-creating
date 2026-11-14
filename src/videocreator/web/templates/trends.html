@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Kết quả Xu hướng & Xếp hạng — Video Creator{% endblock %}
 {% block content %}
-<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;">
+<div class="page-header">
   <h1>Xu hướng & Xếp hạng theo Nguồn</h1>
   <div style="display:flex;gap:0.5rem;">
     <a href="/watchlist" class="btn">Danh sách theo dõi (Watchlist)</a>
@@ -47,7 +47,7 @@
 <section class="card">
   <h2>Danh sách bài xu hướng ({{ trend_items|length }})</h2>
   {% if trend_items %}
-    <table class="table">
+    <div class="table-wrap"><table class="table">
       <thead>
         <tr>
           <th>Nguồn</th>
@@ -92,7 +92,7 @@
         </tr>
         {% endfor %}
       </tbody>
-    </table>
+    </table></div>
   {% else %}
     <p class="muted empty-state">Chưa có dữ liệu xu hướng. Hãy thêm mục vào <a href="/watchlist">Watchlist</a> và bấm <strong>Quét ngay</strong>.</p>
   {% endif %}

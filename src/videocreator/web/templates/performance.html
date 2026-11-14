@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Hiệu quả bài đăng — Video Creator{% endblock %}
 {% block content %}
-<div class="page-header" style="display:flex;justify-content:space-between;align-items:center;">
+<div class="page-header">
   <div>
     <h1>Hiệu quả bài đăng (24h / 72h / 7 ngày)</h1>
     <p class="muted">Số liệu chụp ở các mốc cố định để so sánh công bằng giữa các công thức kịch bản và nguồn đề xuất.</p>
@@ -25,7 +25,7 @@
   {% if not rows %}
     <p class="muted empty-state">Chưa có bài đăng nào ở trạng thái đã đăng.</p>
   {% else %}
-    <table class="table">
+    <div class="table-wrap"><table class="table">
       <thead>
         <tr>
           <th>Post</th>
@@ -72,7 +72,7 @@
         </tr>
         {% endfor %}
       </tbody>
-    </table>
+    </table></div>
   {% endif %}
 </section>
 {% endblock %}

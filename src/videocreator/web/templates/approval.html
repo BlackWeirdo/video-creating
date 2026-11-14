@@ -150,7 +150,7 @@
 {% if recent_decided %}
   <section class="card">
     <h2>Lịch sử duyệt gần đây</h2>
-    <table class="table">
+    <div class="table-wrap"><table class="table">
       <thead>
         <tr>
           <th>Video ID</th>
@@ -169,7 +169,7 @@
         </tr>
         {% endfor %}
       </tbody>
-    </table>
+    </table></div>
   </section>
 {% endif %}
 {% endblock %}

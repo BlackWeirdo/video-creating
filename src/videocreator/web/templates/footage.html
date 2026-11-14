@@ -85,7 +85,7 @@
 <section class="card">
   <h2>Danh sách Footage đã nạp ({{ footage_items|length }})</h2>
   {% if footage_items %}
-    <table class="table">
+    <div class="table-wrap"><table class="table">
       <thead>
         <tr>
           <th>ID</th>
@@ -189,7 +189,7 @@
         </tr>
         {% endfor %}
       </tbody>
-    </table>
+    </table></div>
   {% else %}
     <p class="muted empty-state">Chưa có footage nào được nạp.</p>
   {% endif %}

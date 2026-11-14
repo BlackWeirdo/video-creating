@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Settings — Video Creator{% endblock %}
 {% block content %}
-<div style="display:flex;justify-content:space-between;align-items:center;">
+<div class="page-header">
   <h1>Cài đặt hệ thống (Settings)</h1>
   <a href="/ai-routes" class="btn btn-primary">Trạng thái định tuyến AI & Kiểm tra CLI gói thuê bao</a>
 </div>
@@ -127,7 +127,7 @@
     <h2>Kho bí mật (Secrets Store)</h2>
     <p class="muted">Các khoá API và token được mã hoá bằng DPAPI trên Windows (hoặc quyền 600 trên Linux). Giá trị chỉ ghi, không bao giờ hiển thị lại.</p>
 
-    <table class="table">
+    <div class="table-wrap"><table class="table">
       <thead>
         <tr>
           <th>Tên khoá</th>
@@ -162,7 +162,7 @@
         </tr>
         {% endfor %}
       </tbody>
-    </table>
+    </table></div>
 
     <h3>Thêm khoá bí mật khác</h3>
     <form method="post" action="/settings/secrets" class="form">

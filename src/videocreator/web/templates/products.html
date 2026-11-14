@@ -62,7 +62,7 @@
     </div>
 
     {% if products %}
-      <table class="table">
+      <div class="table-wrap"><table class="table">
         <thead>
           <tr>
             <th>ID</th>
@@ -98,7 +98,7 @@
           </tr>
           {% endfor %}
         </tbody>
-      </table>
+      </table></div>
     {% else %}
       <p class="muted empty-state">Chưa có sản phẩm nào. Hãy thêm sản phẩm trước khi nạp footage.</p>
     {% endif %}
