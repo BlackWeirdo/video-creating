@@ -13,14 +13,14 @@
 </div>
 
 {% if msg == "scan_queued" %}
-  <div class="alert alert-success">Đã đưa việc quét xu hướng, phân tích và sinh đề xuất vào hàng đợi xử lý!</div>
+  <div class="alert alert-success" data-toast="success">Đã đưa việc quét xu hướng, phân tích và sinh đề xuất vào hàng đợi xử lý!</div>
 {% elif msg == "reference_uploaded" %}
-  <div class="alert alert-success">Đã nạp video tham khảo nội bộ vào <code>media/reference/</code> (tự xoá sau 7 ngày).</div>
+  <div class="alert alert-success" data-toast="success">Đã nạp video tham khảo nội bộ vào <code>media/reference/</code> (tự xoá sau 7 ngày).</div>
 {% elif msg == "link_added" %}
-  <div class="alert alert-success">Đã thêm video. App đang tải và phân tích (thường 5–25 phút), rồi ưu tiên đưa vào đề xuất.</div>
+  <div class="alert alert-success" data-toast="success">Đã thêm video. App đang tải và phân tích (thường 5–25 phút), rồi ưu tiên đưa vào đề xuất.</div>
 {% endif %}
 {% if err %}
-  <div class="alert alert-danger">{{ err }}</div>
+  <div class="alert alert-danger" data-toast="error">{{ err }}</div>
 {% endif %}
 
 <section class="card">

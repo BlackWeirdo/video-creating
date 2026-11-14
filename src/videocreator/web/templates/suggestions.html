@@ -10,11 +10,11 @@
 </div>
 
 {% if msg == "accepted" %}
-  <div class="alert alert-success">Đã nhận đề xuất và đẩy việc lập kịch bản vào hàng đợi!</div>
+  <div class="alert alert-success" data-toast="success">Đã nhận đề xuất và đẩy việc lập kịch bản vào hàng đợi!</div>
 {% elif msg == "dismissed" %}
-  <div class="alert alert-success">Đã bỏ qua đề xuất.</div>
+  <div class="alert alert-success" data-toast="success">Đã bỏ qua đề xuất.</div>
 {% elif msg == "already_handled" %}
-  <div class="alert">Đề xuất này đã được xử lý trước đó.</div>
+  <div class="alert" data-toast="warning">Đề xuất này đã được xử lý trước đó.</div>
 {% endif %}
 
 <section class="card">

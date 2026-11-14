@@ -8,11 +8,11 @@
 <p class="muted">Thư mục dữ liệu: <code>{{ data_dir }}</code></p>
 
 {% if saved == "config" %}
-  <div class="alert alert-success">Đã lưu cấu hình vào <code>config.toml</code>.</div>
+  <div class="alert alert-success" data-toast="success">Đã lưu cấu hình vào <code>config.toml</code>.</div>
 {% elif saved == "secret" %}
-  <div class="alert alert-success">Đã cập nhật kho bí mật (<code>secrets.bin</code>).</div>
+  <div class="alert alert-success" data-toast="success">Đã cập nhật kho bí mật (<code>secrets.bin</code>).</div>
 {% elif saved == "error" %}
-  <div class="alert alert-danger">Dữ liệu nhập không hợp lệ.</div>
+  <div class="alert alert-danger" data-toast="error">Dữ liệu nhập không hợp lệ.</div>
 {% endif %}
 
 <div class="grid-2">
@@ -181,7 +181,7 @@
     <hr class="divider">
     <h2>Chuyển máy: Xuất / Nhập cấu hình (.vcx)</h2>
     <p class="muted small">Gói <code>.vcx</code> gồm <code>config.toml</code>, <code>app.db</code> và khoá bí mật được mã hoá lại bằng mật khẩu bạn nhập (scrypt + Fernet).</p>
-    <form method="post" action="/settings/export" class="inline-secret-form" style="margin-bottom:0.75rem;">
+    <form method="post" action="/settings/export" data-native class="inline-secret-form" style="margin-bottom:0.75rem;">
       <input class="input" type="password" name="password" placeholder="Mật khẩu mã hoá (>=4 ký tự)" required>
       <button type="submit" class="btn btn-primary btn-small">Xuất file .vcx</button>
     </form>

@@ -4,11 +4,11 @@
 <h1>Danh sách Video & Kịch bản ({{ videos|length }})</h1>
 
 {% if msg == "plan_queued" %}
-  <div class="alert alert-success">Đã xếp hàng job sinh kịch bản remix (sẽ xuất hiện bên dưới sau khi hoàn tất).</div>
+  <div class="alert alert-success" data-toast="success">Đã xếp hàng job sinh kịch bản remix (sẽ xuất hiện bên dưới sau khi hoàn tất).</div>
 {% elif msg == "plan_saved" %}
-  <div class="alert alert-success">Đã lưu chỉnh sửa kịch bản và caption.</div>
+  <div class="alert alert-success" data-toast="success">Đã lưu chỉnh sửa kịch bản và caption.</div>
 {% elif msg == "render_queued" %}
-  <div class="alert alert-success">Đã xếp hàng job dựng video MP4 9:16 (Render).</div>
+  <div class="alert alert-success" data-toast="success">Đã xếp hàng job dựng video MP4 9:16 (Render).</div>
 {% endif %}
 
 {% if editing_video %}

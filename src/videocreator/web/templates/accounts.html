@@ -4,7 +4,7 @@
 <h1>Quản lý Tài khoản Đăng bài (Facebook, Instagram, Threads, TikTok)</h1>
 
 {% if msg %}
-  <div class="alert alert-success">
+  <div class="alert alert-success" data-toast="success">
     {% if msg.startswith("connected_") %}
       Đã tự động tìm thấy và lưu {{ msg.split("_")[1] }} tài khoản Page / Instagram Business!
     {% elif msg.startswith("oauth_") %}
@@ -23,7 +23,7 @@
   </div>
 {% endif %}
 {% if err %}
-  <div class="alert alert-error">{{ err }}</div>
+  <div class="alert alert-error" data-toast="error">{{ err }}</div>
 {% endif %}
 
 <div class="grid-2">

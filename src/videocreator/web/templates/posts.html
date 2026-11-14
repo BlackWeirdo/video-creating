@@ -13,19 +13,19 @@
 </div>
 
 {% if msg == "scheduled" %}
-  <div class="alert alert-success">Đã xếp lịch đăng cho các tài khoản đã chọn.</div>
+  <div class="alert alert-success" data-toast="success">Đã xếp lịch đăng cho các tài khoản đã chọn.</div>
 {% elif msg == "posted_now" %}
-  <div class="alert alert-success">Đã thực thi lệnh đăng ngay! Kiểm tra kết quả ở bảng lịch sử bên dưới.</div>
+  <div class="alert alert-success" data-toast="success">Đã thực thi lệnh đăng ngay! Kiểm tra kết quả ở bảng lịch sử bên dưới.</div>
 {% elif msg == "retried" %}
-  <div class="alert alert-success">Đã đặt lại trạng thái thử lại cho bài đăng.</div>
+  <div class="alert alert-success" data-toast="success">Đã đặt lại trạng thái thử lại cho bài đăng.</div>
 {% elif msg == "rescheduled" %}
-  <div class="alert alert-success">Đã đổi giờ hẹn đăng bài.</div>
+  <div class="alert alert-success" data-toast="success">Đã đổi giờ hẹn đăng bài.</div>
 {% elif msg == "cancelled" %}
-  <div class="alert alert-success">Đã huỷ bài đăng chưa xuất bản.</div>
+  <div class="alert alert-success" data-toast="success">Đã huỷ bài đăng chưa xuất bản.</div>
 {% elif msg == "confirmed_posted" %}
-  <div class="alert alert-success">Đã xác nhận bài đăng TikTok hộp nháp đã lên sóng.</div>
+  <div class="alert alert-success" data-toast="success">Đã xác nhận bài đăng TikTok hộp nháp đã lên sóng.</div>
 {% elif msg == "pause_toggled" %}
-  <div class="alert alert-success">Đã cập nhật trạng thái tạm dừng/chạy lại lịch đăng tự động.</div>
+  <div class="alert alert-success" data-toast="success">Đã cập nhật trạng thái tạm dừng/chạy lại lịch đăng tự động.</div>
 {% endif %}
 
 <section class="card">

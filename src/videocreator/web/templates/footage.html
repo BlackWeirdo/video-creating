@@ -4,7 +4,7 @@
 <h1>Nạp & Phân tích Footage thô</h1>
 
 {% if msg %}
-  <div class="alert alert-success">
+  <div class="alert alert-success" data-toast="success">
     {% if msg == "imported" %}
       Đã nạp footage và xếp hàng phân tích shot.
     {% elif msg.startswith("imported_") %}
@@ -19,7 +19,7 @@
   </div>
 {% endif %}
 {% if err %}
-  <div class="alert alert-error">{{ err }}</div>
+  <div class="alert alert-error" data-toast="error">{{ err }}</div>
 {% endif %}
 
 <div class="grid-2">

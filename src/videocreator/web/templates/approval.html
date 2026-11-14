@@ -4,17 +4,17 @@
 <h1>Hàng chờ duyệt trước khi đăng ({{ pending_videos|length }} video)</h1>
 
 {% if msg == "approved" %}
-  <div class="alert alert-success">Đã duyệt video! Video sẵn sàng để xếp lịch hoặc đăng lên các nền tảng.</div>
+  <div class="alert alert-success" data-toast="success">Đã duyệt video! Video sẵn sàng để xếp lịch hoặc đăng lên các nền tảng.</div>
 {% elif msg == "rejected" %}
-  <div class="alert alert-success">Đã loại video khỏi hàng chờ.</div>
+  <div class="alert alert-success" data-toast="success">Đã loại video khỏi hàng chờ.</div>
 {% elif msg == "redone" %}
-  <div class="alert alert-success">Đã tạo bản làm lại với bộ shot/công thức khác và đẩy vào hàng đợi xử lý!</div>
+  <div class="alert alert-success" data-toast="success">Đã tạo bản làm lại với bộ shot/công thức khác và đẩy vào hàng đợi xử lý!</div>
 {% elif msg == "redo_limit" %}
-  <div class="alert alert-error">Video này đã đạt giới hạn tối đa 2 lần bấm Làm lại hoặc đã được xử lý.</div>
+  <div class="alert alert-error" data-toast="error">Video này đã đạt giới hạn tối đa 2 lần bấm Làm lại hoặc đã được xử lý.</div>
 {% elif msg == "cover_saved" %}
-  <div class="alert alert-success">Đã cập nhật ảnh bìa (cover) cho video.</div>
+  <div class="alert alert-success" data-toast="success">Đã cập nhật ảnh bìa (cover) cho video.</div>
 {% elif msg == "already_decided" %}
-  <div class="alert alert-error">Video này đã được người khác xử lý trước đó (qua UI hoặc Telegram).</div>
+  <div class="alert alert-error" data-toast="error">Video này đã được người khác xử lý trước đó (qua UI hoặc Telegram).</div>
 {% endif %}
 
 {% if pending_videos %}

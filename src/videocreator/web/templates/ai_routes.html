@@ -5,12 +5,12 @@
 
 {% if msg == "cli_checked" %}
   {% if cli_status == "ok" %}
-    <div class="alert alert-success">Kiểm tra <code>claude -p</code> thành công! Gói thuê bao sẵn sàng phục vụ.</div>
+    <div class="alert alert-success" data-toast="success">Kiểm tra <code>claude -p</code> thành công! Gói thuê bao sẵn sàng phục vụ.</div>
   {% else %}
-    <div class="alert alert-error">Kiểm tra <code>claude -p</code> thất bại. Xem chi tiết ở bảng trạng thái bên dưới.</div>
+    <div class="alert alert-error" data-toast="error">Kiểm tra <code>claude -p</code> thất bại. Xem chi tiết ở bảng trạng thái bên dưới.</div>
   {% endif %}
 {% elif msg == "provider_woken" %}
-  <div class="alert alert-success">Đã xoá trạng thái nghỉ của provider và kích hoạt lại các job đang chờ hạn mức.</div>
+  <div class="alert alert-success" data-toast="success">Đã xoá trạng thái nghỉ của provider và kích hoạt lại các job đang chờ hạn mức.</div>
 {% endif %}
 
 <div class="grid-2">

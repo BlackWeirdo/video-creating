@@ -10,14 +10,14 @@
 </div>
 
 {% if msg == "added" %}
-  <div class="alert alert-success">Đã thêm mục theo dõi vào Watchlist.</div>
+  <div class="alert alert-success" data-toast="success">Đã thêm mục theo dõi vào Watchlist.</div>
 {% elif msg == "toggled" %}
-  <div class="alert alert-success">Đã bật/tắt mục theo dõi.</div>
+  <div class="alert alert-success" data-toast="success">Đã bật/tắt mục theo dõi.</div>
 {% elif msg == "deleted" %}
-  <div class="alert alert-success">Đã xoá mục theo dõi.</div>
+  <div class="alert alert-success" data-toast="success">Đã xoá mục theo dõi.</div>
 {% endif %}
 {% if err %}
-  <div class="alert alert-danger">{{ err }}</div>
+  <div class="alert alert-danger" data-toast="error">{{ err }}</div>
 {% endif %}
 
 <div class="grid-2">

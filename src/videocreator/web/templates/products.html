@@ -4,11 +4,11 @@
 <h1>Quản lý sản phẩm (Nguồn sự thật cho lời & caption)</h1>
 
 {% if msg == "saved" %}
-  <div class="alert alert-success">Đã lưu thông tin sản phẩm.</div>
+  <div class="alert alert-success" data-toast="success">Đã lưu thông tin sản phẩm.</div>
 {% elif msg == "deleted" %}
-  <div class="alert alert-success">Đã xoá sản phẩm chưa gắn footage.</div>
+  <div class="alert alert-success" data-toast="success">Đã xoá sản phẩm chưa gắn footage.</div>
 {% elif msg == "hidden" %}
-  <div class="alert alert-success">Sản phẩm đang gắn với footage/video nên đã được ẩn (giữ lịch sử truy vết theo FR-PRD-02).</div>
+  <div class="alert alert-success" data-toast="success">Sản phẩm đang gắn với footage/video nên đã được ẩn (giữ lịch sử truy vết theo FR-PRD-02).</div>
 {% endif %}
 
 <div class="grid-2">

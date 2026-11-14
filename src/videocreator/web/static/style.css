@@ -768,3 +768,139 @@ small {
   font-size: 0.82rem;
   padding: var(--space-5) var(--space-4);
 }
+
+/* ==========================================================================
+   Toast notifications (static/toast.js)
+   ========================================================================== */
+.toast-region {
+  position: fixed;
+  right: var(--space-4);
+  bottom: var(--space-4);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: min(26rem, calc(100vw - 2 * var(--space-4)));
+  pointer-events: none;
+}
+
+.toast {
+  --toast-color: var(--color-primary);
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-left: 4px solid var(--toast-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+}
+
+.toast-success {
+  --toast-color: var(--color-success);
+}
+
+.toast-error {
+  --toast-color: var(--color-danger);
+}
+
+.toast-warning {
+  --toast-color: var(--color-warning);
+}
+
+.toast > .icon {
+  color: var(--toast-color);
+  margin-top: 0.05rem;
+}
+
+.toast-message {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.toast-close {
+  flex: none;
+  display: inline-flex;
+  padding: 0.15rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.toast-close:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+.toast-close:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
+}
+
+.toast-close .icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.toast.is-leaving {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .toast {
+    animation: toast-in 200ms ease-out;
+    transition: opacity 150ms ease-in, transform 150ms ease-in;
+  }
+
+  .toast.is-leaving {
+    transform: translateX(1rem);
+  }
+
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(0.5rem);
+    }
+  }
+}
+
+/* Server flash messages are shown as toasts once scripts run; no flash of the inline box. */
+.js [data-toast] {
+  display: none;
+}
+
+/* A submit button while its form is being sent. */
+.btn.is-loading {
+  cursor: progress;
+}
+
+.btn.is-loading::after {
+  content: "";
+  display: inline-block;
+  width: 0.8em;
+  height: 0.8em;
+  margin-left: 0.45em;
+  vertical-align: -0.1em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: var(--radius-pill);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .btn.is-loading::after {
+    animation: spin 700ms linear infinite;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+}
