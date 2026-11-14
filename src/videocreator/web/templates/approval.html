@@ -76,7 +76,7 @@
             </div>
           {% endif %}
           <form method="post" action="/videos/{{ v.id }}/cover" enctype="multipart/form-data" class="inline-secret-form" style="margin-top:0.4rem;">
-            <input class="input input-file" type="file" name="file" accept=".jpg,.jpeg,.png" required style="width:165px;">
+            <input class="input input-file" type="file" name="file" accept=".jpg,.jpeg,.png" required aria-label="Ảnh bìa mới cho video #{{ v.id }}" style="width:165px;">
             <button type="submit" class="btn btn-small">Đổi ảnh bìa</button>
           </form>
           <h3 style="margin-top:0.75rem;">Kiểm tra định dạng nền tảng (Preflight)</h3>
@@ -102,15 +102,15 @@
             {% for platform, label in [('facebook', 'Facebook Reels'), ('instagram', 'Instagram Reels'), ('threads', 'Threads (<=500 ký tự)'), ('tiktok', 'TikTok')] %}
             {% set cap = v.captions.get(platform, {'text': '', 'hashtags': []}) %}
             <div class="form-row">
-              <label>{{ label }}</label>
-              <input class="input" type="text" name="caption_{{ platform }}_text" value="{{ cap.text }}" placeholder="Nội dung caption {{ label }}">
-              <input class="input" type="text" name="caption_{{ platform }}_hashtags" value="{{ cap.hashtags|join(' ') }}" placeholder="#hashtag" style="margin-top:0.2rem;">
+              <label for="caption-{{ v.id }}-{{ platform }}">{{ label }}</label>
+              <input class="input" id="caption-{{ v.id }}-{{ platform }}" type="text" name="caption_{{ platform }}_text" value="{{ cap.text }}" placeholder="Nội dung caption {{ label }}">
+              <input class="input" type="text" name="caption_{{ platform }}_hashtags" aria-label="Hashtag {{ label }}" value="{{ cap.hashtags|join(' ') }}" placeholder="#hashtag" style="margin-top:0.2rem;">
             </div>
             {% endfor %}
 
             {% if accounts %}
-              <div class="form-row">
-                <label>Tài khoản đích sẽ đăng:</label>
+              <div class="form-row" role="group" aria-label="Tài khoản đích sẽ đăng video #{{ v.id }}">
+                <span class="field-label">Tài khoản đích sẽ đăng:</span>
                 <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
                   {% for acc in accounts %}
                     {% set plat_errs = v.preflight.get(acc.platform, []) %}
@@ -133,7 +133,7 @@
               </button>
             </form>
             <form method="post" action="/videos/{{ v.id }}/reject" class="inline-secret-form" style="flex:1;">
-              <input class="input" type="text" name="reason" placeholder="Lý do loại (tuỳ chọn)..." style="flex:1;">
+              <input class="input" type="text" name="reason" aria-label="Lý do loại video #{{ v.id }} (tuỳ chọn)" placeholder="Lý do loại (tuỳ chọn)..." style="flex:1;">
               <button type="submit" class="btn btn-danger">❌ Loại Video</button>
             </form>
           </div>

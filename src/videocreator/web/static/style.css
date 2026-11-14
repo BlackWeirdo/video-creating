@@ -678,7 +678,8 @@ body {
   gap: var(--space-1);
 }
 
-label {
+label,
+.field-label {
   font-size: 0.86rem;
   font-weight: 600;
 }
@@ -715,9 +716,10 @@ label {
 .input:focus,
 .select:focus,
 .textarea:focus {
-  outline: none;
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 0;
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px var(--color-primary-soft);
+  box-shadow: 0 0 0 4px var(--color-primary-soft);
 }
 
 .input:disabled,
@@ -1325,4 +1327,43 @@ small {
       transform: translateY(8px);
     }
   }
+}
+
+/* ==========================================================================
+   Accessibility: keyboard focus and skip link
+   ========================================================================== */
+:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.nav-link:focus-visible,
+.sidebar-brand a:focus-visible,
+.sidebar .icon-btn:focus-visible {
+  outline-color: var(--color-nav-accent);
+  outline-offset: -2px;
+}
+
+.app-main:focus-visible {
+  outline: none;
+}
+
+.skip-link {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  z-index: 1100;
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  font-weight: 600;
+  text-decoration: none;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-200%);
+}
+
+.skip-link:focus {
+  color: var(--color-on-primary);
+  transform: none;
 }

@@ -30,8 +30,8 @@
         <label for="file">Chọn file video *</label>
         <input class="input input-file" id="file" type="file" name="file" accept=".mp4,.mov,.mkv,.webm" required>
       </div>
-      <div class="form-row">
-        <label>Sản phẩm xuất hiện trong footage * (FR-FTG-03)</label>
+      <div class="form-row" role="group" aria-label="Sản phẩm xuất hiện trong footage">
+        <span class="field-label">Sản phẩm xuất hiện trong footage * (FR-FTG-03)</span>
         {% if products %}
           <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
             {% for p in products %}
@@ -60,8 +60,8 @@
         <label for="local_path">Đường dẫn file hoặc thư mục *</label>
         <input class="input" id="local_path" type="text" name="local_path" placeholder="VD: C:\Project Video Creator\spikes\samples\clip1.mp4" required>
       </div>
-      <div class="form-row">
-        <label>Sản phẩm xuất hiện trong footage * (FR-FTG-03)</label>
+      <div class="form-row" role="group" aria-label="Sản phẩm xuất hiện trong footage">
+        <span class="field-label">Sản phẩm xuất hiện trong footage * (FR-FTG-03)</span>
         {% if products %}
           <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
             {% for p in products %}
@@ -124,11 +124,11 @@
           <td>
             {% if f.is_landscape %}
               <form method="post" action="/footage/{{ f.id }}/crop" class="inline-secret-form">
-                <select class="select" name="mode">
+                <select class="select" name="mode" aria-label="Cách chuyển footage #{{ f.id }} sang dọc 9:16">
                   <option value="blur_pad" {% if f.crop.mode == 'blur_pad' %}selected{% endif %}>Nền mờ (Blur pad 9:16)</option>
                   <option value="crop" {% if f.crop.mode == 'crop' %}selected{% endif %}>Cắt dọc (Crop 9:16)</option>
                 </select>
-                <input class="input" type="number" step="0.05" min="0" max="1" name="x_offset_ratio" value="{{ f.crop.x_offset_ratio }}" style="width:70px;" title="Tâm cắt ngang (0.0 trái - 0.5 giữa - 1.0 phải)">
+                <input class="input" type="number" step="0.05" min="0" max="1" name="x_offset_ratio" value="{{ f.crop.x_offset_ratio }}" style="width:70px;" title="Tâm cắt ngang (0.0 trái - 0.5 giữa - 1.0 phải)" aria-label="Tâm cắt ngang của footage #{{ f.id }} (0 trái, 0.5 giữa, 1 phải)">
                 <button type="submit" class="btn btn-small">Lưu</button>
               </form>
             {% else %}

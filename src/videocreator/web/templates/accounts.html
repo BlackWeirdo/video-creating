@@ -56,21 +56,21 @@
     <details>
       <summary class="small muted disclosure">Dán mã OAuth thủ công (khi dùng trang callback tĩnh HTTPS)</summary>
       <form method="post" action="/oauth/tiktok/code" class="form" style="margin-top:0.5rem;">
-        <div class="form-row">
-          <label>Code & State (TikTok)</label>
+        <div class="form-row" role="group" aria-label="Mã OAuth TikTok">
+          <span class="field-label">Code & State (TikTok)</span>
           <div class="inline-secret-form">
-            <input class="input" type="text" name="code" placeholder="code..." required>
-            <input class="input" type="text" name="state" placeholder="state..." required>
+            <input class="input" type="text" name="code" placeholder="code..." aria-label="Code" required>
+            <input class="input" type="text" name="state" placeholder="state..." aria-label="State" required>
             <button type="submit" class="btn btn-small">Đổi token TikTok</button>
           </div>
         </div>
       </form>
       <form method="post" action="/oauth/threads/code" class="form" style="margin-top:0.5rem;">
-        <div class="form-row">
-          <label>Code & State (Threads)</label>
+        <div class="form-row" role="group" aria-label="Mã OAuth Threads">
+          <span class="field-label">Code & State (Threads)</span>
           <div class="inline-secret-form">
-            <input class="input" type="text" name="code" placeholder="code..." required>
-            <input class="input" type="text" name="state" placeholder="state..." required>
+            <input class="input" type="text" name="code" placeholder="code..." aria-label="Code" required>
+            <input class="input" type="text" name="state" placeholder="state..." aria-label="State" required>
             <button type="submit" class="btn btn-small">Đổi token Threads</button>
           </div>
         </div>
@@ -142,7 +142,7 @@
           <td><code>{{ a.lang }}</code></td>
           <td>
             <form method="post" action="/accounts/{{ a.id }}/slots" class="inline-secret-form">
-              <input class="input" type="text" name="slots" value="{{ a.slots_json or '' }}" placeholder="Mặc định chung" style="width:140px;">
+              <input class="input" type="text" name="slots" aria-label="Khung giờ đăng riêng của {{ a.name }}" value="{{ a.slots_json or '' }}" placeholder="Mặc định chung" style="width:140px;">
               <button type="submit" class="btn btn-small">Lưu giờ</button>
             </form>
           </td>

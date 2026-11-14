@@ -152,7 +152,7 @@
           <td>
             <form method="post" action="/settings/secrets" class="inline-secret-form">
               <input type="hidden" name="name" value="{{ item.name }}">
-              <input class="input" type="password" name="value" placeholder="Nhập giá trị mới..." autocomplete="new-password">
+              <input class="input" type="password" name="value" placeholder="Nhập giá trị mới..." aria-label="Giá trị mới cho {{ item.name }}" autocomplete="new-password">
               <button type="submit" name="action" value="set" class="btn btn-small">Lưu</button>
               {% if item.is_set %}
                 <button type="submit" name="action" value="delete" class="btn btn-small btn-danger">Xoá</button>
@@ -182,18 +182,18 @@
     <h2>Chuyển máy: Xuất / Nhập cấu hình (.vcx)</h2>
     <p class="muted small">Gói <code>.vcx</code> gồm <code>config.toml</code>, <code>app.db</code> và khoá bí mật được mã hoá lại bằng mật khẩu bạn nhập (scrypt + Fernet).</p>
     <form method="post" action="/settings/export" data-native class="inline-secret-form" style="margin-bottom:0.75rem;">
-      <input class="input" type="password" name="password" placeholder="Mật khẩu mã hoá (>=4 ký tự)" required>
+      <input class="input" type="password" name="password" placeholder="Mật khẩu mã hoá (>=4 ký tự)" aria-label="Mật khẩu mã hoá file .vcx (ít nhất 4 ký tự)" required>
       <button type="submit" class="btn btn-primary btn-small">Xuất file .vcx</button>
     </form>
 
     <form method="post" action="/settings/import" enctype="multipart/form-data" class="form">
       <div class="form-row">
-        <label>Chọn file <code>.vcx</code> để nhập</label>
-        <input class="input input-file" type="file" name="file" accept=".vcx,.zip" required>
+        <label for="import_file">Chọn file <code>.vcx</code> để nhập</label>
+        <input class="input input-file" id="import_file" type="file" name="file" accept=".vcx,.zip" required>
       </div>
       <div class="form-row">
-        <label>Mật khẩu giải mã</label>
-        <input class="input" type="password" name="password" placeholder="Nhập đúng mật khẩu lúc xuất" required>
+        <label for="import_password">Mật khẩu giải mã</label>
+        <input class="input" id="import_password" type="password" name="password" placeholder="Nhập đúng mật khẩu lúc xuất" required>
       </div>
       <label class="checkbox-label small">
         <input type="checkbox" name="as_server" value="true">

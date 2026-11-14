@@ -10,8 +10,8 @@
 <section class="card">
   <form method="get" action="/shots" class="inline-secret-form" style="flex-wrap:wrap;gap:0.75rem;">
     <div>
-      <label class="small muted">Lọc theo Footage:</label>
-      <select class="select" name="footage_id">
+      <label class="small muted" for="filter-footage">Lọc theo Footage:</label>
+      <select class="select" id="filter-footage" name="footage_id">
         <option value="">-- Tất cả Footage --</option>
         {% for ft in footage_list %}
           <option value="{{ ft.id }}" {% if filter_footage_id == ft.id %}selected{% endif %}>
@@ -21,8 +21,8 @@
       </select>
     </div>
     <div>
-      <label class="small muted">Lọc theo Sản phẩm:</label>
-      <select class="select" name="product_id">
+      <label class="small muted" for="filter-product">Lọc theo Sản phẩm:</label>
+      <select class="select" id="filter-product" name="product_id">
         <option value="">-- Tất cả Sản phẩm --</option>
         {% for p in products %}
           <option value="{{ p.id }}" {% if filter_product_id == p.id %}selected{% endif %}>
@@ -32,8 +32,8 @@
       </select>
     </div>
     <div>
-      <label class="small muted">Lọc theo Nhãn (tag):</label>
-      <input class="input" type="text" name="tag" value="{{ filter_tag }}" placeholder="VD: cận cảnh, đeo tay">
+      <label class="small muted" for="filter-tag">Lọc theo Nhãn (tag):</label>
+      <input class="input" id="filter-tag" type="text" name="tag" value="{{ filter_tag }}" placeholder="VD: cận cảnh, đeo tay">
     </div>
     <button type="submit" class="btn btn-primary btn-small">Lọc</button>
     <a href="/shots" class="btn btn-small">Xoá bộ lọc</a>
@@ -64,15 +64,15 @@
 
         <form method="post" action="/shots/{{ s.id }}/update" class="form">
           <div class="form-row">
-            <label>Mô tả cảnh</label>
-            <input class="input" type="text" name="description" value="{{ s.description or '' }}" placeholder="Mô tả cảnh (tự động hoặc nhập tay)">
+            <label for="shot-{{ s.id }}-description">Mô tả cảnh</label>
+            <input class="input" id="shot-{{ s.id }}-description" type="text" name="description" value="{{ s.description or '' }}" placeholder="Mô tả cảnh (tự động hoặc nhập tay)">
           </div>
           <div class="form-row">
-            <label>Nhãn (cách nhau dấu phẩy)</label>
-            <input class="input" type="text" name="tags" value="{{ s.tags_str }}" placeholder="cận cảnh, nhẫn bạc, ánh sáng">
+            <label for="shot-{{ s.id }}-tags">Nhãn (cách nhau dấu phẩy)</label>
+            <input class="input" id="shot-{{ s.id }}-tags" type="text" name="tags" value="{{ s.tags_str }}" placeholder="cận cảnh, nhẫn bạc, ánh sáng">
           </div>
-          <div class="form-row">
-            <label>Sản phẩm trong shot (FR-FTG-03)</label>
+          <div class="form-row" role="group" aria-label="Sản phẩm trong shot #{{ s.id }}">
+            <span class="field-label">Sản phẩm trong shot (FR-FTG-03)</span>
             <div style="display:flex;flex-wrap:wrap;gap:0.4rem;">
               {% for p in products %}
                 <label class="checkbox-label small">

@@ -29,16 +29,16 @@
   <h2>Giọng đọc mặc định theo ngôn ngữ</h2>
   <form method="post" action="/voices/save">
     <div style="margin-bottom:1rem;">
-      <label>Nhà cung cấp giọng Tiếng Việt:</label>
-      <input class="input" type="text" name="vi_provider" value="{{ settings.voice.vi_provider }}" required>
-      <label style="margin-left:1rem;">Mã giọng Tiếng Việt:</label>
-      <input class="input" type="text" name="vi_voice" value="{{ settings.voice.vi_voice }}" placeholder="vi-VN-HoaiMyNeural-Female">
+      <label for="vi_provider">Nhà cung cấp giọng Tiếng Việt:</label>
+      <input class="input" id="vi_provider" type="text" name="vi_provider" value="{{ settings.voice.vi_provider }}" required>
+      <label for="vi_voice" style="margin-left:1rem;">Mã giọng Tiếng Việt:</label>
+      <input class="input" id="vi_voice" type="text" name="vi_voice" value="{{ settings.voice.vi_voice }}" placeholder="vi-VN-HoaiMyNeural-Female">
     </div>
     <div style="margin-bottom:1rem;">
-      <label>Nhà cung cấp giọng Tiếng Anh:</label>
-      <input class="input" type="text" name="en_provider" value="{{ settings.voice.en_provider }}" required>
-      <label style="margin-left:1rem;">Mã giọng Tiếng Anh:</label>
-      <input class="input" type="text" name="en_voice" value="{{ settings.voice.en_voice }}" placeholder="en-US-JennyNeural-Female">
+      <label for="en_provider">Nhà cung cấp giọng Tiếng Anh:</label>
+      <input class="input" id="en_provider" type="text" name="en_provider" value="{{ settings.voice.en_provider }}" required>
+      <label for="en_voice" style="margin-left:1rem;">Mã giọng Tiếng Anh:</label>
+      <input class="input" id="en_voice" type="text" name="en_voice" value="{{ settings.voice.en_voice }}" placeholder="en-US-JennyNeural-Female">
     </div>
     <p class="muted">Giọng đã kiểm chứng: {% for v in catalog %}<code>{{ v.voice }}</code> ({{ v.label }}){% if not loop.last %}, {% endif %}{% endfor %}. Điều khoản dùng thương mại của Edge TTS chưa được xác nhận.</p>
     <button type="submit" class="btn">Lưu cấu hình giọng đọc</button>

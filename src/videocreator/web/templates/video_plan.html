@@ -96,7 +96,7 @@
               {% endif %}
             </td>
             <td>
-              <input class="input" type="text" name="shot_text_{{ loop.index0 }}" value="{{ s.text }}" style="width:100%;">
+              <input class="input" type="text" name="shot_text_{{ loop.index0 }}" aria-label="Phụ đề / lời thoại của đoạn {{ loop.index }}" value="{{ s.text }}" style="width:100%;">
             </td>
           </tr>
           {% endfor %}
@@ -110,12 +110,12 @@
         <div class="card card-flat">
           <h4>{{ label }}</h4>
           <div class="form-row">
-            <label>Nội dung caption</label>
-            <input class="input" type="text" name="caption_{{ platform }}_text" value="{{ cap.text }}">
+            <label for="caption-{{ platform }}-text">Nội dung caption</label>
+            <input class="input" id="caption-{{ platform }}-text" type="text" name="caption_{{ platform }}_text" value="{{ cap.text }}">
           </div>
           <div class="form-row">
-            <label>Hashtags</label>
-            <input class="input" type="text" name="caption_{{ platform }}_hashtags" value="{{ cap.hashtags|join(' ') }}">
+            <label for="caption-{{ platform }}-hashtags">Hashtags</label>
+            <input class="input" id="caption-{{ platform }}-hashtags" type="text" name="caption_{{ platform }}_hashtags" value="{{ cap.hashtags|join(' ') }}">
           </div>
         </div>
         {% endfor %}

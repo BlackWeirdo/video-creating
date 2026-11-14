@@ -87,19 +87,19 @@
   <h2>Tạo cảnh phụ mới (Ngân sách generative hôm nay: ${{ '%.2f'|format(gen_spent) }} / ${{ '%.2f'|format(settings.budget.generative_daily_usd) }})</h2>
   <form method="post" action="/broll/create">
     <div style="margin-bottom:0.75rem;">
-      <label>Chọn nguồn tạo video:</label>
-      <select class="select" name="source" style="width:100%;max-width:520px;">
+      <label for="broll-source">Chọn nguồn tạo video:</label>
+      <select class="select" id="broll-source" name="source" style="width:100%;max-width:520px;">
         {% for src in sources %}
         <option value="{{ src.key }}">{{ src.label }} — Ước tính 6s: ${{ '%.2f'|format(src.est_6s) }}</option>
         {% endfor %}
       </select>
     </div>
     <div style="margin-bottom:0.75rem;">
-      <label>Thời lượng (giây):</label>
+      <label for="broll-seconds">Thời lượng (giây):</label>
       <input class="input" type="number" id="broll-seconds" name="seconds" value="6" min="4" max="10" style="width:90px;">
     </div>
-    <div style="margin-bottom:0.75rem;">
-      <label>Mẫu gợi ý nhanh:</label>
+    <div style="margin-bottom:0.75rem;" role="group" aria-label="Mẫu gợi ý nhanh">
+      <span class="field-label">Mẫu gợi ý nhanh:</span>
       <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.25rem;">
         {% for p in presets %}
         <button type="button" class="btn" data-prompt="{{ p.prompt }}" onclick="fillBrollForm(this)">{{ p.label }}</button>
@@ -107,7 +107,7 @@
       </div>
     </div>
     <div style="margin-bottom:0.75rem;">
-      <label>Prompt cảnh phụ (9:16 dọc, không mô tả sản phẩm thật):</label>
+      <label for="broll-prompt">Prompt cảnh phụ (9:16 dọc, không mô tả sản phẩm thật):</label>
       <textarea class="textarea" id="broll-prompt" name="prompt" rows="3" required style="width:100%;" placeholder="VD: Cận cảnh bàn gỗ của nghệ nhân kim hoàn, ánh đèn vàng ấm..."></textarea>
     </div>
     <button type="submit" class="btn">Tạo cảnh phụ</button>

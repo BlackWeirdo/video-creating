@@ -58,7 +58,7 @@
                     [{{ acc.platform }}] {{ acc.name }}
                   </label>
                 {% endfor %}
-                <input class="input" type="text" name="scheduled_at" placeholder="UTC ISO (để trống = ngay)" style="width:175px;">
+                <input class="input" type="text" name="scheduled_at" placeholder="UTC ISO (để trống = ngay)" aria-label="Giờ đăng video #{{ v.id }} (UTC, dạng ISO; để trống là đăng ngay)" style="width:175px;">
                 <button type="submit" name="post_now" value="true" class="btn btn-small btn-primary">Đăng ngay</button>
                 <button type="submit" class="btn btn-small">Hẹn giờ</button>
               </form>
@@ -126,13 +126,13 @@
             {% endif %}
             {% if p.status == 'needs_user_action' %}
               <form method="post" action="/posts/{{ p.id }}/confirm-posted" class="inline-secret-form">
-                <input class="input" type="text" name="permalink" placeholder="Link TikTok (tuỳ chọn)" style="width:140px;">
+                <input class="input" type="text" name="permalink" aria-label="Link bài TikTok của post #{{ p.id }} (tuỳ chọn)" placeholder="Link TikTok (tuỳ chọn)" style="width:140px;">
                 <button type="submit" class="btn btn-small btn-primary">Đã đăng</button>
               </form>
             {% endif %}
             {% if p.status in ('scheduled', 'failed', 'missed') %}
               <form method="post" action="/posts/{{ p.id }}/reschedule" class="inline-secret-form" style="margin-top:0.25rem;">
-                <input class="input" type="text" name="scheduled_at" value="{{ p.scheduled_at }}" style="width:155px;">
+                <input class="input" type="text" name="scheduled_at" value="{{ p.scheduled_at }}" aria-label="Giờ hẹn mới cho post #{{ p.id }} (UTC, dạng ISO)" style="width:155px;">
                 <button type="submit" class="btn btn-small">Đổi giờ</button>
               </form>
               <form method="post" action="/posts/{{ p.id }}/cancel" style="display:inline;margin-top:0.25rem;">
