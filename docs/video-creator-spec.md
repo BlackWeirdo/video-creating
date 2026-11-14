@@ -234,7 +234,7 @@ Các quy tắc này áp cho mọi chế độ dựng và mọi module; chúng đ
 | Mã | Yêu cầu |
 |---|---|
 | FR-TRD-01 | Danh sách theo dõi do người dùng nhập: tài khoản brand, kênh, hashtag, từ khoá, Page quảng cáo; bật/tắt từng mục. |
-| FR-TRD-02 | Nguồn, theo thứ tự ưu tiên: YouTube Data API, Instagram Business Discovery, Meta Ad Library API (chỉ quảng cáo có phân phối ở EU, chờ S6), Instagram Hashtag Search. Nguồn thiếu key hoặc quyền tự tắt và hiện lý do. |
+| FR-TRD-02 | Nguồn, theo thứ tự ưu tiên: YouTube Data API, Instagram Business Discovery, Meta Ad Library API (chỉ quảng cáo có phân phối ở EU, chờ S6), Instagram Hashtag Search (top media theo hashtag, cách chính thức gần nhất với "Reels đang lên"). Facebook Fanpage (`page`) / Profile (`account`): chỉ là danh sách theo dõi tay có nút "Mở trang", không quét tự động (Meta không có API Reels xu hướng; đọc Fanpage người khác cần quyền Page Public Content Access qua xét duyệt app; Profile không có API). Nguồn thiếu key hoặc quyền tự tắt và hiện lý do. Thêm mục theo dõi sai nguồn/loại bị từ chối kèm câu giải thích. |
 | FR-TRD-03 | Quét một lần mỗi ngày theo giờ cấu hình và khi bấm "Quét ngay" (giao diện hoặc `/scan`). Lỗi một nguồn không chặn nguồn khác. Theo dõi hạn mức từng nguồn và dừng trước khi vượt. |
 | FR-TRD-04 | Chấm điểm trong từng nguồn, không trộn thang giữa các nguồn. Mạng xã hội: theo tương tác chia cho tuổi bài. Quảng cáo: theo số ngày chạy, còn chạy hay không, reach EU; chỉ lấy quảng cáo video chạy từ 30 ngày. |
 | FR-TRD-05 | Tải file của top N video theo `BR-REF-*` bằng yt-dlp; Ad Library không tải được thì người dùng tự nạp file tham khảo. |
@@ -242,6 +242,7 @@ Các quy tắc này áp cho mọi chế độ dựng và mọi module; chúng đ
 | FR-TRD-07 | Đề xuất: tối đa 3 mỗi ngày, mỗi đề xuất có mô tả ngắn, công thức áp được vào bộ lập kịch bản, shot gợi ý, link tham khảo. Kho thiếu loại shot cần thì ghi "cần quay thêm: ...". |
 | FR-TRD-08 | Đề xuất gửi lên Telegram để quyết định (`FR-TG-10`) và hiện trong giao diện với trạng thái mới / đã gửi / đã nhận / đã bỏ. |
 | FR-TRD-09 | Video sinh từ đề xuất lưu liên kết tới đề xuất để so hiệu quả sau này. |
+| FR-TRD-10 | Dán link một video/Reel Facebook hoặc Instagram công khai (ô "Thêm video theo link" trên trang Xu hướng, hoặc `/link <link>` trên Telegram, chỉ người duyệt): app đọc số liệu bằng yt-dlp theo `BR-REF-04`, lưu thành bài xu hướng có nhãn "tự chọn", tải + phân tích (rea-video) ngay, không chiếm suất tải N video/ngày của phần quét; bài tự chọn được ưu tiên khi chọn đề xuất. Tối đa 20 link/ngày, chỉ tính link đọc thành công. Không đọc được thì báo lý do và hướng dẫn nạp file tay. |
 
 ### 4.7 Cảnh phụ (BRL)
 
@@ -481,7 +482,7 @@ Giọng đọc không thuộc bộ định tuyến này; nó do MoneyPrinterTurb
 | TikTok Content Posting API | Hộp nháp, đăng trực tiếp | OAuth + HTTPS | Chờ S5, audit |
 | YouTube Data API | Nguồn xu hướng | API key | Theo dõi quota |
 | Meta Ad Library API | Nguồn xu hướng | Token + xác minh danh tính | Chờ S6 |
-| yt-dlp | Tải video tham khảo | Tiến trình con, phiên bản ghim | `BR-REF-*` |
+| yt-dlp | Tải video tham khảo; đọc số liệu công khai của một video Facebook/Instagram được dán link | Tiến trình con, phiên bản ghim, `--ignore-config` (không cookie) | `BR-REF-*` |
 | Telegram Bot API | Điều khiển, thông báo | python-telegram-bot, long polling | Giới hạn file khoảng 50 MB gửi, 20 MB nhận |
 
 ---
@@ -616,6 +617,7 @@ File `config.toml` (không chứa bí mật). Các nhóm khoá:
 | FR-PST-10, Threads, TikTok | 11 |
 | FR-TRD-01..04 | 12 |
 | FR-TRD-05..09; BR-REF | 13 |
+| FR-TRD-10; FR-TRD-02 (nguồn Facebook) | plan `261114-meta-reels-facebook-sources` |
 | FR-TG-02, 10..21; FR-APR-05, 06; FR-PLN-07; FR-PST-14 | 16 |
 | FR-STD | 17 |
 | FR-BRL; BR-PRD-07, 08; BR-COST-03 | 14 |

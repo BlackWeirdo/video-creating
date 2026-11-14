@@ -39,6 +39,7 @@ BOT_COMMAND_SPECS: list[tuple[str, str]] = [
     ("schedule", "Lịch đăng hôm nay và ngày mai"),
     ("trends", "Gửi lại các đề xuất xu hướng chưa xử lý"),
     ("scan", "Quét xu hướng ngay"),
+    ("link", "Thêm video tham khảo: /link <link Reel Facebook/Instagram>"),
     ("create", "Chọn trong 5 footage mới nhất để tạo video"),
     ("pause", "Tạm dừng đăng bài tự động"),
     ("resume", "Chạy lại đăng bài tự động"),
@@ -46,6 +47,44 @@ BOT_COMMAND_SPECS: list[tuple[str, str]] = [
     ("setup", "Tạo các Topic theo mảng trong nhóm"),
     ("help", "Danh sách lệnh điều khiển"),
 ]
+
+
+def handle_link_command(
+    paths: AppPaths,
+    *,
+    chat_id: int | None,
+    user_id: int | None,
+    user_name: str,
+    args: str,
+) -> tuple[bool, str]:
+    """`/link <url>`: adds one Facebook/Instagram video as a pinned trend item.
+
+    Blocking (runs yt-dlp): the bot calls it with `asyncio.to_thread`. Same two-layer allowlist
+    as other state-changing commands. `args` keeps its case: Instagram codes are case-sensitive.
+    """
+    from videocreator.trends.links import PLATFORM_LABELS, add_pasted_link, extract_first_url
+
+    settings = load_settings(paths.config_file)
+    allowed, err_msg = check_two_layer_allowlist(chat_id, user_id, settings)
+    if not allowed:
+        return False, err_msg or "Không có quyền thực hiện lệnh này."
+    url = extract_first_url(args)
+    if not url:
+        return False, "Gửi kèm link: /link https://www.facebook.com/reel/..."
+    actor = f"tg:{user_id}:{(user_name or '').strip() or user_id}"
+    try:
+        trend_id, item = add_pasted_link(paths, url, actor=actor)
+    except ValueError as exc:
+        return False, f"❌ {exc}"
+    except Exception:  # never leave the user without a reply
+        logger.exception("/link failed for %s", url)
+        return False, "❌ Lỗi nội bộ khi đọc link. Đã ghi vào log; hãy thử lại sau."
+    views = f"{int(item.metrics.get('views') or 0):,}".replace(",", ".")  # 9.900 (Vietnamese grouping)
+    platform = PLATFORM_LABELS.get(item.source, item.source)
+    return True, (
+        f"✅ Đã thêm video {platform} #{trend_id} của {item.author or 'không rõ tác giả'} "
+        f"({views} lượt xem). App đang tải và phân tích, xong sẽ ưu tiên đưa vào đề xuất."
+    )
 
 
 def build_status_text(db_file: Path, config_file: Path) -> str:

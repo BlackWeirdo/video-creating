@@ -43,6 +43,7 @@ from videocreator.pipeline.render import render_video
 from videocreator.scheduler import AppScheduler
 from videocreator.secrets_store import SecretsStore
 from videocreator.studio.agent import run_studio_job
+from videocreator.trends.links import ANALYSE_TREND_JOB_KIND, run_analyse_trend_job
 from videocreator.studio.session import STUDIO_JOB_KIND, recover_stuck_studio_sessions
 from videocreator.engines.mpt_service import MPTServiceManager
 from videocreator.telegram_bot import TelegramBotService
@@ -235,6 +236,10 @@ def create_app(
     job_registry.register(
         BROLL_SUGGEST_JOB_KIND,
         lambda _ref_id: run_broll_suggest_job(paths),
+    )
+    job_registry.register(
+        ANALYSE_TREND_JOB_KIND,
+        lambda ref_id: run_analyse_trend_job(paths, int(ref_id or 0)),
     )
 
     worker = JobWorker(paths.db_file, registry=job_registry)

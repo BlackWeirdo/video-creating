@@ -12,6 +12,7 @@ from videocreator.paths import AppPaths
 from videocreator.secrets_store import SecretsStore
 from videocreator.trends.ad_library import MetaAdLibrarySource
 from videocreator.trends.base import TrendItem, TrendSource, WatchItem
+from videocreator.trends.facebook import FacebookSource
 from videocreator.trends.ig_discovery import IGBusinessDiscoverySource
 from videocreator.trends.ig_hashtag import IGHashtagSource
 from videocreator.trends.rank import score_trend_item
@@ -29,6 +30,7 @@ def build_trend_sources(
         "ig_discovery": IGBusinessDiscoverySource(paths, sec),
         "ad_library": MetaAdLibrarySource(paths, sec),
         "ig_hashtag": IGHashtagSource(paths, sec),
+        "facebook": FacebookSource(paths, sec),
     }
 
 

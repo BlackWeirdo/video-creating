@@ -1,10 +1,13 @@
 """Routes for trend watchlist, ranked trend results, reference upload, and remix suggestions (Phases 12 & 13)."""
 from __future__ import annotations
 
+import asyncio
 import json
+import logging
 import shutil
 from datetime import datetime, timezone
 from typing import Any
+from urllib.parse import quote
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -16,6 +19,8 @@ from videocreator.db import get_conn, query_all, query_one
 from videocreator.jobs import enqueue_job
 from videocreator.paths import AppPaths
 from videocreator.trends.analyse import analyse_top_trends
+from videocreator.trends.facebook import normalize_facebook_source
+from videocreator.trends.links import PLATFORM_LABELS, add_pasted_link
 from videocreator.trends.scan import build_trend_sources, scan_all
 from videocreator.trends.suggest import (
     accept_suggestion,
@@ -24,6 +29,7 @@ from videocreator.trends.suggest import (
 )
 
 router = APIRouter()
+logger = logging.getLogger("videocreator.api.routes_trends")
 
 
 def run_scan_and_suggest_job(paths: AppPaths, _ref_id: int = 0) -> str:
@@ -41,6 +47,7 @@ def run_scan_and_suggest_job(paths: AppPaths, _ref_id: int = 0) -> str:
 async def watchlist_page(
     request: Request,
     msg: str | None = None,
+    err: str | None = None,
 ) -> HTMLResponse:
     paths: AppPaths = request.app.state.paths
     cfg = load_settings(paths.config_file)
@@ -71,9 +78,14 @@ async def watchlist_page(
             "source_statuses": source_statuses,
             "watch_items": watch_items,
             "msg": msg,
+            "err": err,
             "version": __version__,
         },
     )
+
+
+def _watchlist_error(message: str) -> RedirectResponse:
+    return RedirectResponse(url=f"/watchlist?err={quote(message)}", status_code=303)
 
 
 @router.post("/watchlist/add")
@@ -84,9 +96,22 @@ async def add_watch_item_route(
     value: str = Form(...),
 ) -> RedirectResponse:
     paths: AppPaths = request.app.state.paths
-    clean_val = value.strip()
+    src_name, kind_name, clean_val = source.strip(), kind.strip(), value.strip()
     if not clean_val:
-        raise HTTPException(status_code=400, detail="Giá trị theo dõi không được rỗng")
+        return _watchlist_error("Giá trị theo dõi không được rỗng.")
+    adapter = build_trend_sources(paths, request.app.state.secrets).get(src_name)
+    if adapter is None:
+        return _watchlist_error(f"Nguồn '{src_name}' không tồn tại.")
+    if kind_name not in adapter.kinds:
+        return _watchlist_error(
+            f"Nguồn {src_name} chỉ nhận loại: {', '.join(adapter.kinds)}."
+        )
+    if src_name == "facebook":
+        try:
+            clean_val = normalize_facebook_source(clean_val)
+        except ValueError as exc:
+            return _watchlist_error(str(exc))
+    source, kind = src_name, kind_name
 
     with get_conn(paths.db_file) as conn:
         conn.execute(
@@ -124,6 +149,7 @@ async def trends_page(
     request: Request,
     source: str | None = None,
     msg: str | None = None,
+    err: str | None = None,
 ) -> HTMLResponse:
     paths: AppPaths = request.app.state.paths
     cfg = load_settings(paths.config_file)
@@ -131,8 +157,12 @@ async def trends_page(
 
     sources = build_trend_sources(paths, request.app.state.secrets)
     source_statuses = {name: src.status() for name, src in sources.items()}
+    # Pasted links are stored under the platform name ('facebook', 'instagram'), whose scanning
+    # is manual or absent; their filter buttons show no "disabled" note because pasted items exist.
+    for platform in PLATFORM_LABELS:
+        source_statuses[platform] = (True, None)
 
-    if source and source in sources:
+    if source and source in source_statuses:
         rows = query_all(
             paths.db_file,
             "SELECT * FROM trend_items WHERE source = ? ORDER BY score DESC, id DESC LIMIT 100",
@@ -166,6 +196,7 @@ async def trends_page(
             "source_statuses": source_statuses,
             "trend_items": items,
             "msg": msg,
+            "err": err,
             "version": __version__,
         },
     )
@@ -176,6 +207,23 @@ async def trigger_scan_route(request: Request) -> RedirectResponse:
     paths: AppPaths = request.app.state.paths
     enqueue_job(paths.db_file, "scan_trends", ref_id=0)
     return RedirectResponse(url="/trends?msg=scan_queued", status_code=303)
+
+
+@router.post("/trends/add-link")
+async def add_link_route(request: Request, url: str = Form(...)) -> RedirectResponse:
+    """Adds one pasted Facebook/Instagram video (read off the event loop: yt-dlp may take seconds)."""
+    paths: AppPaths = request.app.state.paths
+    try:
+        _trend_id, item = await asyncio.to_thread(add_pasted_link, paths, url, actor="ui")
+    except ValueError as exc:
+        return RedirectResponse(url=f"/trends?err={quote(str(exc))}", status_code=303)
+    except Exception:
+        logger.exception("add-link failed for %s", url)
+        return RedirectResponse(
+            url=f"/trends?err={quote('Lỗi nội bộ khi đọc link. Đã ghi vào log; hãy thử lại sau.')}",
+            status_code=303,
+        )
+    return RedirectResponse(url=f"/trends?source={item.source}&msg=link_added", status_code=303)
 
 
 @router.post("/trends/{item_id}/upload-reference")

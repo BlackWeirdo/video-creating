@@ -23,6 +23,7 @@ from videocreator.tg.handlers import (
     TOPIC_NAMES,
     build_status_text,
     execute_command,
+    handle_link_command,
     handle_pending_reply_input,
 )
 from videocreator.tg.messages import (
@@ -459,6 +460,18 @@ class TelegramBotService:
                 if cmd_name == "setup":
                     await message.reply_text(await setup_topics(message.chat))
                     return True
+                if cmd_name == "link":
+                    # yt-dlp can take several seconds: keep it off the bot's event loop.
+                    ok, reply_text = await asyncio.to_thread(
+                        handle_link_command,
+                        self.paths,
+                        chat_id=chat_id,
+                        user_id=user_id,
+                        user_name=user_name,
+                        args=cmd_args,
+                    )
+                    await message.reply_text(reply_text[:4096])
+                    return ok
 
                 ok, reply_text, kb = execute_command(
                     self.paths,

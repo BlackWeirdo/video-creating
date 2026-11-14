@@ -16,6 +16,9 @@
 {% elif msg == "deleted" %}
   <div class="alert alert-success">Đã xoá mục theo dõi.</div>
 {% endif %}
+{% if err %}
+  <div class="alert alert-danger">{{ err }}</div>
+{% endif %}
 
 <div class="grid-2">
   <section class="card">
@@ -56,21 +59,23 @@
           <option value="ig_discovery">Instagram Business Discovery (ig_discovery)</option>
           <option value="ad_library">Meta Ad Library EU (ad_library)</option>
           <option value="ig_hashtag">Instagram Hashtag Search (ig_hashtag)</option>
+          <option value="facebook">Facebook Fanpage / Profile, theo dõi tay (facebook)</option>
         </select>
       </div>
       <div class="form-row">
         <label for="kind">Loại mục theo dõi</label>
         <select id="kind" name="kind">
           <option value="keyword">Từ khoá (keyword)</option>
-          <option value="account">Tài khoản / Channel ID (account)</option>
-          <option value="page">Page ID quảng cáo (page)</option>
+          <option value="account">Tài khoản / Channel ID / Profile Facebook (account)</option>
+          <option value="page">Page ID quảng cáo / Fanpage Facebook (page)</option>
           <option value="hashtag">Hashtag (hashtag)</option>
         </select>
       </div>
       <div class="form-row">
-        <label for="value">Giá trị (từ khoá, @username, Channel ID, hoặc #hashtag) *</label>
+        <label for="value">Giá trị (từ khoá, @username, Channel ID, #hashtag, hoặc link Facebook) *</label>
         <input id="value" type="text" name="value" placeholder="VD: handcrafted silver ring" required>
       </div>
+      <p class="muted small">Facebook: chọn loại <strong>page</strong> cho Fanpage, <strong>account</strong> cho Profile, dán link trang (VD: https://www.facebook.com/tentrang). Facebook không cho app tự đọc video của trang người khác, nên đây là danh sách để bạn mở xem; Reel hay thì dán link ở trang Xu hướng hoặc gửi <code>/link</code> trên Telegram.</p>
       <button type="submit" class="btn btn-primary">Thêm vào Watchlist</button>
     </form>
   </section>
@@ -96,7 +101,12 @@
           <td>#{{ w.id }}</td>
           <td><span class="badge">{{ w.source }}</span></td>
           <td><code>{{ w.kind }}</code></td>
-          <td><strong>{{ w.value }}</strong></td>
+          <td>
+            <strong>{{ w.value }}</strong>
+            {% if w.source == "facebook" and w.value.startswith("https://www.facebook.com/") %}
+              <a href="{{ w.value }}" target="_blank" rel="noopener" class="btn btn-small" style="margin-left:0.35rem;">Mở trang</a>
+            {% endif %}
+          </td>
           <td>
             {% if w.enabled %}
               <span class="badge status-done">Đang bật</span>

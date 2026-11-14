@@ -116,6 +116,7 @@ def analyse_trend_item(
     writer_provider: AIProvider | None = None,
     downloader_fn: Callable[[str, Path], bool] | None = None,
     decompose_fn: Callable[[Path, Path], dict[str, Any]] | None = None,
+    ignore_download_cap: bool = False,
 ) -> dict[str, Any]:
     """Analyses a `trend_items` row using Path A (`rea-video` on downloaded file) or Path B/C fallback."""
     row = query_one(
@@ -127,7 +128,7 @@ def analyse_trend_item(
         raise LookupError(f"Trend item #{trend_item_id} not found")
 
     ref_mp4 = fetch_reference_video(
-        paths, trend_item_id, downloader_fn=downloader_fn
+        paths, trend_item_id, downloader_fn=downloader_fn, ignore_daily_cap=ignore_download_cap
     )
 
     untrusted_caption = str(row.get("caption") or "")[:800]

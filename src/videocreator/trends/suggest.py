@@ -73,15 +73,10 @@ def summarize_shot_library(db_file: Path) -> dict[str, Any]:
     }
 
 
-def make_suggestions(
-    paths: AppPaths,
-    *,
-    writer_provider: AIProvider | None = None,
-    max_suggestions: int = 3,
-) -> list[int]:
-    """Generates up to `max_suggestions` remix suggestions from analysed `trend_items` and the shot library (`FR-TRD-07`)."""
-    analysed_items = query_all(
-        paths.db_file,
+def select_suggestion_candidates(db_file: Path) -> list[dict[str, Any]]:
+    """Analysed trend items without a suggestion yet, hand-picked (pinned) ones first, at most 6."""
+    return query_all(
+        db_file,
         """
         SELECT t.*
         FROM trend_items t
@@ -89,10 +84,22 @@ def make_suggestions(
           AND NOT EXISTS (
               SELECT 1 FROM suggestions s WHERE s.trend_item_id = t.id
           )
-        ORDER BY t.score DESC, t.id ASC
+        -- Videos the owner picked by hand (pasted links, metrics.pinned) go first: they are
+        -- often older, so their score alone would keep them out of the top 6.
+        ORDER BY COALESCE(json_extract(t.metrics_json, '$.pinned'), 0) DESC, t.score DESC, t.id ASC
         LIMIT 6
         """,
     )
+
+
+def make_suggestions(
+    paths: AppPaths,
+    *,
+    writer_provider: AIProvider | None = None,
+    max_suggestions: int = 3,
+) -> list[int]:
+    """Generates up to `max_suggestions` remix suggestions from analysed `trend_items` and the shot library (`FR-TRD-07`)."""
+    analysed_items = select_suggestion_candidates(paths.db_file)
     if not analysed_items:
         return []
     made_today = query_one(

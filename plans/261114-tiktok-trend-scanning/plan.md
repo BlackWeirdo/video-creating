@@ -43,7 +43,7 @@ Tổng phase 01–04 + 06: 3–4 ngày làm việc, không đệm. Phase 05 tín
 
 1. Nguồn `tiktok`, `src/videocreator/trends/tiktok.py`, `kinds = ("account",)`; giới hạn lịch sự trong `[trends]`: 15 video/tài khoản, nghỉ 5 s, 20 lượt đọc/ngày.
 2. Bị chặn / lỗi lạ -> dừng nguồn tiktok hết lần quét; lỗi riêng 1 tài khoản -> quét tiếp tài khoản sau.
-3. Migration `010_watch_items_tiktok.sql` dựng lại `watch_items` để nhận `tiktok` và `facebook`; sao lưu `app.db` trước.
+3. ~~Migration `010_watch_items_tiktok.sql`~~ **Đã làm 2026-11-14** trong [plan nguồn Facebook](../261114-meta-reels-facebook-sources/plan.md): `010_watch_items_more_sources.sql` đã nhận cả `tiktok` và `facebook`. Phase 01 bỏ bước viết migration, chỉ còn adapter + config. Kiểm tra đầu vào Watchlist (phase 02) và dán link Facebook/Instagram (một phần phase 03) cũng đã có; phase 03 chỉ còn thêm host TikTok/YouTube vào `trends/links.py`.
 4. `/watchlist/add` kiểm nguồn + loại, sai trả 400 kèm câu tiếng Việt.
 5. Bài dán: `metrics.pinned = true`, job `analyse_trend` phân tích ngay, trần 20 link/ngày.
 6. Chọn bài để tải / phân tích / đề xuất: xoay vòng theo 5 nhóm nền tảng, bài `pinned` trước. Sửa `analyse.py`, `suggest.py` (thay quyết định cũ "không sửa").

@@ -30,6 +30,8 @@ def _default_yt_dlp_download(url: str, dest_path: Path) -> bool:
     dest_path.parent.mkdir(parents=True, exist_ok=True)
     cmd = [
         *find_yt_dlp_command(),
+        # A user-level yt-dlp.conf (e.g. --cookies-from-browser) must never apply (BR-REF-04).
+        "--ignore-config",
         "--no-playlist",
         "--no-warnings",
         "--max-filesize",
@@ -83,8 +85,13 @@ def fetch_reference_video(
     *,
     downloader_fn: Callable[[str, Path], bool] | None = None,
     now_dt: datetime | None = None,
+    ignore_daily_cap: bool = False,
 ) -> Path | None:
-    """Downloads a top trend video into `media/reference/` (never into `shots` or `footage`, `BR-REF-01..03`)."""
+    """Downloads a top trend video into `media/reference/` (never into `shots` or `footage`, `BR-REF-01..03`).
+
+    `ignore_daily_cap` is for videos the owner pasted by hand: they have their own daily cap
+    (`trends/links.py`) and must not lose their file to the scan's top-N downloads.
+    """
     item_row = query_one(
         paths.db_file,
         "SELECT id, url FROM trend_items WHERE id = ?",
@@ -105,7 +112,7 @@ def fetch_reference_video(
 
     cfg = load_settings(paths.config_file)
     base_utc = (now_dt or datetime.now(timezone.utc)).astimezone(timezone.utc)
-    if count_today_reference_downloads(paths.db_file, now_dt=base_utc) >= max(1, cfg.trends.download_top_n):
+    if not ignore_daily_cap and count_today_reference_downloads(paths.db_file, now_dt=base_utc) >= max(1, cfg.trends.download_top_n):
         logger.info("Reached daily reference video download cap (%d/day)", cfg.trends.download_top_n)
         return None
 
