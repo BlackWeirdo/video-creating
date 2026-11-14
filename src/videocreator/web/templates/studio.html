@@ -54,7 +54,7 @@
 <section class="card" style="margin-bottom:1.5rem;">
   <h2>Mẫu Studio đã lưu ({{ templates|length }}) — Dựng lại không tốn lượt Agent</h2>
   {% if not templates %}
-    <p class="muted">Chưa có mẫu Studio nào được lưu.</p>
+    <p class="muted empty-state">Chưa có mẫu Studio nào được lưu.</p>
   {% else %}
     <table class="table">
       <thead>
@@ -94,7 +94,7 @@
 <section class="card">
   <h2>Lịch sử phiên Studio ({{ sessions|length }})</h2>
   {% if not sessions %}
-    <p class="muted">Chưa có phiên Studio nào.</p>
+    <p class="muted empty-state">Chưa có phiên Studio nào.</p>
   {% else %}
     <table class="table">
       <thead>

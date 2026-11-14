@@ -20,6 +20,7 @@
   <link rel="stylesheet" href="/static/style.css">
   <script src="/static/toast.js" defer></script>
   <script src="/static/forms.js" defer></script>
+  <script src="/static/skeleton.js" defer></script>
   <script src="/static/app.js" defer></script>
 </head>
 <body>
@@ -31,12 +32,12 @@
     <nav class="nav">
       <a href="/" class="{% if page == 'home' %}active{% endif %}">Trang chủ</a>
       <a href="/products" class="{% if page == 'products' %}active{% endif %}">Sản phẩm</a>
-      <a href="/footage" class="{% if page == 'footage' %}active{% endif %}">Footage</a>
-      <a href="/shots" class="{% if page == 'shots' %}active{% endif %}">Kho shot</a>
-      <a href="/videos" class="{% if page == 'videos' %}active{% endif %}">Video</a>
-      <a href="/approval" class="{% if page == 'approval' %}active{% endif %}">Chờ duyệt</a>
-      <a href="/schedule" class="{% if page == 'schedule' %}active{% endif %}">Lịch đăng</a>
-      <a href="/trends" class="{% if page == 'trends' %}active{% endif %}">Xu hướng</a>
+      <a href="/footage" data-skeleton="rows" class="{% if page == 'footage' %}active{% endif %}">Footage</a>
+      <a href="/shots" data-skeleton="cards" class="{% if page == 'shots' %}active{% endif %}">Kho shot</a>
+      <a href="/videos" data-skeleton="rows" class="{% if page == 'videos' %}active{% endif %}">Video</a>
+      <a href="/approval" data-skeleton="review" class="{% if page == 'approval' %}active{% endif %}">Chờ duyệt</a>
+      <a href="/schedule" data-skeleton="rows" class="{% if page == 'schedule' %}active{% endif %}">Lịch đăng</a>
+      <a href="/trends" data-skeleton="rows" class="{% if page == 'trends' %}active{% endif %}">Xu hướng</a>
       <a href="/studio" class="{% if page == 'studio' %}active{% endif %}">Studio</a>
       <a href="/broll" class="{% if page == 'broll' %}active{% endif %}">Cảnh phụ</a>
       <a href="/performance" class="{% if page == 'performance' %}active{% endif %}">Hiệu quả</a>
@@ -50,7 +51,7 @@
     </button>
   </header>
 
-  <main class="container">
+  <main class="container" id="main">
     {% block content %}{% endblock %}
   </main>
 

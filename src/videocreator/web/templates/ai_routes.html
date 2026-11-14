@@ -58,7 +58,7 @@
         </tbody>
       </table>
     {% else %}
-      <p class="muted">Tất cả provider đều đang sẵn sàng (không có provider nào đang nghỉ).</p>
+      <p class="muted empty-state">Tất cả provider đều đang sẵn sàng (không có provider nào đang nghỉ).</p>
     {% endif %}
   </section>
 </div>
@@ -87,7 +87,7 @@
       </tbody>
     </table>
   {% else %}
-    <p class="muted">Không có job nào đang chờ hạn mức.</p>
+    <p class="muted empty-state">Không có job nào đang chờ hạn mức.</p>
   {% endif %}
 </section>
 
@@ -121,7 +121,7 @@
       </tbody>
     </table>
   {% else %}
-    <p class="muted">Chưa có lượt gọi AI nào được ghi nhận.</p>
+    <p class="muted empty-state">Chưa có lượt gọi AI nào được ghi nhận.</p>
   {% endif %}
 </section>
 {% endblock %}

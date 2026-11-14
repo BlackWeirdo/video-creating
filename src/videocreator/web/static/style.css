@@ -904,3 +904,136 @@ small {
     }
   }
 }
+
+/* ==========================================================================
+   Skeleton loading (static/skeleton.js) and empty states
+   ========================================================================== */
+.skeleton {
+  display: block;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-sunken);
+  background-image: linear-gradient(
+    100deg,
+    transparent 30%,
+    var(--color-surface-hover) 50%,
+    transparent 70%
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  background-position: 150% 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .skeleton {
+    animation: skeleton-shimmer 1.4s ease-in-out infinite;
+  }
+
+  @keyframes skeleton-shimmer {
+    to {
+      background-position: -50% 0;
+    }
+  }
+}
+
+.skeleton-line {
+  height: 0.8rem;
+  margin: 0.45rem 0;
+}
+
+.skeleton-line.w100 {
+  width: 100%;
+}
+
+.skeleton-line.w90 {
+  width: 90%;
+}
+
+.skeleton-line.w70 {
+  width: 70%;
+}
+
+.skeleton-line.w45 {
+  width: 45%;
+}
+
+.skeleton-line.w30 {
+  width: 30%;
+}
+
+.skeleton-title {
+  height: 1.7rem;
+  width: min(24rem, 70%);
+  margin-bottom: var(--space-4);
+}
+
+.skeleton-badge {
+  height: 1.2rem;
+  width: 4.5rem;
+}
+
+.skeleton-button {
+  height: 1.9rem;
+  width: 6rem;
+  margin-top: var(--space-2);
+}
+
+.skeleton-input {
+  height: 2.2rem;
+}
+
+.skeleton-thumb {
+  height: 14rem;
+  margin: var(--space-2) 0;
+  border-radius: var(--radius-md);
+}
+
+.skeleton-video {
+  width: min(270px, 100%);
+  aspect-ratio: 9 / 16;
+  border-radius: var(--radius-md);
+}
+
+.skeleton-row {
+  display: grid;
+  grid-template-columns: 2.5rem 2.2fr 5rem 2fr 6.5rem;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.skeleton-review {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(460px, 100%), 1fr));
+  gap: var(--space-4);
+  margin-top: var(--space-3);
+}
+
+.skeleton-field {
+  margin-bottom: var(--space-3);
+}
+
+/* While the next page loads, <main> shows only the skeleton. */
+.is-loading > :not(.page-skeleton) {
+  display: none;
+}
+
+.empty-state {
+  margin: var(--space-2) 0 0;
+  padding: var(--space-4);
+  text-align: center;
+  color: var(--color-text-muted);
+  background: var(--color-surface-hover);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+}
+
+.empty-state::before {
+  content: "";
+  display: block;
+  width: 1.75rem;
+  height: 1.75rem;
+  margin: 0 auto var(--space-2);
+  border: 2px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+}
