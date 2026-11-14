@@ -78,7 +78,10 @@
   // Forms marked data-native (file downloads) keep the browser's own submit.
   document.addEventListener('submit', function (event) {
     var form = event.target;
-    if (!(form instanceof HTMLFormElement) || form.method.toLowerCase() !== 'post' ||
+    // Attributes are read with getAttribute: a control named "action" or "method" (the secrets
+    // form has one) would otherwise shadow form.action / form.method.
+    if (!(form instanceof HTMLFormElement) ||
+        (form.getAttribute('method') || '').toLowerCase() !== 'post' ||
         form.hasAttribute('data-native')) {
       return;
     }
@@ -93,7 +96,7 @@
     }
     var body = form.querySelector('input[type="file"]') ? data : new URLSearchParams(data);
     setBusy(form, submitter, true);
-    apiFetch(form.action, { method: 'POST', body: body }).then(function (response) {
+    apiFetch(form.getAttribute('action'), { method: 'POST', body: body }).then(function (response) {
       if (response.redirected) {
         window.location.assign(response.url);
         return;
