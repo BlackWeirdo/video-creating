@@ -53,12 +53,12 @@
             {% if accounts %}
               <form method="post" action="/videos/{{ v.id }}/schedule" class="inline-secret-form" style="flex-wrap:wrap;gap:0.5rem;">
                 {% for acc in accounts %}
-                  <label class="checkbox-label small" style="font-weight:400;">
+                  <label class="checkbox-label small">
                     <input type="checkbox" name="account_ids" value="{{ acc.id }}" {% if acc.lang == v.caption_lang %}checked{% endif %}>
                     [{{ acc.platform }}] {{ acc.name }}
                   </label>
                 {% endfor %}
-                <input type="text" name="scheduled_at" placeholder="UTC ISO (để trống = ngay)" style="width:175px;">
+                <input class="input" type="text" name="scheduled_at" placeholder="UTC ISO (để trống = ngay)" style="width:175px;">
                 <button type="submit" name="post_now" value="true" class="btn btn-small btn-primary">Đăng ngay</button>
                 <button type="submit" class="btn btn-small">Hẹn giờ</button>
               </form>
@@ -126,13 +126,13 @@
             {% endif %}
             {% if p.status == 'needs_user_action' %}
               <form method="post" action="/posts/{{ p.id }}/confirm-posted" class="inline-secret-form">
-                <input type="text" name="permalink" placeholder="Link TikTok (tuỳ chọn)" style="width:140px;">
+                <input class="input" type="text" name="permalink" placeholder="Link TikTok (tuỳ chọn)" style="width:140px;">
                 <button type="submit" class="btn btn-small btn-primary">Đã đăng</button>
               </form>
             {% endif %}
             {% if p.status in ('scheduled', 'failed', 'missed') %}
               <form method="post" action="/posts/{{ p.id }}/reschedule" class="inline-secret-form" style="margin-top:0.25rem;">
-                <input type="text" name="scheduled_at" value="{{ p.scheduled_at }}" style="width:155px;">
+                <input class="input" type="text" name="scheduled_at" value="{{ p.scheduled_at }}" style="width:155px;">
                 <button type="submit" class="btn btn-small">Đổi giờ</button>
               </form>
               <form method="post" action="/posts/{{ p.id }}/cancel" style="display:inline;margin-top:0.25rem;">

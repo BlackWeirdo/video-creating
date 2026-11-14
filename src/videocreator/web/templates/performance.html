@@ -17,7 +17,7 @@
 
 <section class="card" style="margin-bottom: 1.5rem;">
   <h2>Tổng kết báo cáo tuần</h2>
-  <pre style="white-space:pre-wrap;background:#1a1d24;padding:1rem;border-radius:6px;">{{ weekly_summary_text }}</pre>
+  <pre class="pre-block">{{ weekly_summary_text }}</pre>
 </section>
 
 <section class="card">
@@ -45,7 +45,7 @@
             <strong>#{{ r.video_id }} {{ r.title }}</strong><br>
             <span class="badge">{{ r.formula }}</span>
             {% if r.from_suggestion %}
-              <span class="badge" style="background:#3b82f6;">Từ đề xuất #{{ r.suggestion_id }}</span>
+              <span class="badge badge-info">Từ đề xuất #{{ r.suggestion_id }}</span>
             {% endif %}
           </td>
           <td>{{ r.platform }} — {{ r.account_name }}</td>

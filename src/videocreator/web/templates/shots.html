@@ -11,7 +11,7 @@
   <form method="get" action="/shots" class="inline-secret-form" style="flex-wrap:wrap;gap:0.75rem;">
     <div>
       <label class="small muted">Lọc theo Footage:</label>
-      <select name="footage_id">
+      <select class="select" name="footage_id">
         <option value="">-- Tất cả Footage --</option>
         {% for ft in footage_list %}
           <option value="{{ ft.id }}" {% if filter_footage_id == ft.id %}selected{% endif %}>
@@ -22,7 +22,7 @@
     </div>
     <div>
       <label class="small muted">Lọc theo Sản phẩm:</label>
-      <select name="product_id">
+      <select class="select" name="product_id">
         <option value="">-- Tất cả Sản phẩm --</option>
         {% for p in products %}
           <option value="{{ p.id }}" {% if filter_product_id == p.id %}selected{% endif %}>
@@ -33,7 +33,7 @@
     </div>
     <div>
       <label class="small muted">Lọc theo Nhãn (tag):</label>
-      <input type="text" name="tag" value="{{ filter_tag }}" placeholder="VD: cận cảnh, đeo tay">
+      <input class="input" type="text" name="tag" value="{{ filter_tag }}" placeholder="VD: cận cảnh, đeo tay">
     </div>
     <button type="submit" class="btn btn-primary btn-small">Lọc</button>
     <a href="/shots" class="btn btn-small">Xoá bộ lọc</a>
@@ -51,31 +51,31 @@
 
         {% if s.thumb_path %}
           <div style="margin-bottom:0.5rem;">
-            <img src="/media/{{ s.thumb_path }}" alt="Shot #{{ s.id }}" style="width:100%;max-height:260px;object-fit:cover;border-radius:6px;border:1px solid var(--border);">
+            <img class="media-frame" src="/media/{{ s.thumb_path }}" alt="Shot #{{ s.id }}" style="width:100%;max-height:260px;object-fit:cover;">
           </div>
         {% endif %}
 
         {% if s.footage_path %}
           <details style="margin-bottom:0.5rem;">
-            <summary class="small muted" style="cursor:pointer;">Xem trước đoạn video</summary>
-            <video controls preload="none" src="/media/{{ s.footage_path }}#t={{ s.start_s }},{{ s.end_s }}" style="width:100%;max-height:280px;margin-top:0.35rem;border-radius:6px;"></video>
+            <summary class="small muted disclosure">Xem trước đoạn video</summary>
+            <video class="media-frame" controls preload="none" src="/media/{{ s.footage_path }}#t={{ s.start_s }},{{ s.end_s }}" style="width:100%;max-height:280px;margin-top:0.35rem;"></video>
           </details>
         {% endif %}
 
         <form method="post" action="/shots/{{ s.id }}/update" class="form">
           <div class="form-row">
             <label>Mô tả cảnh</label>
-            <input type="text" name="description" value="{{ s.description or '' }}" placeholder="Mô tả cảnh (tự động hoặc nhập tay)">
+            <input class="input" type="text" name="description" value="{{ s.description or '' }}" placeholder="Mô tả cảnh (tự động hoặc nhập tay)">
           </div>
           <div class="form-row">
             <label>Nhãn (cách nhau dấu phẩy)</label>
-            <input type="text" name="tags" value="{{ s.tags_str }}" placeholder="cận cảnh, nhẫn bạc, ánh sáng">
+            <input class="input" type="text" name="tags" value="{{ s.tags_str }}" placeholder="cận cảnh, nhẫn bạc, ánh sáng">
           </div>
           <div class="form-row">
             <label>Sản phẩm trong shot (FR-FTG-03)</label>
             <div style="display:flex;flex-wrap:wrap;gap:0.4rem;">
               {% for p in products %}
-                <label class="checkbox-label small" style="font-weight:400;">
+                <label class="checkbox-label small">
                   <input type="checkbox" name="product_ids" value="{{ p.id }}" {% if p.id in s.product_ids %}checked{% endif %}>
                   {{ p.name }}
                 </label>

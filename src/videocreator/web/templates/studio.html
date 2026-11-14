@@ -2,20 +2,20 @@
 {% block title %}Studio Mode (Remotion + 2 Skills) — Video Creator{% endblock %}
 {% macro audio_fields() %}
   <label>Giọng đọc:
-    <select name="voice_lang">
+    <select class="select" name="voice_lang">
       <option value="none">Không lồng tiếng</option>
       <option value="vi">Tiếng Việt</option>
       <option value="en">Tiếng Anh</option>
     </select>
   </label>
   <label>Nhạc nền:
-    <select name="music_asset_id">
+    <select class="select" name="music_asset_id">
       <option value="">Không nhạc</option>
       {% for a in music_assets %}<option value="{{ a.id }}">#{{ a.id }} {{ a.path }}</option>{% endfor %}
     </select>
   </label>
   <label>Âm thanh ở điểm cắt:
-    <select name="sfx_asset_id">
+    <select class="select" name="sfx_asset_id">
       <option value="">Không</option>
       {% for a in sfx_assets %}<option value="{{ a.id }}">#{{ a.id }} {{ a.path }}</option>{% endfor %}
     </select>
@@ -41,7 +41,7 @@
   <form method="post" action="/studio/create">
     <div style="margin-bottom:0.75rem;">
       <label>Prompt thiết kế video 9:16:</label>
-      <textarea name="prompt" rows="3" required style="width:100%;" placeholder="VD: Dựng theo nhịp mở đầu cận cảnh chạm khắc nhẫn bạc S925, phụ đề tối giản, không dùng bộ lọc màu trên cảnh sản phẩm..."></textarea>
+      <textarea class="textarea" name="prompt" rows="3" required style="width:100%;" placeholder="VD: Dựng theo nhịp mở đầu cận cảnh chạm khắc nhẫn bạc S925, phụ đề tối giản, không dùng bộ lọc màu trên cảnh sản phẩm..."></textarea>
     </div>
     <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:0.75rem;">
       {{ audio_fields() }}
@@ -72,13 +72,13 @@
           <td>
             <form method="post" action="/studio/templates/{{ t.id }}/render">
               <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
-                <select name="shot_ids" multiple required size="5" style="min-width:18rem;">
+                <select class="select" name="shot_ids" multiple required size="5" style="min-width:18rem;">
                   {% for sh in shots %}<option value="{{ sh.id }}">#{{ sh.id }} {{ (sh.description or '')[:50] }}</option>{% endfor %}
                 </select>
-                <textarea name="subtitles" rows="5" style="min-width:18rem;" placeholder="Phụ đề cảnh 1&#10;Phụ đề cảnh 2&#10;..."></textarea>
+                <textarea class="textarea" name="subtitles" rows="5" style="min-width:18rem;" placeholder="Phụ đề cảnh 1&#10;Phụ đề cảnh 2&#10;..."></textarea>
               </div>
               <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:center;margin-top:0.5rem;">
-                <input type="text" name="title" placeholder="Tiêu đề video mới...">
+                <input class="input" type="text" name="title" placeholder="Tiêu đề video mới...">
                 {{ audio_fields() }}
                 <button type="submit" class="btn">Dựng từ mẫu</button>
               </div>
@@ -138,13 +138,13 @@
           <td>
             {% if s.status in ('awaiting_confirm', 'done', 'failed') %}
             <form method="post" action="/studio/{{ s.id }}/revise" style="display:flex;gap:0.4rem;margin-bottom:0.4rem;">
-              <input type="text" name="prompt" placeholder="{{ 'Prompt sửa kịch bản...' if s.status == 'awaiting_confirm' else 'Prompt sửa tiếp...' }}" required>
+              <input class="input" type="text" name="prompt" placeholder="{{ 'Prompt sửa kịch bản...' if s.status == 'awaiting_confirm' else 'Prompt sửa tiếp...' }}" required>
               <button type="submit" class="btn">Sửa</button>
             </form>
             {% endif %}
             {% if s.versions %}
             <form method="post" action="/studio/{{ s.id }}/save-template" style="display:flex;gap:0.4rem;">
-              <input type="text" name="name" placeholder="Tên mẫu..." required>
+              <input class="input" type="text" name="name" placeholder="Tên mẫu..." required>
               <button type="submit" class="btn">Lưu làm mẫu</button>
             </form>
             {% endif %}

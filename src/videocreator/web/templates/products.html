@@ -20,31 +20,31 @@
       {% endif %}
       <div class="form-row">
         <label for="name">Tên sản phẩm *</label>
-        <input id="name" type="text" name="name" value="{{ editing.name if editing else '' }}" placeholder="VD: Nhẫn bạc Xúc Xắc" required>
+        <input class="input" id="name" type="text" name="name" value="{{ editing.name if editing else '' }}" placeholder="VD: Nhẫn bạc Xúc Xắc" required>
       </div>
       <div class="form-row">
         <label for="material">Chất liệu / Tuổi bạc</label>
-        <input id="material" type="text" name="material" value="{{ editing.material if editing else '' }}" placeholder="VD: Bạc S925 nguyên khối">
+        <input class="input" id="material" type="text" name="material" value="{{ editing.material if editing else '' }}" placeholder="VD: Bạc S925 nguyên khối">
       </div>
       <div class="form-row">
         <label for="stone">Đá gắn kèm (stone)</label>
-        <input id="stone" type="text" name="stone" value="{{ editing.facts.stone if editing else '' }}" placeholder="VD: Không đính đá / Đá Onyx đen tự nhiên">
+        <input class="input" id="stone" type="text" name="stone" value="{{ editing.facts.stone if editing else '' }}" placeholder="VD: Không đính đá / Đá Onyx đen tự nhiên">
       </div>
       <div class="form-row">
         <label for="size">Kích thước / Trọng lượng (size)</label>
-        <input id="size" type="text" name="size" value="{{ editing.facts.size if editing else '' }}" placeholder="VD: Bản rộng 8mm, nặng 12g">
+        <input class="input" id="size" type="text" name="size" value="{{ editing.facts.size if editing else '' }}" placeholder="VD: Bản rộng 8mm, nặng 12g">
       </div>
       <div class="form-row">
         <label for="craftsmanship">Kỹ thuật chế tác (craftsmanship)</label>
-        <input id="craftsmanship" type="text" name="craftsmanship" value="{{ editing.facts.craftsmanship if editing else '' }}" placeholder="VD: Chạm khắc thủ công, xử lý oxy hoá">
+        <input class="input" id="craftsmanship" type="text" name="craftsmanship" value="{{ editing.facts.craftsmanship if editing else '' }}" placeholder="VD: Chạm khắc thủ công, xử lý oxy hoá">
       </div>
       <div class="form-row">
         <label for="price">Giá công bố (tuỳ chọn)</label>
-        <input id="price" type="text" name="price" value="{{ editing.facts.price if editing else '' }}" placeholder="VD: 1.450.000đ (để trống nếu không báo giá)">
+        <input class="input" id="price" type="text" name="price" value="{{ editing.facts.price if editing else '' }}" placeholder="VD: 1.450.000đ (để trống nếu không báo giá)">
       </div>
       <div class="form-row">
         <label for="notes">Ghi chú thêm</label>
-        <input id="notes" type="text" name="notes" value="{{ editing.facts.notes if editing else '' }}" placeholder="Điểm nhấn thiết kế hoặc ý nghĩa">
+        <input class="input" id="notes" type="text" name="notes" value="{{ editing.facts.notes if editing else '' }}" placeholder="Điểm nhấn thiết kế hoặc ý nghĩa">
       </div>
       <button type="submit" class="btn btn-primary">{% if editing %}Cập nhật sản phẩm{% else %}Thêm sản phẩm{% endif %}</button>
       {% if editing %}

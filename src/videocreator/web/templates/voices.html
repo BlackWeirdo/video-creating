@@ -18,9 +18,9 @@
   <p>
     Cổng cục bộ: <code>127.0.0.1:{{ settings.mpt.port }}</code> —
     {% if mpt_healthy %}
-      <span class="badge" style="background:#16a34a;">Đang chạy</span>
+      <span class="badge badge-success">Đang chạy</span>
     {% else %}
-      <span class="badge" style="background:#d97706;">Chưa chạy (video dựng không có lồng tiếng, chỉ phụ đề)</span>
+      <span class="badge badge-warning">Chưa chạy (video dựng không có lồng tiếng, chỉ phụ đề)</span>
     {% endif %}
   </p>
 </section>
@@ -30,15 +30,15 @@
   <form method="post" action="/voices/save">
     <div style="margin-bottom:1rem;">
       <label>Nhà cung cấp giọng Tiếng Việt:</label>
-      <input type="text" name="vi_provider" value="{{ settings.voice.vi_provider }}" required>
+      <input class="input" type="text" name="vi_provider" value="{{ settings.voice.vi_provider }}" required>
       <label style="margin-left:1rem;">Mã giọng Tiếng Việt:</label>
-      <input type="text" name="vi_voice" value="{{ settings.voice.vi_voice }}" placeholder="vi-VN-HoaiMyNeural-Female">
+      <input class="input" type="text" name="vi_voice" value="{{ settings.voice.vi_voice }}" placeholder="vi-VN-HoaiMyNeural-Female">
     </div>
     <div style="margin-bottom:1rem;">
       <label>Nhà cung cấp giọng Tiếng Anh:</label>
-      <input type="text" name="en_provider" value="{{ settings.voice.en_provider }}" required>
+      <input class="input" type="text" name="en_provider" value="{{ settings.voice.en_provider }}" required>
       <label style="margin-left:1rem;">Mã giọng Tiếng Anh:</label>
-      <input type="text" name="en_voice" value="{{ settings.voice.en_voice }}" placeholder="en-US-JennyNeural-Female">
+      <input class="input" type="text" name="en_voice" value="{{ settings.voice.en_voice }}" placeholder="en-US-JennyNeural-Female">
     </div>
     <p class="muted">Giọng đã kiểm chứng: {% for v in catalog %}<code>{{ v.voice }}</code> ({{ v.label }}){% if not loop.last %}, {% endif %}{% endfor %}. Điều khoản dùng thương mại của Edge TTS chưa được xác nhận.</p>
     <button type="submit" class="btn">Lưu cấu hình giọng đọc</button>

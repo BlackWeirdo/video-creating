@@ -12,7 +12,7 @@
 {% endif %}
 
 {% if editing_video %}
-  <section class="card" style="border:2px solid var(--primary);">
+  <section class="card card-editing">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
       <h2>Chỉnh sửa kịch bản Video #{{ editing_video.id }} ({{ editing_video.formula }})</h2>
       <div class="inline-secret-form">
@@ -29,7 +29,7 @@
       <div class="grid-2" style="margin:0.75rem 0;">
         <div>
           <h3>Bản dựng Master 9:16 ({{ "%.2f"|format(editing_video.duration_s or 0) }}s)</h3>
-          <video controls preload="metadata" src="/media/{{ editing_video.output_path }}" style="width:100%;max-width:260px;border-radius:8px;border:1px solid var(--border);"></video>
+          <video class="media-frame" controls preload="metadata" src="/media/{{ editing_video.output_path }}" style="width:100%;max-width:260px;"></video>
         </div>
         <div>
           <h3>Kiểm tra định dạng nền tảng (Preflight)</h3>
@@ -54,7 +54,7 @@
     {% if editing_video.unverified_claims %}
       <div class="alert alert-error">
         <strong>Cảnh báo đối chiếu sản phẩm (BR-PRD-06):</strong> Phát hiện câu chữ chưa có căn cứ trong <code>facts_json</code>:
-        <ul style="margin:0.4rem 0 0 1.2rem;">
+        <ul>
           {% for claim in editing_video.unverified_claims %}
             <li>{{ claim }}</li>
           {% endfor %}
@@ -65,7 +65,7 @@
     <form method="post" action="/videos/{{ editing_video.id }}/update-plan" class="form">
       <div class="form-row">
         <label for="title">Tiêu đề kịch bản</label>
-        <input id="title" type="text" name="title" value="{{ editing_video.title }}">
+        <input class="input" id="title" type="text" name="title" value="{{ editing_video.title }}">
       </div>
 
       <h3>Các đoạn shot trong kịch bản ({{ editing_video.shots|length }} đoạn)</h3>
@@ -92,11 +92,11 @@
             </td>
             <td>
               {% if db_s and db_s.thumb_path %}
-                <img src="/media/{{ db_s.thumb_path }}" alt="Shot #{{ s.shot_id }}" style="width:72px;height:110px;object-fit:cover;border-radius:4px;">
+                <img class="media-frame" src="/media/{{ db_s.thumb_path }}" alt="Shot #{{ s.shot_id }}" style="width:72px;height:110px;object-fit:cover;">
               {% endif %}
             </td>
             <td>
-              <input type="text" name="shot_text_{{ loop.index0 }}" value="{{ s.text }}" style="width:100%;">
+              <input class="input" type="text" name="shot_text_{{ loop.index0 }}" value="{{ s.text }}" style="width:100%;">
             </td>
           </tr>
           {% endfor %}
@@ -107,15 +107,15 @@
       <div class="grid-2">
         {% for platform, label in [('facebook', 'Facebook Reels (<=2200 ký tự, 3-5 hashtag)'), ('instagram', 'Instagram Reels (<=2200 ký tự, 3-8 hashtag)'), ('threads', 'Threads (<=500 ký tự, <=1 hashtag)'), ('tiktok', 'TikTok (<=2200 ký tự, 3-6 hashtag)')] %}
         {% set cap = editing_video.captions.get(platform, {'text': '', 'hashtags': []}) %}
-        <div class="card" style="margin-bottom:0;">
+        <div class="card card-flat">
           <h4>{{ label }}</h4>
           <div class="form-row">
             <label>Nội dung caption</label>
-            <input type="text" name="caption_{{ platform }}_text" value="{{ cap.text }}">
+            <input class="input" type="text" name="caption_{{ platform }}_text" value="{{ cap.text }}">
           </div>
           <div class="form-row">
             <label>Hashtags</label>
-            <input type="text" name="caption_{{ platform }}_hashtags" value="{{ cap.hashtags|join(' ') }}">
+            <input class="input" type="text" name="caption_{{ platform }}_hashtags" value="{{ cap.hashtags|join(' ') }}">
           </div>
         </div>
         {% endfor %}

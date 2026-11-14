@@ -27,7 +27,7 @@
   <h2>Thêm video theo link (Facebook / Instagram)</h2>
   <p class="muted small">Dán link một Reel hoặc video công khai bạn thấy hay (từ bảng tin Reels, Fanpage, Profile). App đọc số liệu, tải video, phân tích bằng rea-video và ưu tiên đưa vào đề xuất. Trên điện thoại: bấm Chia sẻ → Telegram, gửi <code>/link</code> kèm link vào nhóm. Tối đa 20 link/ngày.</p>
   <form method="post" action="/trends/add-link" class="inline-secret-form">
-    <input type="url" name="url" required placeholder="https://www.facebook.com/reel/... hoặc https://www.instagram.com/reel/..." style="flex:1;min-width:260px;">
+    <input class="input" type="url" name="url" required placeholder="https://www.facebook.com/reel/... hoặc https://www.instagram.com/reel/..." style="flex:1;min-width:260px;">
     <button type="submit" class="btn btn-primary">Thêm video</button>
   </form>
 </section>
@@ -85,7 +85,7 @@
           <td class="small">
             <a href="{{ item.url }}" target="_blank" rel="noopener" class="btn btn-small">Mở bài gốc</a>
             <form method="post" action="/trends/{{ item.id }}/upload-reference" enctype="multipart/form-data" class="inline-secret-form" style="margin-top:0.35rem;">
-              <input type="file" name="file" accept=".mp4,.mov" required style="width:145px;">
+              <input class="input input-file" type="file" name="file" accept=".mp4,.mov" required style="width:145px;">
               <button type="submit" class="btn btn-small">Nạp video tham khảo</button>
             </form>
           </td>

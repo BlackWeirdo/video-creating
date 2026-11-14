@@ -88,7 +88,7 @@
   <form method="post" action="/broll/create">
     <div style="margin-bottom:0.75rem;">
       <label>Chọn nguồn tạo video:</label>
-      <select name="source" style="width:100%;max-width:520px;">
+      <select class="select" name="source" style="width:100%;max-width:520px;">
         {% for src in sources %}
         <option value="{{ src.key }}">{{ src.label }} — Ước tính 6s: ${{ '%.2f'|format(src.est_6s) }}</option>
         {% endfor %}
@@ -96,7 +96,7 @@
     </div>
     <div style="margin-bottom:0.75rem;">
       <label>Thời lượng (giây):</label>
-      <input type="number" id="broll-seconds" name="seconds" value="6" min="4" max="10" style="width:90px;">
+      <input class="input" type="number" id="broll-seconds" name="seconds" value="6" min="4" max="10" style="width:90px;">
     </div>
     <div style="margin-bottom:0.75rem;">
       <label>Mẫu gợi ý nhanh:</label>
@@ -108,7 +108,7 @@
     </div>
     <div style="margin-bottom:0.75rem;">
       <label>Prompt cảnh phụ (9:16 dọc, không mô tả sản phẩm thật):</label>
-      <textarea id="broll-prompt" name="prompt" rows="3" required style="width:100%;" placeholder="VD: Cận cảnh bàn gỗ của nghệ nhân kim hoàn, ánh đèn vàng ấm..."></textarea>
+      <textarea class="textarea" id="broll-prompt" name="prompt" rows="3" required style="width:100%;" placeholder="VD: Cận cảnh bàn gỗ của nghệ nhân kim hoàn, ánh đèn vàng ấm..."></textarea>
     </div>
     <button type="submit" class="btn">Tạo cảnh phụ</button>
   </form>
@@ -136,7 +136,7 @@
           <td>#{{ s.id }}</td>
           <td>
             {% if s.path %}
-              <video controls preload="metadata" src="/media/{{ s.path }}" style="width:100px;border-radius:6px;border:1px solid var(--border);"></video>
+              <video class="media-frame" controls preload="metadata" src="/media/{{ s.path }}" style="width:100px;"></video>
             {% endif %}
           </td>
           <td>{{ s.description }}</td>

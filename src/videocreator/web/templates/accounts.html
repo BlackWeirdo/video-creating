@@ -33,11 +33,11 @@
     <form method="post" action="/accounts/connect-meta" class="form">
       <div class="form-row">
         <label for="token">Meta Access Token *</label>
-        <input id="token" type="password" name="token" placeholder="EAAB..." autocomplete="new-password" required>
+        <input class="input" id="token" type="password" name="token" placeholder="EAAB..." autocomplete="new-password" required>
       </div>
       <div class="form-row">
         <label for="default_lang">Ngôn ngữ mặc định của các tài khoản này</label>
-        <select id="default_lang" name="default_lang">
+        <select class="select" id="default_lang" name="default_lang">
           <option value="vi">Tiếng Việt (vi)</option>
           <option value="en">Tiếng Anh (en)</option>
         </select>
@@ -45,7 +45,7 @@
       <button type="submit" class="btn btn-primary">Quét & Lưu Page / Instagram</button>
     </form>
 
-    <hr style="margin:1.25rem 0;border:0;border-top:1px solid #334155;">
+    <hr class="divider">
     <h3>Kết nối OAuth (Threads & TikTok — bấm lặp lại cho nhiều tài khoản)</h3>
     <div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-bottom:0.75rem;">
       <a href="/oauth/threads/start?lang=vi" class="btn btn-primary">🔗 Kết nối Threads (VI)</a>
@@ -54,13 +54,13 @@
       <a href="/oauth/tiktok/start?lang=en" class="btn">🎵 Kết nối TikTok (EN)</a>
     </div>
     <details>
-      <summary class="small muted" style="cursor:pointer;">Dán mã OAuth thủ công (khi dùng trang callback tĩnh HTTPS)</summary>
+      <summary class="small muted disclosure">Dán mã OAuth thủ công (khi dùng trang callback tĩnh HTTPS)</summary>
       <form method="post" action="/oauth/tiktok/code" class="form" style="margin-top:0.5rem;">
         <div class="form-row">
           <label>Code & State (TikTok)</label>
           <div class="inline-secret-form">
-            <input type="text" name="code" placeholder="code..." required>
-            <input type="text" name="state" placeholder="state..." required>
+            <input class="input" type="text" name="code" placeholder="code..." required>
+            <input class="input" type="text" name="state" placeholder="state..." required>
             <button type="submit" class="btn btn-small">Đổi token TikTok</button>
           </div>
         </div>
@@ -69,8 +69,8 @@
         <div class="form-row">
           <label>Code & State (Threads)</label>
           <div class="inline-secret-form">
-            <input type="text" name="code" placeholder="code..." required>
-            <input type="text" name="state" placeholder="state..." required>
+            <input class="input" type="text" name="code" placeholder="code..." required>
+            <input class="input" type="text" name="state" placeholder="state..." required>
             <button type="submit" class="btn btn-small">Đổi token Threads</button>
           </div>
         </div>
@@ -83,7 +83,7 @@
     <form method="post" action="/accounts/add" class="form">
       <div class="form-row">
         <label for="platform">Nền tảng</label>
-        <select id="platform" name="platform">
+        <select class="select" id="platform" name="platform">
           <option value="facebook">Facebook Page</option>
           <option value="instagram">Instagram Business</option>
           <option value="threads">Threads</option>
@@ -92,22 +92,22 @@
       </div>
       <div class="form-row">
         <label for="external_id">ID tài khoản trên nền tảng (Page ID / IG User ID) *</label>
-        <input id="external_id" type="text" name="external_id" placeholder="VD: 17841400000000" required>
+        <input class="input" id="external_id" type="text" name="external_id" placeholder="VD: 17841400000000" required>
       </div>
       <div class="form-row">
         <label for="name">Tên hiển thị *</label>
-        <input id="name" type="text" name="name" placeholder="VD: Bạc Thủ Công VN" required>
+        <input class="input" id="name" type="text" name="name" placeholder="VD: Bạc Thủ Công VN" required>
       </div>
       <div class="form-row">
         <label for="lang">Ngôn ngữ bài đăng</label>
-        <select id="lang" name="lang">
+        <select class="select" id="lang" name="lang">
           <option value="vi">Tiếng Việt (vi)</option>
           <option value="en">Tiếng Anh (en)</option>
         </select>
       </div>
       <div class="form-row">
         <label for="access_token">Access Token *</label>
-        <input id="access_token" type="password" name="access_token" placeholder="Token được mã hoá vào secrets.enc" autocomplete="new-password" required>
+        <input class="input" id="access_token" type="password" name="access_token" placeholder="Token được mã hoá vào secrets.enc" autocomplete="new-password" required>
       </div>
       <button type="submit" class="btn btn-primary">Lưu tài khoản</button>
     </form>
@@ -142,7 +142,7 @@
           <td><code>{{ a.lang }}</code></td>
           <td>
             <form method="post" action="/accounts/{{ a.id }}/slots" class="inline-secret-form">
-              <input type="text" name="slots" value="{{ a.slots_json or '' }}" placeholder="Mặc định chung" style="width:140px;">
+              <input class="input" type="text" name="slots" value="{{ a.slots_json or '' }}" placeholder="Mặc định chung" style="width:140px;">
               <button type="submit" class="btn btn-small">Lưu giờ</button>
             </form>
           </td>

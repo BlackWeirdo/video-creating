@@ -15,18 +15,18 @@
     <form method="post" action="/assets/upload" enctype="multipart/form-data" class="form">
       <div class="form-row">
         <label for="file">Chọn file âm thanh (.mp3, .wav, .m4a, .aac) *</label>
-        <input id="file" type="file" name="file" accept=".mp3,.wav,.m4a,.aac,.ogg,.flac" required>
+        <input class="input input-file" id="file" type="file" name="file" accept=".mp3,.wav,.m4a,.aac,.ogg,.flac" required>
       </div>
       <div class="form-row">
         <label for="kind">Phân loại</label>
-        <select id="kind" name="kind">
+        <select class="select" id="kind" name="kind">
           <option value="music">Nhạc nền (music)</option>
           <option value="sfx">Hiệu ứng âm thanh (sfx)</option>
         </select>
       </div>
       <div class="form-row">
         <label for="title">Tên gợi nhớ</label>
-        <input id="title" type="text" name="title" placeholder="VD: Acoustic Guitar Chill">
+        <input class="input" id="title" type="text" name="title" placeholder="VD: Acoustic Guitar Chill">
       </div>
       <button type="submit" class="btn btn-primary">Tải lên</button>
     </form>

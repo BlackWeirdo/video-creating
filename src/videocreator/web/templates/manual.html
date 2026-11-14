@@ -16,8 +16,8 @@
 <section class="card" style="margin-bottom:1.5rem;">
   <h2>Tạo phiếu việc tay mới</h2>
   <form method="post" action="/manual/create" style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap;">
-    <input type="text" name="prompt" placeholder="Mô tả cảnh phụ cần tạo..." required style="min-width:360px;">
-    <input type="number" name="seconds" value="6" min="4" max="10" style="width:80px;">
+    <input class="input" type="text" name="prompt" placeholder="Mô tả cảnh phụ cần tạo..." required style="min-width:360px;">
+    <input class="input" type="number" name="seconds" value="6" min="4" max="10" style="width:80px;">
     <button type="submit" class="btn">Tạo phiếu</button>
   </form>
 </section>
@@ -45,7 +45,7 @@
           <td>
             {% if t.status in ('open', 'reminded') %}
             <form method="post" action="/manual/{{ t.id }}/upload" enctype="multipart/form-data" style="display:flex;gap:0.5rem;align-items:center;">
-              <input type="file" name="file" accept=".mp4,.mov,.webm" required>
+              <input class="input input-file" type="file" name="file" accept=".mp4,.mov,.webm" required>
               <button type="submit" class="btn">Nạp vào kho shot</button>
             </form>
             {% else %}

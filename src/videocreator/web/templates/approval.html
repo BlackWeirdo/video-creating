@@ -19,7 +19,7 @@
 
 {% if pending_videos %}
   {% for v in pending_videos %}
-    <section class="card" style="border-left:4px solid var(--primary);">
+    <section class="card card-highlight">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
         <div>
           <h2 style="margin-bottom:0.2rem;">Video #{{ v.id }}: {{ v.title }}</h2>
@@ -39,7 +39,7 @@
             <span class="badge status-waiting_quota">Có cảnh AI B-roll</span>
           {% endif %}
           {% if v.has_studio_effects or v.engine == 'studio' %}
-            <span class="badge" style="background:#7c3aed;">✨ Có hiệu ứng chuyển động trên footage (Studio)</span>
+            <span class="badge badge-accent">✨ Có hiệu ứng chuyển động trên footage (Studio)</span>
           {% endif %}
           {% if v.quality_score is not none %}
             <span class="badge status-done">⭐ {{ "%.1f"|format(v.quality_score) }}/10</span>
@@ -56,7 +56,7 @@
       {% if v.unverified_claims %}
         <div class="alert alert-error" style="margin-top:0.75rem;">
           <strong>⚠️ Cảnh báo đối chiếu sản phẩm (BR-PRD-06 — chưa có căn cứ trong <code>facts_json</code>):</strong>
-          <ul style="margin:0.35rem 0 0 1.2rem;">
+          <ul>
             {% for claim in v.unverified_claims %}
               <li>{{ claim }}</li>
             {% endfor %}
@@ -67,16 +67,16 @@
       <div class="grid-2" style="margin-top:0.75rem;">
         <div>
           {% if v.output_path %}
-            <video controls preload="metadata" src="/media/{{ v.output_path }}" style="width:100%;max-width:270px;border-radius:8px;border:1px solid var(--border);"></video>
+            <video class="media-frame" controls preload="metadata" src="/media/{{ v.output_path }}" style="width:100%;max-width:270px;"></video>
           {% endif %}
           {% if v.cover_path %}
             <div style="margin-top:0.5rem;">
               <div class="small muted">Ảnh bìa (Cover 1080×1920):</div>
-              <img src="/media/{{ v.cover_path }}" alt="Cover #{{ v.id }}" style="width:90px;height:160px;object-fit:cover;border-radius:6px;border:1px solid var(--border);margin-top:0.25rem;">
+              <img class="media-frame" src="/media/{{ v.cover_path }}" alt="Cover #{{ v.id }}" style="width:90px;height:160px;object-fit:cover;margin-top:0.25rem;">
             </div>
           {% endif %}
           <form method="post" action="/videos/{{ v.id }}/cover" enctype="multipart/form-data" class="inline-secret-form" style="margin-top:0.4rem;">
-            <input type="file" name="file" accept=".jpg,.jpeg,.png" required style="width:165px;">
+            <input class="input input-file" type="file" name="file" accept=".jpg,.jpeg,.png" required style="width:165px;">
             <button type="submit" class="btn btn-small">Đổi ảnh bìa</button>
           </form>
           <h3 style="margin-top:0.75rem;">Kiểm tra định dạng nền tảng (Preflight)</h3>
@@ -103,8 +103,8 @@
             {% set cap = v.captions.get(platform, {'text': '', 'hashtags': []}) %}
             <div class="form-row">
               <label>{{ label }}</label>
-              <input type="text" name="caption_{{ platform }}_text" value="{{ cap.text }}" placeholder="Nội dung caption {{ label }}">
-              <input type="text" name="caption_{{ platform }}_hashtags" value="{{ cap.hashtags|join(' ') }}" placeholder="#hashtag" style="margin-top:0.2rem;">
+              <input class="input" type="text" name="caption_{{ platform }}_text" value="{{ cap.text }}" placeholder="Nội dung caption {{ label }}">
+              <input class="input" type="text" name="caption_{{ platform }}_hashtags" value="{{ cap.hashtags|join(' ') }}" placeholder="#hashtag" style="margin-top:0.2rem;">
             </div>
             {% endfor %}
 
@@ -114,7 +114,7 @@
                 <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
                   {% for acc in accounts %}
                     {% set plat_errs = v.preflight.get(acc.platform, []) %}
-                    <label class="checkbox-label small" style="font-weight:400;">
+                    <label class="checkbox-label small">
                       <input type="checkbox" name="account_ids" value="{{ acc.id }}" {% if not plat_errs and acc.lang == v.caption_lang %}checked{% endif %} {% if plat_errs %}disabled{% endif %}>
                       [{{ acc.platform }}] {{ acc.name }} ({{ acc.lang }})
                     </label>
@@ -133,7 +133,7 @@
               </button>
             </form>
             <form method="post" action="/videos/{{ v.id }}/reject" class="inline-secret-form" style="flex:1;">
-              <input type="text" name="reason" placeholder="Lý do loại (tuỳ chọn)..." style="flex:1;">
+              <input class="input" type="text" name="reason" placeholder="Lý do loại (tuỳ chọn)..." style="flex:1;">
               <button type="submit" class="btn btn-danger">❌ Loại Video</button>
             </form>
           </div>

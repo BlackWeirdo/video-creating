@@ -28,14 +28,14 @@
     <form method="post" action="/footage/upload" enctype="multipart/form-data" class="form">
       <div class="form-row">
         <label for="file">Chọn file video *</label>
-        <input id="file" type="file" name="file" accept=".mp4,.mov,.mkv,.webm" required>
+        <input class="input input-file" id="file" type="file" name="file" accept=".mp4,.mov,.mkv,.webm" required>
       </div>
       <div class="form-row">
         <label>Sản phẩm xuất hiện trong footage * (FR-FTG-03)</label>
         {% if products %}
           <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
             {% for p in products %}
-              <label class="checkbox-label" style="font-weight:400;">
+              <label class="checkbox-label">
                 <input type="checkbox" name="product_ids" value="{{ p.id }}">
                 #{{ p.id }} {{ p.name }}
               </label>
@@ -58,14 +58,14 @@
     <form method="post" action="/footage/import-path" class="form">
       <div class="form-row">
         <label for="local_path">Đường dẫn file hoặc thư mục *</label>
-        <input id="local_path" type="text" name="local_path" placeholder="VD: C:\Project Video Creator\spikes\samples\clip1.mp4" required>
+        <input class="input" id="local_path" type="text" name="local_path" placeholder="VD: C:\Project Video Creator\spikes\samples\clip1.mp4" required>
       </div>
       <div class="form-row">
         <label>Sản phẩm xuất hiện trong footage * (FR-FTG-03)</label>
         {% if products %}
           <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
             {% for p in products %}
-              <label class="checkbox-label" style="font-weight:400;">
+              <label class="checkbox-label">
                 <input type="checkbox" name="product_ids" value="{{ p.id }}">
                 #{{ p.id }} {{ p.name }}
               </label>
@@ -124,11 +124,11 @@
           <td>
             {% if f.is_landscape %}
               <form method="post" action="/footage/{{ f.id }}/crop" class="inline-secret-form">
-                <select name="mode">
+                <select class="select" name="mode">
                   <option value="blur_pad" {% if f.crop.mode == 'blur_pad' %}selected{% endif %}>Nền mờ (Blur pad 9:16)</option>
                   <option value="crop" {% if f.crop.mode == 'crop' %}selected{% endif %}>Cắt dọc (Crop 9:16)</option>
                 </select>
-                <input type="number" step="0.05" min="0" max="1" name="x_offset_ratio" value="{{ f.crop.x_offset_ratio }}" style="width:70px;" title="Tâm cắt ngang (0.0 trái - 0.5 giữa - 1.0 phải)">
+                <input class="input" type="number" step="0.05" min="0" max="1" name="x_offset_ratio" value="{{ f.crop.x_offset_ratio }}" style="width:70px;" title="Tâm cắt ngang (0.0 trái - 0.5 giữa - 1.0 phải)">
                 <button type="submit" class="btn btn-small">Lưu</button>
               </form>
             {% else %}
@@ -158,27 +158,27 @@
             </div>
             {% if f.shot_count > 0 %}
               <details style="margin-top:0.4rem;">
-                <summary class="small" style="cursor:pointer;color:var(--primary);font-weight:600;">+ Tạo N kịch bản remix</summary>
-                <form method="post" action="/footage/{{ f.id }}/plans" class="form" style="margin-top:0.35rem;padding:0.5rem;background:#f8fafc;border-radius:6px;border:1px solid var(--border);">
+                <summary class="small disclosure disclosure-strong">+ Tạo N kịch bản remix</summary>
+                <form method="post" action="/footage/{{ f.id }}/plans" class="form panel">
                   <div class="inline-secret-form" style="flex-wrap:wrap;gap:0.4rem;">
                     <label class="small">Số bản:
-                      <input type="number" name="count" min="1" max="5" value="3" style="width:55px;">
+                      <input class="input" type="number" name="count" min="1" max="5" value="3" style="width:55px;">
                     </label>
                     <label class="small">Lời:
-                      <select name="voice_lang">
+                      <select class="select" name="voice_lang">
                         <option value="vi">Tiếng Việt</option>
                         <option value="en">Tiếng Anh</option>
                         <option value="none">Không lời</option>
                       </select>
                     </label>
                     <label class="small">Caption:
-                      <select name="caption_lang">
+                      <select class="select" name="caption_lang">
                         <option value="vi">Tiếng Việt</option>
                         <option value="en">Tiếng Anh</option>
                       </select>
                     </label>
                     <label class="small">Độ dài (s):
-                      <input type="number" name="target_duration_s" min="12" max="45" value="18" style="width:60px;">
+                      <input class="input" type="number" name="target_duration_s" min="12" max="45" value="18" style="width:60px;">
                     </label>
                     <button type="submit" class="btn btn-small btn-primary">Tạo kịch bản</button>
                   </div>
