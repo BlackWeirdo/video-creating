@@ -1,0 +1,44 @@
+[
+  {
+    "source": "youtube",
+    "external_id": "yt_short_silver_01",
+    "url": "https://www.youtube.com/shorts/yt_short_silver_01",
+    "author": "Silver Artisan Studio",
+    "caption": "Handcrafted 925 sterling silver ring hammering process #silversmith #jewelry",
+    "published_at": "2026-11-12T10:00:00Z",
+    "metrics": {
+      "views": 185000,
+      "likes": 9400,
+      "comments": 310
+    },
+    "video_url": "https://www.youtube.com/shorts/yt_short_silver_01"
+  },
+  {
+    "source": "youtube",
+    "external_id": "yt_short_silver_02",
+    "url": "https://www.youtube.com/shorts/yt_short_silver_02",
+    "author": "Silver Artisan Studio",
+    "caption": "Polishing oxidation details on dice silver ring",
+    "published_at": "2026-11-10T10:00:00Z",
+    "metrics": {
+      "views": 42000,
+      "likes": 1800,
+      "comments": 65
+    },
+    "video_url": "https://www.youtube.com/shorts/yt_short_silver_02"
+  },
+  {
+    "source": "ad_library",
+    "external_id": "ad_eu_silver_901",
+    "url": "https://www.facebook.com/ads/library/?id=ad_eu_silver_901",
+    "author": "Nordic Silver Craft",
+    "caption": "Hand-forged solid sterling silver rings. Lifetime warranty.",
+    "published_at": "2026-09-25T08:00:00Z",
+    "metrics": {
+      "days_running": 50.0,
+      "is_active": true,
+      "eu_reach": 100000
+    },
+    "video_url": "https://www.facebook.com/ads/library/?id=ad_eu_silver_901"
+  }
+]

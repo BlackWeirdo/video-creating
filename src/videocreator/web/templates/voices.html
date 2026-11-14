@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Cấu hình Giọng đọc &amp; Engine MPT — Video Creator{% endblock %}
+{% block content %}
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:center;">
+  <div>
+    <h1>Giọng đọc (TTS) &amp; Engine MoneyPrinterTurbo</h1>
+    <p class="muted">Chọn giọng đọc mặc định cho Tiếng Việt và Tiếng Anh. Nhân bản giọng (Voice Cloning) tắt mặc định và chỉ dùng khi có sự đồng ý bằng văn bản của chủ giọng.</p>
+  </div>
+  <a href="/settings" class="btn">Quay lại Settings</a>
+</div>
+
+{% if saved %}
+<div class="alert alert-info">Đã lưu cấu hình giọng đọc.</div>
+{% endif %}
+
+<section class="card" style="margin-bottom:1.5rem;">
+  <h2>Trạng thái dịch vụ phụ MoneyPrinterTurbo ({{ settings.mpt.version }})</h2>
+  <p>
+    Cổng cục bộ: <code>127.0.0.1:{{ settings.mpt.port }}</code> —
+    {% if mpt_healthy %}
+      <span class="badge" style="background:#16a34a;">Đang chạy</span>
+    {% else %}
+      <span class="badge" style="background:#d97706;">Chưa chạy (video dựng không có lồng tiếng, chỉ phụ đề)</span>
+    {% endif %}
+  </p>
+</section>
+
+<section class="card">
+  <h2>Giọng đọc mặc định theo ngôn ngữ</h2>
+  <form method="post" action="/voices/save">
+    <div style="margin-bottom:1rem;">
+      <label>Nhà cung cấp giọng Tiếng Việt:</label>
+      <input type="text" name="vi_provider" value="{{ settings.voice.vi_provider }}" required>
+      <label style="margin-left:1rem;">Mã giọng Tiếng Việt:</label>
+      <input type="text" name="vi_voice" value="{{ settings.voice.vi_voice }}" placeholder="vi-VN-HoaiMyNeural-Female">
+    </div>
+    <div style="margin-bottom:1rem;">
+      <label>Nhà cung cấp giọng Tiếng Anh:</label>
+      <input type="text" name="en_provider" value="{{ settings.voice.en_provider }}" required>
+      <label style="margin-left:1rem;">Mã giọng Tiếng Anh:</label>
+      <input type="text" name="en_voice" value="{{ settings.voice.en_voice }}" placeholder="en-US-JennyNeural-Female">
+    </div>
+    <p class="muted">Giọng đã kiểm chứng: {% for v in catalog %}<code>{{ v.voice }}</code> ({{ v.label }}){% if not loop.last %}, {% endif %}{% endfor %}. Điều khoản dùng thương mại của Edge TTS chưa được xác nhận.</p>
+    <button type="submit" class="btn">Lưu cấu hình giọng đọc</button>
+  </form>
+</section>
+{% endblock %}

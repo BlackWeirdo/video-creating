@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+{% block title %}Hàng chờ duyệt — Video Creator{% endblock %}
+{% block content %}
+<h1>Hàng chờ duyệt trước khi đăng ({{ pending_videos|length }} video)</h1>
+
+{% if msg == "approved" %}
+  <div class="alert alert-success">Đã duyệt video! Video sẵn sàng để xếp lịch hoặc đăng lên các nền tảng.</div>
+{% elif msg == "rejected" %}
+  <div class="alert alert-success">Đã loại video khỏi hàng chờ.</div>
+{% elif msg == "redone" %}
+  <div class="alert alert-success">Đã tạo bản làm lại với bộ shot/công thức khác và đẩy vào hàng đợi xử lý!</div>
+{% elif msg == "redo_limit" %}
+  <div class="alert alert-error">Video này đã đạt giới hạn tối đa 2 lần bấm Làm lại hoặc đã được xử lý.</div>
+{% elif msg == "cover_saved" %}
+  <div class="alert alert-success">Đã cập nhật ảnh bìa (cover) cho video.</div>
+{% elif msg == "already_decided" %}
+  <div class="alert alert-error">Video này đã được người khác xử lý trước đó (qua UI hoặc Telegram).</div>
+{% endif %}
+
+{% if pending_videos %}
+  {% for v in pending_videos %}
+    <section class="card" style="border-left:4px solid var(--primary);">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
+        <div>
+          <h2 style="margin-bottom:0.2rem;">Video #{{ v.id }}: {{ v.title }}</h2>
+          <div class="small muted">
+            Công thức: <code>{{ v.formula }}</code> | Thời lượng: {{ "%.2f"|format(v.duration_s or 0) }}s | Chế độ: {{ v.engine }}
+          </div>
+        </div>
+        <div>
+          {% if v.product_names %}
+            {% for pname in v.product_names %}
+              <span class="badge">{{ pname }}</span>
+            {% endfor %}
+          {% else %}
+            <span class="badge">Không gắn sản phẩm</span>
+          {% endif %}
+          {% if v.has_ai_broll %}
+            <span class="badge status-waiting_quota">Có cảnh AI B-roll</span>
+          {% endif %}
+          {% if v.has_studio_effects or v.engine == 'studio' %}
+            <span class="badge" style="background:#7c3aed;">✨ Có hiệu ứng chuyển động trên footage (Studio)</span>
+          {% endif %}
+          {% if v.quality_score is not none %}
+            <span class="badge status-done">⭐ {{ "%.1f"|format(v.quality_score) }}/10</span>
+          {% endif %}
+        </div>
+      </div>
+
+      {% if v.quality_notes %}
+        <div class="alert alert-info" style="margin-top:0.5rem;">
+          <strong>Ghi chú chất lượng / dựng hình:</strong> {{ v.quality_notes }}
+        </div>
+      {% endif %}
+
+      {% if v.unverified_claims %}
+        <div class="alert alert-error" style="margin-top:0.75rem;">
+          <strong>⚠️ Cảnh báo đối chiếu sản phẩm (BR-PRD-06 — chưa có căn cứ trong <code>facts_json</code>):</strong>
+          <ul style="margin:0.35rem 0 0 1.2rem;">
+            {% for claim in v.unverified_claims %}
+              <li>{{ claim }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endif %}
+
+      <div class="grid-2" style="margin-top:0.75rem;">
+        <div>
+          {% if v.output_path %}
+            <video controls preload="metadata" src="/media/{{ v.output_path }}" style="width:100%;max-width:270px;border-radius:8px;border:1px solid var(--border);"></video>
+          {% endif %}
+          {% if v.cover_path %}
+            <div style="margin-top:0.5rem;">
+              <div class="small muted">Ảnh bìa (Cover 1080×1920):</div>
+              <img src="/media/{{ v.cover_path }}" alt="Cover #{{ v.id }}" style="width:90px;height:160px;object-fit:cover;border-radius:6px;border:1px solid var(--border);margin-top:0.25rem;">
+            </div>
+          {% endif %}
+          <form method="post" action="/videos/{{ v.id }}/cover" enctype="multipart/form-data" class="inline-secret-form" style="margin-top:0.4rem;">
+            <input type="file" name="file" accept=".jpg,.jpeg,.png" required style="width:165px;">
+            <button type="submit" class="btn btn-small">Đổi ảnh bìa</button>
+          </form>
+          <h3 style="margin-top:0.75rem;">Kiểm tra định dạng nền tảng (Preflight)</h3>
+          {% if v.preflight %}
+            <ul class="small">
+              {% for plat, errs in v.preflight.items() %}
+                <li>
+                  <strong>{{ plat }}:</strong>
+                  {% if errs %}
+                    <span class="error-cell">{{ errs|join("; ") }}</span>
+                  {% else %}
+                    <span class="status-ok">Đạt chuẩn</span>
+                  {% endif %}
+                </li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+        </div>
+
+        <div>
+          <form method="post" action="/videos/{{ v.id }}/approve" class="form">
+            <h3>Caption theo từng nền tảng (sửa trực tiếp trước khi duyệt)</h3>
+            {% for platform, label in [('facebook', 'Facebook Reels'), ('instagram', 'Instagram Reels'), ('threads', 'Threads (<=500 ký tự)'), ('tiktok', 'TikTok')] %}
+            {% set cap = v.captions.get(platform, {'text': '', 'hashtags': []}) %}
+            <div class="form-row">
+              <label>{{ label }}</label>
+              <input type="text" name="caption_{{ platform }}_text" value="{{ cap.text }}" placeholder="Nội dung caption {{ label }}">
+              <input type="text" name="caption_{{ platform }}_hashtags" value="{{ cap.hashtags|join(' ') }}" placeholder="#hashtag" style="margin-top:0.2rem;">
+            </div>
+            {% endfor %}
+
+            {% if accounts %}
+              <div class="form-row">
+                <label>Tài khoản đích sẽ đăng:</label>
+                <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
+                  {% for acc in accounts %}
+                    {% set plat_errs = v.preflight.get(acc.platform, []) %}
+                    <label class="checkbox-label small" style="font-weight:400;">
+                      <input type="checkbox" name="account_ids" value="{{ acc.id }}" {% if not plat_errs and acc.lang == v.caption_lang %}checked{% endif %} {% if plat_errs %}disabled{% endif %}>
+                      [{{ acc.platform }}] {{ acc.name }} ({{ acc.lang }})
+                    </label>
+                  {% endfor %}
+                </div>
+              </div>
+            {% endif %}
+
+            <button type="submit" class="btn btn-primary">✅ Duyệt Video #{{ v.id }}</button>
+          </form>
+
+          <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;margin-top:0.75rem;">
+            <form method="post" action="/videos/{{ v.id }}/redo" style="display:inline;">
+              <button type="submit" class="btn" {% if (v.redo_count or 0) >= 2 %}disabled{% endif %}>
+                🔄 Làm lại ({{ v.redo_count or 0 }}/2)
+              </button>
+            </form>
+            <form method="post" action="/videos/{{ v.id }}/reject" class="inline-secret-form" style="flex:1;">
+              <input type="text" name="reason" placeholder="Lý do loại (tuỳ chọn)..." style="flex:1;">
+              <button type="submit" class="btn btn-danger">❌ Loại Video</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+  {% endfor %}
+{% else %}
+  <section class="card">
+    <p class="muted">Hiện không có video nào đang ở trạng thái <code>pending_approval</code>.</p>
+  </section>
+{% endif %}
+
+{% if recent_decided %}
+  <section class="card">
+    <h2>Lịch sử duyệt gần đây</h2>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Video ID</th>
+          <th>Trạng thái</th>
+          <th>Người xử lý (approved_by)</th>
+          <th>Thời điểm / Lý do</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in recent_decided %}
+        <tr>
+          <td><a href="/videos/{{ d.id }}">#{{ d.id }}</a></td>
+          <td><span class="badge status-{{ d.status }}">{{ d.status }}</span></td>
+          <td><code>{{ d.approved_by or "-" }}</code></td>
+          <td class="small">{{ d.reject_reason or d.approved_at or "-" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+{% endif %}
+{% endblock %}

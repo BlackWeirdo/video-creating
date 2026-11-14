@@ -1,0 +1,14 @@
+[Unit]
+Description=Video Creator Headless Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/videocreator
+ExecStart=/opt/videocreator/.venv/bin/python -m videocreator --headless --host 0.0.0.0 --port 8765
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

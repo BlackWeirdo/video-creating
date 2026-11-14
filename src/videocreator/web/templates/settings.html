@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+{% block title %}Settings — Video Creator{% endblock %}
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;">
+  <h1>Cài đặt hệ thống (Settings)</h1>
+  <a href="/ai-routes" class="btn btn-primary">Trạng thái định tuyến AI & Kiểm tra CLI gói thuê bao</a>
+</div>
+<p class="muted">Thư mục dữ liệu: <code>{{ data_dir }}</code></p>
+
+{% if saved == "config" %}
+  <div class="alert alert-success">Đã lưu cấu hình vào <code>config.toml</code>.</div>
+{% elif saved == "secret" %}
+  <div class="alert alert-success">Đã cập nhật kho bí mật (<code>secrets.bin</code>).</div>
+{% elif saved == "error" %}
+  <div class="alert alert-danger">Dữ liệu nhập không hợp lệ.</div>
+{% endif %}
+
+<div class="grid-2">
+  <section class="card">
+    <h2>Cấu hình chung & Định tuyến AI</h2>
+    <form method="post" action="/settings/config" class="form">
+      <div class="form-row">
+        <label for="role">Vai trò máy (role)</label>
+        <select id="role" name="role">
+          <option value="server" {% if settings.role == "server" %}selected{% endif %}>server (chạy worker, lịch đăng, bot)</option>
+          <option value="client" {% if settings.role == "client" %}selected{% endif %}>client (chỉ mở giao diện)</option>
+        </select>
+      </div>
+
+      <div class="form-row">
+        <label for="host">Host</label>
+        <input id="host" type="text" name="host" value="{{ settings.host }}">
+      </div>
+
+      <div class="form-row">
+        <label for="port">Port</label>
+        <input id="port" type="number" name="port" value="{{ settings.port }}">
+      </div>
+
+      <h3>Hạn mức ngân sách API mỗi ngày (USD)</h3>
+      <div class="form-row">
+        <label for="daily_usd">Chữ & nhìn ảnh (daily_usd)</label>
+        <input id="daily_usd" type="number" step="0.01" name="daily_usd" value="{{ settings.budget.daily_usd }}">
+      </div>
+      <div class="form-row">
+        <label for="generative_daily_usd">Sinh video B-roll (generative_daily_usd)</label>
+        <input id="generative_daily_usd" type="number" step="0.01" name="generative_daily_usd" value="{{ settings.budget.generative_daily_usd }}">
+      </div>
+      <div class="form-row">
+        <label for="studio_daily_usd">Studio qua API (studio_daily_usd)</label>
+        <input id="studio_daily_usd" type="number" step="0.01" name="studio_daily_usd" value="{{ settings.budget.studio_daily_usd }}">
+      </div>
+
+      <h3>Định tuyến AI ưu tiên gói thuê bao</h3>
+      <div class="form-row">
+        <label for="api_fallback">Chính sách dự phòng API (api_fallback)</label>
+        <select id="api_fallback" name="api_fallback">
+          <option value="ask" {% if settings.ai.policy.api_fallback == "ask" %}selected{% endif %}>ask (hỏi trước khi dùng API)</option>
+          <option value="auto" {% if settings.ai.policy.api_fallback == "auto" %}selected{% endif %}>auto (tự chuyển sang API trong hạn mức)</option>
+          <option value="never" {% if settings.ai.policy.api_fallback == "never" %}selected{% endif %}>never (chỉ dùng gói thuê bao, hết thì chờ)</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label for="offpeak_hours">Giờ thấp điểm (offpeak_hours)</label>
+        <input id="offpeak_hours" type="text" name="offpeak_hours" value="{{ settings.ai.policy.offpeak_hours }}">
+      </div>
+      <div class="form-row">
+        <label for="vision_routes">Thứ tự vai trò vision</label>
+        <input id="vision_routes" type="text" name="vision_routes" value="{{ settings.ai.routes.vision | join(', ') }}">
+      </div>
+      <div class="form-row">
+        <label for="writer_routes">Thứ tự vai trò writer</label>
+        <input id="writer_routes" type="text" name="writer_routes" value="{{ settings.ai.routes.writer | join(', ') }}">
+      </div>
+      <div class="form-row">
+        <label for="checker_routes">Thứ tự vai trò checker</label>
+        <input id="checker_routes" type="text" name="checker_routes" value="{{ settings.ai.routes.checker | join(', ') }}">
+      </div>
+      <div class="form-row">
+        <label for="studio_routes">Thứ tự vai trò studio</label>
+        <input id="studio_routes" type="text" name="studio_routes" value="{{ settings.ai.routes.studio | join(', ') }}">
+      </div>
+
+      <h3>Lịch đăng & Telegram</h3>
+      <div class="form-row">
+        <label for="timezone_name">Múi giờ</label>
+        <input id="timezone_name" type="text" name="timezone_name" value="{{ settings.schedule.timezone }}">
+      </div>
+      <div class="form-row checkbox-row">
+        <label>
+          <input type="checkbox" name="schedule_auto" value="true" {% if settings.schedule.auto %}checked{% endif %}>
+          Tự động xếp lịch khi duyệt
+        </label>
+      </div>
+      <div class="form-row">
+        <label for="schedule_slots">Khung giờ mặc định (phân cách bằng dấu phẩy)</label>
+        <input id="schedule_slots" type="text" name="schedule_slots" value="{{ settings.schedule.slots | join(', ') }}">
+      </div>
+      <div class="form-row">
+        <label for="allowed_chat_ids">Telegram allowed_chat_ids</label>
+        <input id="allowed_chat_ids" type="text" name="allowed_chat_ids" value="{{ settings.telegram.allowed_chat_ids | join(', ') }}">
+      </div>
+      <div class="form-row">
+        <label for="approver_user_ids">Telegram approver_user_ids</label>
+        <input id="approver_user_ids" type="text" name="approver_user_ids" value="{{ settings.telegram.approver_user_ids | join(', ') }}">
+      </div>
+      <div class="form-row">
+        <label for="quiet_hours">Giờ yên lặng Telegram</label>
+        <input id="quiet_hours" type="text" name="quiet_hours" value="{{ settings.telegram.quiet_hours }}">
+      </div>
+
+      <h3>Cloudflare R2</h3>
+      <div class="form-row">
+        <label for="r2_bucket">Tên bucket R2</label>
+        <input id="r2_bucket" type="text" name="r2_bucket" value="{{ settings.r2.bucket }}">
+      </div>
+      <div class="form-row">
+        <label for="r2_public_base">URL công khai R2 (public_base)</label>
+        <input id="r2_public_base" type="text" name="r2_public_base" value="{{ settings.r2.public_base }}">
+      </div>
+
+      <button type="submit" class="btn btn-primary">Lưu cấu hình</button>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>Kho bí mật (Secrets Store)</h2>
+    <p class="muted">Các khoá API và token được mã hoá bằng DPAPI trên Windows (hoặc quyền 600 trên Linux). Giá trị chỉ ghi, không bao giờ hiển thị lại.</p>
+
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Tên khoá</th>
+          <th>Trạng thái</th>
+          <th>Cập nhật / Xoá</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in secret_items %}
+        <tr>
+          <td>
+            <strong><code>{{ item.name }}</code></strong>
+            <div class="muted small">{{ item.label }}</div>
+          </td>
+          <td>
+            {% if item.is_set %}
+              <span class="status-ok">Đã đặt</span>
+            {% else %}
+              <span class="status-empty">Chưa đặt</span>
+            {% endif %}
+          </td>
+          <td>
+            <form method="post" action="/settings/secrets" class="inline-secret-form">
+              <input type="hidden" name="name" value="{{ item.name }}">
+              <input type="password" name="value" placeholder="Nhập giá trị mới..." autocomplete="new-password">
+              <button type="submit" name="action" value="set" class="btn btn-small">Lưu</button>
+              {% if item.is_set %}
+                <button type="submit" name="action" value="delete" class="btn btn-small btn-danger">Xoá</button>
+              {% endif %}
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <h3>Thêm khoá bí mật khác</h3>
+    <form method="post" action="/settings/secrets" class="form">
+      <div class="form-row">
+        <label for="custom_secret_name">Tên khoá</label>
+        <input id="custom_secret_name" type="text" name="name" placeholder="VD: META_PAGE_TOKEN_1" required>
+      </div>
+      <div class="form-row">
+        <label for="custom_secret_value">Giá trị</label>
+        <input id="custom_secret_value" type="password" name="value" placeholder="Dán token..." autocomplete="new-password" required>
+      </div>
+      <input type="hidden" name="action" value="set">
+      <button type="submit" class="btn btn-primary">Lưu khoá bí mật</button>
+    </form>
+
+    <hr style="margin:1.25rem 0;border:none;border-top:1px solid var(--border);">
+    <h2>Chuyển máy: Xuất / Nhập cấu hình (.vcx)</h2>
+    <p class="muted small">Gói <code>.vcx</code> gồm <code>config.toml</code>, <code>app.db</code> và khoá bí mật được mã hoá lại bằng mật khẩu bạn nhập (scrypt + Fernet).</p>
+    <form method="post" action="/settings/export" class="inline-secret-form" style="margin-bottom:0.75rem;">
+      <input type="password" name="password" placeholder="Mật khẩu mã hoá (>=4 ký tự)" required>
+      <button type="submit" class="btn btn-primary btn-small">Xuất file .vcx</button>
+    </form>
+
+    <form method="post" action="/settings/import" enctype="multipart/form-data" class="form">
+      <div class="form-row">
+        <label>Chọn file <code>.vcx</code> để nhập</label>
+        <input type="file" name="file" accept=".vcx,.zip" required>
+      </div>
+      <div class="form-row">
+        <label>Mật khẩu giải mã</label>
+        <input type="password" name="password" placeholder="Nhập đúng mật khẩu lúc xuất" required>
+      </div>
+      <label class="checkbox-label small">
+        <input type="checkbox" name="as_server" value="true">
+        Đặt máy này làm máy chủ mới (<code>role = server</code>; nếu bỏ tích sẽ đặt <code>role = client</code> để không đụng bot)
+      </label>
+      <button type="submit" class="btn btn-small">Nhập cấu hình</button>
+    </form>
+  </section>
+</div>
+{% endblock %}

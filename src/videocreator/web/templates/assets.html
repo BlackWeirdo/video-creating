@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Tài nguyên Nhạc & SFX — Video Creator{% endblock %}
+{% block content %}
+<h1>Quản lý Nhạc nền & Hiệu ứng âm thanh (Assets)</h1>
+
+{% if msg == "uploaded" %}
+  <div class="alert alert-success">Đã nạp file âm thanh vào kho tài nguyên.</div>
+{% elif msg == "deleted" %}
+  <div class="alert alert-success">Đã xoá file âm thanh.</div>
+{% endif %}
+
+<div class="grid-2">
+  <section class="card">
+    <h2>Tải lên Nhạc nền / SFX có bản quyền sử dụng</h2>
+    <form method="post" action="/assets/upload" enctype="multipart/form-data" class="form">
+      <div class="form-row">
+        <label for="file">Chọn file âm thanh (.mp3, .wav, .m4a, .aac) *</label>
+        <input id="file" type="file" name="file" accept=".mp3,.wav,.m4a,.aac,.ogg,.flac" required>
+      </div>
+      <div class="form-row">
+        <label for="kind">Phân loại</label>
+        <select id="kind" name="kind">
+          <option value="music">Nhạc nền (music)</option>
+          <option value="sfx">Hiệu ứng âm thanh (sfx)</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label for="title">Tên gợi nhớ</label>
+        <input id="title" type="text" name="title" placeholder="VD: Acoustic Guitar Chill">
+      </div>
+      <button type="submit" class="btn btn-primary">Tải lên</button>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>Danh sách Âm thanh ({{ assets|length }})</h2>
+    {% if assets %}
+      <table class="table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Tên & Loại</th>
+            <th>Thời lượng</th>
+            <th>Nghe thử</th>
+            <th>Xoá</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for a in assets %}
+          <tr>
+            <td>#{{ a.id }}</td>
+            <td>
+              <strong>{{ a.title }}</strong>
+              <div><span class="badge">{{ a.kind }}</span></div>
+            </td>
+            <td>{{ "%.1f"|format(a.duration_s or 0) }}s</td>
+            <td>
+              <audio controls preload="none" src="/media/{{ a.path }}" style="height:32px;max-width:180px;"></audio>
+            </td>
+            <td>
+              <form method="post" action="/assets/{{ a.id }}/delete">
+                <button type="submit" class="btn btn-small btn-danger">Xoá</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="muted">Chưa có nhạc nền nào. Nếu không có nhạc, bản render sẽ tự chèn track âm thanh im lặng chuẩn 48kHz.</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

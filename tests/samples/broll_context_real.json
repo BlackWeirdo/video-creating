@@ -1,0 +1,165 @@
+{
+ "_note": "Real rows copied from the live app.db on 2026-11-14 (not invented). Used to seed a fresh test DB.",
+ "trend_items": [
+  {
+   "source": "youtube",
+   "external_id": "uXKZIjBL9hU",
+   "url": "https://www.youtube.com/shorts/uXKZIjBL9hU",
+   "author": "AdamJewellery",
+   "caption": "💍 Making a Beautiful Malachite Inlay Silver Ring | Handmade Jewelry #handmadejewelry #jewelrymaking\n💚 How to Make a Stunning Silver Malachite Inlay Ring | Handmade Silver Jewelry 💍✨\n #SilverRing #InlayRing #JewelryMaking #HandmadeJewelry #SilverJewelry \nDiscover the art of crafting a beautiful Silver Malachite Inlay Ring from scratch! In this video, watch the complete jewelry-making process as a piece of silver is transformed into a stunning handmade ring featuring the natural beauty of green malachite.\n\nFrom shaping and polishing the silver to carefully fitting the malachite stone into the ring, every step showcases the skill, precision, and creativity behind handmade jewelry. The combination of polished silver and malachite's unique green patterns creates a stylish and elegant design. 💎\n\nIf you love silver jewelry, gemstone rings, traditional craftsmanship, and satisfying jewelry-making videos, this tutorial is for you!\n\n👍 If you enjoy this video:\n\nLike the video and share it with je",
+   "published_at": "2026-10-27T11:30:33Z",
+   "metrics_json": "{\"views\": 3377994, \"likes\": 52690, \"comments\": 248}",
+   "score": 205.4308,
+   "analysis_json": "{\"hook\": \"Cảnh quay cận cảnh người thợ dùng búa nện mạnh uốn cong thanh bạc thô quanh trục thép, kết hợp âm thanh gõ kim loại đanh thép gây nghiện kích thích trí tò mò của người xem về sản phẩm cuối cùng.\", \"structure\": [{\"t\": \"00:00 - 00:20\", \"what\": \"Uốn nắn, gò búa thanh phôi bạc thành hình tròn thô và hàn nhiệt bằng đèn khò\"}, {\"t\": \"00:21 - 01:17\", \"what\": \"Cắt gọt, dũa tạo form nhẫn vuông dày và phay tạo rãnh sâu để chuẩn bị khảm đá\"}, {\"t\": \"01:18 - 01:29\", \"what\": \"Đập vỡ và nghiền nát viên đá lông công Malachite xanh lục bảo trong cối đồng\"}, {\"t\": \"01:30 - 01:48\", \"what\": \"Tỉ mỉ xếp các mảnh đá vụn và phủ bột đá Malachite vào rãnh đai nhẫn\"}, {\"t\": \"01:49 - 02:08\", \"what\": \"Dũa mài thô và mài nước bề mặt để lộ vân đá xanh ngọc phẳng mịn, bóng bẩy\"}, {\"t\": \"02:09 - 02:39\", \"what\": \"Khoan chấu, khắc gờ kim loại và cẩn viên đá chủ sáng lấp lánh vào trung tâm\"}, {\"t\": \"02:40 - 02:49\", \"what\": \"Đánh bóng hoàn thiện thân nhẫn kim loại trên máy mài nỉ tốc độ cao\"}, {\"t\": \"02:50 - 02:58\", \"what\": \"Chiêm ngưỡng kiệt tác nhẫn bạc khảm đá Malachite hoàn mỹ dưới ánh sáng tự nhiên\"}], \"cut_pace_s\": 1.46, \"text_style\": \"Tối giản hoàn toàn, không lạm dụng chữ phụ đề che khung hình để giữ trọn vẹn độ chân thực và tính thẩm mỹ của góc máy macro cận cảnh.\", \"music_mood\": \"Tập trung khai thác triệt để âm thanh thực tế (ASMR đập cối, cưa dũa, khò lửa) phối cùng giai điệu nhẹ nhàng, mang lại cảm giác thư giãn và thỏa mãn.\", \"why_it_works\": \"Video thành công nhờ thỏa mãn hiệu ứng tâm lý 'Oddly Satisfying' từ việc nghiền nát đá quý đến hoàn thiện tinh xảo. Sự tương phản giữa nguyên liệu thô xù xì và món trang sức cao cấp lộng lẫy giữ chân người xem theo dõi đến giây cuối cùng.\"}"
+  }
+ ],
+ "suggestions": [
+  {
+   "text": "Tận dụng hiệu ứng ASMR chế tác nhẫn bạc đôi môi độc đáo qua các công đoạn nung khè, tỉa hoa văn sắc nét đến đánh bóng hoàn thiện. Nhịp video dồn dập biến đổi từ phôi thô đến kiệt tác đeo trên tay giúp giữ chân người xem đến giây cuối cùng.",
+   "formula_json": "{\"formula\": \"Craftsmanship ASMR Showcase\", \"recommended_shot_ids\": [18, 21, 19, 11, 14, 13, 15, 16, 24], \"missing_shots\": \"\"}",
+   "status": "accepted"
+  },
+  {
+   "text": "Tái hiện hành trình tạo nên móc khóa xúc xắc bạc thủ công từ nung hàn phôi kim loại, mài rãnh vuông vức đến kiểm tra thành phẩm. Video kết thúc bằng cảnh phối đồ xuống phố cực chất mang lại sự thỏa mãn thị giác cao.",
+   "formula_json": "{\"formula\": \"Raw to Refined Transformation\", \"recommended_shot_ids\": [18, 20, 4, 3, 2, 7, 8, 9], \"missing_shots\": \"\"}",
+   "status": "accepted"
+  }
+ ],
+ "shots": [
+  {
+   "idx": 1,
+   "start_s": 0.0,
+   "end_s": 0.917,
+   "description": "Cận cảnh hai khuy kim loại tròn khắc chữ 'SILENT LEGACY' với họa tiết hoa văn, đính trên nền da màu đen có đường chỉ may, góc dưới trái thấy một phần khoen kim loại sáng bóng.",
+   "tags_json": "[\"cận cảnh\", \"khuy kim loại\", \"nền da đen\", \"chữ khắc\"]",
+   "has_product": 1,
+   "quality": 4
+  },
+  {
+   "idx": 2,
+   "start_s": 0.917,
+   "end_s": 1.867,
+   "description": "Cận cảnh cực gần bề mặt một món trang sức bạc dạng mắt xích/khối hình học góc cạnh, ánh sáng phản chiếu mạnh tạo highlight trắng sáng, nền tối phía sau.",
+   "tags_json": "[\"cận cảnh\", \"bạc đánh bóng\", \"hình khối góc cạnh\", \"phản chiếu ánh sáng\"]",
+   "has_product": 1,
+   "quality": 4
+  },
+  {
+   "idx": 3,
+   "start_s": 1.867,
+   "end_s": 3.417,
+   "description": "Góc quay macro với khung hình có viền đen trên dưới (letterbox), thấy bề mặt kim loại trắng với các lỗ cắt hình học và dòng chữ khắc 'Silent Legacy' dạng chữ ký, có vật thể đen mờ phía trước.",
+   "tags_json": "[\"macro\", \"chữ khắc\", \"họa tiết cắt kim loại\", \"letterbox\"]",
+   "has_product": 1,
+   "quality": 3
+  },
+  {
+   "idx": 4,
+   "start_s": 3.417,
+   "end_s": 7.0,
+   "description": "Tay thợ cầm khối sáp màu xanh lá có hình dạng mắt xích đang được chạm khắc, phía trên có dụng cụ khắc nhọn, nền là mặt bàn làm việc xi măng/đá.",
+   "tags_json": "[\"tay thợ\", \"sáp tạo mẫu\", \"dụng cụ khắc\", \"bàn làm việc\"]",
+   "has_product": 1,
+   "quality": 4
+  },
+  {
+   "idx": 5,
+   "start_s": 7.0,
+   "end_s": 7.75,
+   "description": "Hàn/đốt các mảnh sáp màu trắng đỏ (đang nóng chảy) bằng đèn khò tạo ngọn lửa xanh, đặt trên một khối đế tròn màu nâu xỉn.",
+   "tags_json": "[\"đèn khò\", \"sáp nóng chảy\", \"đế hàn\", \"ngọn lửa xanh\"]",
+   "has_product": 1,
+   "quality": 4
+  },
+  {
+   "idx": 6,
+   "start_s": 7.75,
+   "end_s": 9.0,
+   "description": "Cận cảnh đầu nhíp kim loại đang thao tác trên vật liệu màu đỏ cam trong suốt (có vẻ như sáp hoặc nhựa đang nóng), ánh sáng xanh của đèn khò phía trên.",
+   "tags_json": "[\"nhíp\", \"vật liệu đỏ cam\", \"thao tác tay\", \"ánh sáng xanh\"]",
+   "has_product": 1,
+   "quality": 3
+  },
+  {
+   "idx": 7,
+   "start_s": 9.0,
+   "end_s": 10.167,
+   "description": "Tay thợ dùng kẹp giữ một khối kim loại bạc, có dụng cụ cầm tay hình trụ bạc (có thể là máy mài/khoan mini) phía trên, một vòng kim loại nhỏ nằm trên bàn.",
+   "tags_json": "[\"tay thợ\", \"kẹp giữ\", \"dụng cụ cầm tay\", \"chi tiết kim loại nhỏ\"]",
+   "has_product": 1,
+   "quality": 4
+  },
+  {
+   "idx": 8,
+   "start_s": 10.167,
+   "end_s": 11.0,
+   "description": "Tay cầm giũa kim loại đang giũa một mảnh kim loại nhỏ, nền mờ phía sau tối.",
+   "tags_json": "[\"giũa kim loại\", \"tay thợ\", \"thao tác thủ công\"]",
+   "has_product": 1,
+   "quality": 3
+  },
+  {
+   "idx": 9,
+   "start_s": 11.0,
+   "end_s": 12.0,
+   "description": "Cận cảnh một khoen/móc kim loại trắng gắn trên khối kim loại hình chữ thập, có vệt đỏ (sáp/nhựa nóng chảy) bám quanh, kẹp kim loại đang giữ phần đế.",
+   "tags_json": "[\"khoen kim loại\", \"vệt đỏ\", \"kẹp giữ\", \"chi tiết trang sức\"]",
+   "has_product": 1,
+   "quality": 4
+  },
+  {
+   "idx": 10,
+   "start_s": 12.0,
+   "end_s": 13.0,
+   "description": "Khối kim loại trắng hình dạng góc cạnh (mắt xích) đang được nhúng/đun trong nước sôi có bọt khí, bên dưới có ngọn lửa xanh của bếp.",
+   "tags_json": "[\"đun nước sôi\", \"nồi kim loại\", \"bọt khí\", \"bếp lửa\"]",
+   "has_product": 1,
+   "quality": 4
+  },
+  {
+   "idx": 11,
+   "start_s": 13.0,
+   "end_s": 14.0,
+   "description": "Tay thợ dùng nhíp cầm một khung kim loại trắng (có dạng ngôi sao/hoa văn), phía sau là một chiếc bát/nồi kim loại, ngón tay cái che một phần khung hình.",
+   "tags_json": "[\"tay thợ\", \"nhíp\", \"khung kim loại trắng\", \"nồi kim loại\"]",
+   "has_product": 1,
+   "quality": 3
+  },
+  {
+   "idx": 12,
+   "start_s": 14.0,
+   "end_s": 15.0,
+   "description": "Cận cảnh ngọn lửa cam đỏ cháy trên bề mặt vật liệu màu nâu đỏ sẫm đang nóng chảy, có vệt bóng phản chiếu ánh sáng.",
+   "tags_json": "[\"ngọn lửa\", \"vật liệu nóng chảy\", \"ánh sáng cam đỏ\"]",
+   "has_product": 1,
+   "quality": 3
+  }
+ ],
+ "products": [
+  {
+   "name": "Nhẫn bạc S925",
+   "material": "Bạc S925",
+   "facts_json": "{\"craftsmanship\": \"Chế tác thủ công\", \"notes\": \"Nhẫn bạc S925 chế tác thủ công\"}"
+  },
+  {
+   "name": "Khuyên tai bạc S925",
+   "material": "Bạc S925",
+   "facts_json": "{\"craftsmanship\": \"Chế tác thủ công\", \"notes\": \"Khuyên tai bạc S925 chế tác thủ công\"}"
+  },
+  {
+   "name": "Xúc xắc bạc S925",
+   "material": "Bạc S925",
+   "facts_json": "{\"craftsmanship\": \"Chế tác thủ công\", \"notes\": \"Xúc xắc bạc S925 chế tác thủ công\"}"
+  },
+  {
+   "name": "Đinh tán bạc S925",
+   "material": "Bạc S925",
+   "facts_json": "{\"craftsmanship\": \"Chế tác thủ công\", \"notes\": \"Đinh tán bạc S925 chế tác thủ công\"}"
+  },
+  {
+   "name": "Mặt dây chuyền bạc S925",
+   "material": "Bạc S925",
+   "facts_json": "{\"craftsmanship\": \"Chế tác thủ công\", \"notes\": \"Mặt dây chuyền bạc S925 chế tác thủ công\"}"
+  }
+ ]
+}

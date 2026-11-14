@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}Định tuyến AI & Gói thuê bao — Video Creator{% endblock %}
+{% block content %}
+<h1>Định tuyến AI ưu tiên gói thuê bao (Phase 18)</h1>
+
+{% if msg == "cli_checked" %}
+  {% if cli_status == "ok" %}
+    <div class="alert alert-success">Kiểm tra <code>claude -p</code> thành công! Gói thuê bao sẵn sàng phục vụ.</div>
+  {% else %}
+    <div class="alert alert-error">Kiểm tra <code>claude -p</code> thất bại. Xem chi tiết ở bảng trạng thái bên dưới.</div>
+  {% endif %}
+{% elif msg == "provider_woken" %}
+  <div class="alert alert-success">Đã xoá trạng thái nghỉ của provider và kích hoạt lại các job đang chờ hạn mức.</div>
+{% endif %}
+
+<div class="grid-2">
+  <section class="card">
+    <h2>1. Kiểm tra CLI gói thuê bao trên máy chủ</h2>
+    <p class="small muted">
+      Theo quyết định Hướng A (S13): <code>claude_cli</code> (Claude Code) là đường gói thuê bao chính cho cả 4 vai trò <code>vision</code>, <code>writer</code>, <code>checker</code>, <code>studio</code>.
+      <code>gemini_cli</code> đã ngừng phục vụ gói cá nhân từ 18/06/2026 nên không sử dụng.
+    </p>
+    <p class="small">
+      <strong>Đường dẫn <code>claude.exe</code>:</strong>
+      <code>{{ cli_binary or "Chưa tìm thấy trên PATH" }}</code>
+    </p>
+    <form method="post" action="/ai/check-cli">
+      <button type="submit" class="btn btn-primary">Kiểm tra đăng nhập & phiên bản claude -p</button>
+      <a href="/settings" class="btn">Cấu hình thứ tự định tuyến</a>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>2. Trạng thái nghỉ / hồi hạn mức (provider_state)</h2>
+    {% if provider_states %}
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Provider</th>
+            <th>Nghỉ tới (Unix TS)</th>
+            <th>Lỗi gần nhất</th>
+            <th>Thao tác</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for ps in provider_states %}
+          <tr>
+            <td><code>{{ ps.name }}</code></td>
+            <td>{{ ps.resting_until or "Đang hoạt động" }}</td>
+            <td class="error-cell">{{ ps.last_error or "-" }}</td>
+            <td>
+              <form method="post" action="/ai/provider/{{ ps.name }}/wake">
+                <button type="submit" class="btn btn-small">Đánh thức ngay</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="muted">Tất cả provider đều đang sẵn sàng (không có provider nào đang nghỉ).</p>
+    {% endif %}
+  </section>
+</div>
+
+<section class="card">
+  <h2>3. Các Job đang chờ hồi hạn mức gói thuê bao (waiting_quota: {{ waiting_jobs|length }})</h2>
+  {% if waiting_jobs %}
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Job ID</th>
+          <th>Loại</th>
+          <th>Ref ID</th>
+          <th>Lý do chờ</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for j in waiting_jobs %}
+        <tr>
+          <td>#{{ j.id }}</td>
+          <td><code>{{ j.kind }}</code></td>
+          <td>{{ j.ref_id or "-" }}</td>
+          <td class="small">{{ j.error or "-" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="muted">Không có job nào đang chờ hạn mức.</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>4. Nhật ký sử dụng AI gần đây (ai_usage)</h2>
+  {% if recent_usage %}
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Ngày</th>
+          <th>Provider</th>
+          <th>Model</th>
+          <th>Vai trò</th>
+          <th>Đường (route)</th>
+          <th>Tokens (vào/ra)</th>
+          <th>Chi phí (USD)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in recent_usage %}
+        <tr>
+          <td>{{ u.day }}</td>
+          <td><code>{{ u.provider }}</code></td>
+          <td><code>{{ u.model }}</code></td>
+          <td>{{ u.kind }}</td>
+          <td><span class="badge">{{ u.route }}</span></td>
+          <td>{{ u.input_units }} / {{ u.output_units }}</td>
+          <td>${{ "%.4f"|format(u.cost_usd or 0) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="muted">Chưa có lượt gọi AI nào được ghi nhận.</p>
+  {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}Sản phẩm — Video Creator{% endblock %}
+{% block content %}
+<h1>Quản lý sản phẩm (Nguồn sự thật cho lời & caption)</h1>
+
+{% if msg == "saved" %}
+  <div class="alert alert-success">Đã lưu thông tin sản phẩm.</div>
+{% elif msg == "deleted" %}
+  <div class="alert alert-success">Đã xoá sản phẩm chưa gắn footage.</div>
+{% elif msg == "hidden" %}
+  <div class="alert alert-success">Sản phẩm đang gắn với footage/video nên đã được ẩn (giữ lịch sử truy vết theo FR-PRD-02).</div>
+{% endif %}
+
+<div class="grid-2">
+  <section class="card">
+    <h2>{% if editing %}Sửa sản phẩm #{{ editing.id }}{% else %}Thêm sản phẩm mới{% endif %}</h2>
+    <form method="post" action="/products" class="form">
+      {% if editing %}
+        <input type="hidden" name="product_id" value="{{ editing.id }}">
+      {% endif %}
+      <div class="form-row">
+        <label for="name">Tên sản phẩm *</label>
+        <input id="name" type="text" name="name" value="{{ editing.name if editing else '' }}" placeholder="VD: Nhẫn bạc Xúc Xắc" required>
+      </div>
+      <div class="form-row">
+        <label for="material">Chất liệu / Tuổi bạc</label>
+        <input id="material" type="text" name="material" value="{{ editing.material if editing else '' }}" placeholder="VD: Bạc S925 nguyên khối">
+      </div>
+      <div class="form-row">
+        <label for="stone">Đá gắn kèm (stone)</label>
+        <input id="stone" type="text" name="stone" value="{{ editing.facts.stone if editing else '' }}" placeholder="VD: Không đính đá / Đá Onyx đen tự nhiên">
+      </div>
+      <div class="form-row">
+        <label for="size">Kích thước / Trọng lượng (size)</label>
+        <input id="size" type="text" name="size" value="{{ editing.facts.size if editing else '' }}" placeholder="VD: Bản rộng 8mm, nặng 12g">
+      </div>
+      <div class="form-row">
+        <label for="craftsmanship">Kỹ thuật chế tác (craftsmanship)</label>
+        <input id="craftsmanship" type="text" name="craftsmanship" value="{{ editing.facts.craftsmanship if editing else '' }}" placeholder="VD: Chạm khắc thủ công, xử lý oxy hoá">
+      </div>
+      <div class="form-row">
+        <label for="price">Giá công bố (tuỳ chọn)</label>
+        <input id="price" type="text" name="price" value="{{ editing.facts.price if editing else '' }}" placeholder="VD: 1.450.000đ (để trống nếu không báo giá)">
+      </div>
+      <div class="form-row">
+        <label for="notes">Ghi chú thêm</label>
+        <input id="notes" type="text" name="notes" value="{{ editing.facts.notes if editing else '' }}" placeholder="Điểm nhấn thiết kế hoặc ý nghĩa">
+      </div>
+      <button type="submit" class="btn btn-primary">{% if editing %}Cập nhật sản phẩm{% else %}Thêm sản phẩm{% endif %}</button>
+      {% if editing %}
+        <a href="/products" class="btn">Huỷ sửa</a>
+      {% endif %}
+    </form>
+  </section>
+
+  <section class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <h2>Danh sách sản phẩm ({{ products|length }})</h2>
+      <a href="/products?show_hidden={{ 'false' if show_hidden else 'true' }}" class="btn btn-small">
+        {{ "Ẩn sản phẩm đã ẩn" if show_hidden else "Hiện cả sản phẩm đã ẩn" }}
+      </a>
+    </div>
+
+    {% if products %}
+      <table class="table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Tên & Chất liệu</th>
+            <th>Thông số (facts_json)</th>
+            <th>Thao tác</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in products %}
+          <tr>
+            <td>#{{ p.id }}</td>
+            <td>
+              <strong>{{ p.name }}</strong>
+              {% if p.hidden %}<span class="badge">Đã ẩn</span>{% endif %}
+              <div class="muted small">{{ p.material or "Chưa ghi chất liệu" }}</div>
+            </td>
+            <td class="small">
+              {% if p.facts.stone %}<div>Đá: {{ p.facts.stone }}</div>{% endif %}
+              {% if p.facts.size %}<div>Kích thước: {{ p.facts.size }}</div>{% endif %}
+              {% if p.facts.craftsmanship %}<div>Chế tác: {{ p.facts.craftsmanship }}</div>{% endif %}
+              {% if p.facts.price %}<div>Giá: {{ p.facts.price }}</div>{% endif %}
+              {% if p.facts.notes %}<div>Ghi chú: {{ p.facts.notes }}</div>{% endif %}
+            </td>
+            <td>
+              <div class="inline-secret-form">
+                <a href="/products?edit_id={{ p.id }}" class="btn btn-small">Sửa</a>
+                <form method="post" action="/products/{{ p.id }}/delete" style="display:inline;">
+                  <button type="submit" class="btn btn-small btn-danger">Xoá</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="muted">Chưa có sản phẩm nào. Hãy thêm sản phẩm trước khi nạp footage.</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

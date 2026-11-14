@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+{% block title %}Studio Mode (Remotion + 2 Skills) — Video Creator{% endblock %}
+{% macro audio_fields() %}
+  <label>Giọng đọc:
+    <select name="voice_lang">
+      <option value="none">Không lồng tiếng</option>
+      <option value="vi">Tiếng Việt</option>
+      <option value="en">Tiếng Anh</option>
+    </select>
+  </label>
+  <label>Nhạc nền:
+    <select name="music_asset_id">
+      <option value="">Không nhạc</option>
+      {% for a in music_assets %}<option value="{{ a.id }}">#{{ a.id }} {{ a.path }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>Âm thanh ở điểm cắt:
+    <select name="sfx_asset_id">
+      <option value="">Không</option>
+      {% for a in sfx_assets %}<option value="{{ a.id }}">#{{ a.id }} {{ a.path }}</option>{% endfor %}
+    </select>
+  </label>
+{% endmacro %}
+{% block content %}
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:center;">
+  <div>
+    <h1>Chế độ Studio (Agent + <code>rea-video</code> + <code>video-shotcraft</code>)</h1>
+    <p class="muted">Dựng theo prompt tự do, ưu tiên chạy qua <code>claude -p</code> bằng gói thuê bao ($0). Kiểm tra mã <code>.tsx</code> nghiêm ngặt theo <code>BR-PRD-02</code>. Ngân sách Studio hôm nay: ${{ '%.2f'|format(studio_spent) }} / ${{ '%.2f'|format(settings.budget.studio_daily_usd) }}</p>
+  </div>
+  <div>
+    <span class="badge">Node.js: {{ 'Sẵn sàng' if node_available else 'Chưa cài' }}</span>
+  </div>
+</div>
+
+{% if msg %}
+<div class="alert alert-info">Đã cập nhật: {{ msg }}. Phiên chạy trong hàng đợi việc; tải lại trang để xem trạng thái.</div>
+{% endif %}
+
+<section class="card" style="margin-bottom:1.5rem;">
+  <h2>Tạo phiên Studio mới (Chỉ 1 phiên chạy tại 1 thời điểm — giới hạn {{ settings.studio.max_turns }} lượt, trần ${{ '%.2f'|format(settings.studio.max_session_usd) }}/phiên)</h2>
+  <form method="post" action="/studio/create">
+    <div style="margin-bottom:0.75rem;">
+      <label>Prompt thiết kế video 9:16:</label>
+      <textarea name="prompt" rows="3" required style="width:100%;" placeholder="VD: Dựng theo nhịp mở đầu cận cảnh chạm khắc nhẫn bạc S925, phụ đề tối giản, không dùng bộ lọc màu trên cảnh sản phẩm..."></textarea>
+    </div>
+    <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:0.75rem;">
+      {{ audio_fields() }}
+      <label><input type="checkbox" name="auto_run" value="true"> Chạy thẳng, không dừng xác nhận kịch bản</label>
+    </div>
+    <button type="submit" class="btn">Bắt đầu phiên Studio</button>
+  </form>
+</section>
+
+<section class="card" style="margin-bottom:1.5rem;">
+  <h2>Mẫu Studio đã lưu ({{ templates|length }}) — Dựng lại không tốn lượt Agent</h2>
+  {% if not templates %}
+    <p class="muted">Chưa có mẫu Studio nào được lưu.</p>
+  {% else %}
+    <table class="table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Tên mẫu</th>
+          <th>Dựng video mới từ mẫu (chọn shot theo thứ tự, mỗi dòng một phụ đề)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in templates %}
+        <tr>
+          <td>#{{ t.id }}</td>
+          <td><strong>{{ t.name }}</strong><br><code>{{ t.project_path }}</code></td>
+          <td>
+            <form method="post" action="/studio/templates/{{ t.id }}/render">
+              <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                <select name="shot_ids" multiple required size="5" style="min-width:18rem;">
+                  {% for sh in shots %}<option value="{{ sh.id }}">#{{ sh.id }} {{ (sh.description or '')[:50] }}</option>{% endfor %}
+                </select>
+                <textarea name="subtitles" rows="5" style="min-width:18rem;" placeholder="Phụ đề cảnh 1&#10;Phụ đề cảnh 2&#10;..."></textarea>
+              </div>
+              <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:center;margin-top:0.5rem;">
+                <input type="text" name="title" placeholder="Tiêu đề video mới...">
+                {{ audio_fields() }}
+                <button type="submit" class="btn">Dựng từ mẫu</button>
+              </div>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Lịch sử phiên Studio ({{ sessions|length }})</h2>
+  {% if not sessions %}
+    <p class="muted">Chưa có phiên Studio nào.</p>
+  {% else %}
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Phiên</th>
+          <th>Prompt &amp; Phiên bản</th>
+          <th>Trạng thái</th>
+          <th>Chi phí API</th>
+          <th>Sửa tiếp / Lưu mẫu</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in sessions %}
+        <tr>
+          <td>#{{ s.id }}<br><small class="muted">Video #{{ s.video_id }}</small></td>
+          <td>
+            <div>{{ s.prompt }}</div>
+            <small class="muted">Số phiên bản: {{ s.versions|length }}</small>
+            {% if s.plan_rows %}
+              <table class="table" style="margin-top:0.5rem;">
+                <thead><tr><th>Cảnh</th><th>Shot của mình</th><th>Đoạn lấy</th><th>Phụ đề / lời</th></tr></thead>
+                <tbody>
+                  {% for row in s.plan_rows %}
+                  <tr>
+                    <td>{{ loop.index }}</td>
+                    <td>#{{ row.shot_id }} {{ row.description }}</td>
+                    <td>{{ '%.1f'|format(row.start_s) }}s + {{ '%.1f'|format(row.duration_s) }}s</td>
+                    <td>{{ row.text }}</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+              <form method="post" action="/studio/{{ s.id }}/confirm">
+                <button type="submit" class="btn">Kịch bản ổn, dựng video</button>
+              </form>
+            {% endif %}
+            {% if s.error %}<div class="alert alert-info">{{ s.error }}</div>{% endif %}
+          </td>
+          <td><span class="badge">{{ s.status }}</span></td>
+          <td>${{ '%.2f'|format(s.cost_usd or 0) }}</td>
+          <td>
+            {% if s.status in ('awaiting_confirm', 'done', 'failed') %}
+            <form method="post" action="/studio/{{ s.id }}/revise" style="display:flex;gap:0.4rem;margin-bottom:0.4rem;">
+              <input type="text" name="prompt" placeholder="{{ 'Prompt sửa kịch bản...' if s.status == 'awaiting_confirm' else 'Prompt sửa tiếp...' }}" required>
+              <button type="submit" class="btn">Sửa</button>
+            </form>
+            {% endif %}
+            {% if s.versions %}
+            <form method="post" action="/studio/{{ s.id }}/save-template" style="display:flex;gap:0.4rem;">
+              <input type="text" name="name" placeholder="Tên mẫu..." required>
+              <button type="submit" class="btn">Lưu làm mẫu</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+</section>
+{% endblock %}

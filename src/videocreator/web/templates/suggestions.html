@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Đề xuất kịch bản từ Xu hướng — Video Creator{% endblock %}
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;">
+  <h1>Đề xuất Kịch bản theo Xu hướng</h1>
+  <div>
+    <a href="/trends" class="btn">Bảng xếp hạng Xu hướng</a>
+    <a href="/watchlist" class="btn">Watchlist</a>
+  </div>
+</div>
+
+{% if msg == "accepted" %}
+  <div class="alert alert-success">Đã nhận đề xuất và đẩy việc lập kịch bản vào hàng đợi!</div>
+{% elif msg == "dismissed" %}
+  <div class="alert alert-success">Đã bỏ qua đề xuất.</div>
+{% elif msg == "already_handled" %}
+  <div class="alert">Đề xuất này đã được xử lý trước đó.</div>
+{% endif %}
+
+<section class="card">
+  <h2>Danh sách Đề xuất ({{ suggestions|length }})</h2>
+  {% if suggestions %}
+    <table class="table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Trạng thái</th>
+          <th>Nội dung Đề xuất & Công thức</th>
+          <th>Bài tham khảo</th>
+          <th>Thao tác</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in suggestions %}
+        <tr>
+          <td>#{{ s.id }}</td>
+          <td><span class="badge status-{{ s.status }}">{{ s.status }}</span></td>
+          <td>
+            <div><strong>{{ s.text }}</strong></div>
+            <div class="small muted">
+              Công thức: <code>{{ s.formula.formula or "hook-first" }}</code>
+              {% if s.formula.recommended_shot_ids %}
+                | Shot gợi ý: <code>{{ s.formula.recommended_shot_ids|join(", ") }}</code>
+              {% endif %}
+            </div>
+          </td>
+          <td class="small">
+            {% if s.ref_url %}
+              <a href="{{ s.ref_url }}" target="_blank" rel="noopener">{{ s.source }}: {{ s.author }}</a>
+            {% else %}
+              <span class="muted">-</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if s.status in ("new", "sent") %}
+              <div class="inline-secret-form">
+                <form method="post" action="/suggestions/{{ s.id }}/accept">
+                  <input type="hidden" name="count" value="1">
+                  <button type="submit" class="btn btn-small btn-primary">Tạo kịch bản (1 bản)</button>
+                </form>
+                <form method="post" action="/suggestions/{{ s.id }}/accept">
+                  <input type="hidden" name="count" value="3">
+                  <button type="submit" class="btn btn-small">Tạo 3 bản</button>
+                </form>
+                <form method="post" action="/suggestions/{{ s.id }}/dismiss">
+                  <button type="submit" class="btn btn-small btn-danger">Bỏ qua</button>
+                </form>
+              </div>
+            {% else %}
+              <span class="small muted">Đã {{ s.status }}</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="muted">Chưa có đề xuất nào. Hãy quét xu hướng tại mục <a href="/trends">Xu hướng</a>.</p>
+  {% endif %}
+</section>
+{% endblock %}

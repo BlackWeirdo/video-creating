@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block title %}Lịch đăng & Lịch sử bài đăng — Video Creator{% endblock %}
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;">
+  <h1>Lịch đăng & Lịch sử xuất bản</h1>
+  <form method="post" action="/schedule/toggle-pause">
+    {% if posting_paused %}
+      <button type="submit" class="btn btn-primary">▶ Chạy lại đăng tự động (Đang tạm dừng)</button>
+    {% else %}
+      <button type="submit" class="btn">⏸ Tạm dừng đăng tự động</button>
+    {% endif %}
+  </form>
+</div>
+
+{% if msg == "scheduled" %}
+  <div class="alert alert-success">Đã xếp lịch đăng cho các tài khoản đã chọn.</div>
+{% elif msg == "posted_now" %}
+  <div class="alert alert-success">Đã thực thi lệnh đăng ngay! Kiểm tra kết quả ở bảng lịch sử bên dưới.</div>
+{% elif msg == "retried" %}
+  <div class="alert alert-success">Đã đặt lại trạng thái thử lại cho bài đăng.</div>
+{% elif msg == "rescheduled" %}
+  <div class="alert alert-success">Đã đổi giờ hẹn đăng bài.</div>
+{% elif msg == "cancelled" %}
+  <div class="alert alert-success">Đã huỷ bài đăng chưa xuất bản.</div>
+{% elif msg == "confirmed_posted" %}
+  <div class="alert alert-success">Đã xác nhận bài đăng TikTok hộp nháp đã lên sóng.</div>
+{% elif msg == "pause_toggled" %}
+  <div class="alert alert-success">Đã cập nhật trạng thái tạm dừng/chạy lại lịch đăng tự động.</div>
+{% endif %}
+
+<section class="card">
+  <h2>1. Video đã duyệt — Đăng ngay hoặc Hẹn giờ ({{ approved_videos|length }})</h2>
+  <p class="small muted">Khung giờ tự động mặc định ({{ settings.schedule.timezone }}): <code>{{ settings.schedule.slots|join(", ") }}</code></p>
+  {% if approved_videos %}
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Video ID</th>
+          <th>Trạng thái</th>
+          <th>Chọn tài khoản & Giờ đăng</th>
+          <th>Gói đăng tay (Dự phòng)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for v in approved_videos %}
+        <tr>
+          <td>
+            <strong><a href="/videos/{{ v.id }}">Video #{{ v.id }}</a></strong>
+            <div class="small muted">{{ "%.1f"|format(v.duration_s or 0) }}s | Duyệt bởi: <code>{{ v.approved_by or "ui" }}</code></div>
+          </td>
+          <td><span class="badge status-{{ v.status }}">{{ v.status }}</span></td>
+          <td>
+            {% if accounts %}
+              <form method="post" action="/videos/{{ v.id }}/schedule" class="inline-secret-form" style="flex-wrap:wrap;gap:0.5rem;">
+                {% for acc in accounts %}
+                  <label class="checkbox-label small" style="font-weight:400;">
+                    <input type="checkbox" name="account_ids" value="{{ acc.id }}" {% if acc.lang == v.caption_lang %}checked{% endif %}>
+                    [{{ acc.platform }}] {{ acc.name }}
+                  </label>
+                {% endfor %}
+                <input type="text" name="scheduled_at" placeholder="UTC ISO (để trống = ngay)" style="width:175px;">
+                <button type="submit" name="post_now" value="true" class="btn btn-small btn-primary">Đăng ngay</button>
+                <button type="submit" class="btn btn-small">Hẹn giờ</button>
+              </form>
+            {% else %}
+              <span class="muted small">Hãy kết nối tài khoản tại mục <a href="/accounts">Tài khoản</a> trước.</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if v.output_path %}
+              <a href="/videos/{{ v.id }}/manual-bundle" class="btn btn-small">Tải gói đăng tay (.zip)</a>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="muted">Chưa có video nào ở trạng thái <code>approved</code>. Hãy duyệt video tại mục <a href="/approval">Chờ duyệt</a>.</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>2. Lịch sử & Hàng đợi Posts ({{ posts|length }})</h2>
+  {% if posts %}
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Post ID</th>
+          <th>Video</th>
+          <th>Tài khoản</th>
+          <th>Giờ hẹn (UTC)</th>
+          <th>Trạng thái & Số lần thử</th>
+          <th>Liên kết / Lỗi</th>
+          <th>Thao tác</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in posts %}
+        <tr>
+          <td>#{{ p.id }}</td>
+          <td><a href="/videos/{{ p.video_id }}">Video #{{ p.video_id }}</a></td>
+          <td><span class="badge">{{ p.platform }}</span> {{ p.account_name }}</td>
+          <td class="small">{{ p.scheduled_at }}</td>
+          <td>
+            <span class="badge status-{{ p.status }}">{{ p.status }}</span>
+            <span class="small muted">({{ p.attempts }} lần thử)</span>
+            {% if p.next_attempt_at and p.status == 'scheduled' %}
+              <div class="small muted">Thử lại lúc: {{ p.next_attempt_at }}</div>
+            {% endif %}
+          </td>
+          <td class="small">
+            {% if p.permalink %}
+              <a href="{{ p.permalink }}" target="_blank" rel="noopener">{{ p.permalink }}</a>
+            {% elif p.error %}
+              <span class="error-cell">{{ p.error }}</span>
+            {% else %}
+              <span class="muted">-</span>
+            {% endif %}
+          </td>
+          <td class="small">
+            {% if p.status in ('failed', 'missed') %}
+              <form method="post" action="/posts/{{ p.id }}/retry" style="display:inline;">
+                <button type="submit" class="btn btn-small btn-primary">Thử lại</button>
+              </form>
+            {% endif %}
+            {% if p.status == 'needs_user_action' %}
+              <form method="post" action="/posts/{{ p.id }}/confirm-posted" class="inline-secret-form">
+                <input type="text" name="permalink" placeholder="Link TikTok (tuỳ chọn)" style="width:140px;">
+                <button type="submit" class="btn btn-small btn-primary">Đã đăng</button>
+              </form>
+            {% endif %}
+            {% if p.status in ('scheduled', 'failed', 'missed') %}
+              <form method="post" action="/posts/{{ p.id }}/reschedule" class="inline-secret-form" style="margin-top:0.25rem;">
+                <input type="text" name="scheduled_at" value="{{ p.scheduled_at }}" style="width:155px;">
+                <button type="submit" class="btn btn-small">Đổi giờ</button>
+              </form>
+              <form method="post" action="/posts/{{ p.id }}/cancel" style="display:inline;margin-top:0.25rem;">
+                <button type="submit" class="btn btn-small btn-danger">Huỷ</button>
+              </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="muted">Chưa có lệnh đăng bài nào.</p>
+  {% endif %}
+</section>
+{% endblock %}

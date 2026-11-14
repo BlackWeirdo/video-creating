@@ -1,0 +1,44 @@
+# secrets
+.env
+.env.*
+!.env.example
+spikes/.env
+
+# python
+.venv/
+.venv-*/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# node
+node_modules/
+
+# media (footage, renders, samples are never committed)
+*.mp4
+*.mov
+*.mkv
+*.webm
+*.wav
+*.mp3
+*.m4a
+
+# spike working dirs (throwaway tools, clones and outputs)
+spikes/vendor/
+spikes/mpt/
+spikes/out/
+spikes/samples/
+
+# app data dir
+data/
+media/
+*.db
+*.db-wal
+*.db-shm
+*.log
+
+# pinned external tools installed next to the app
+tools/
+
+# per-machine Claude Code permissions
+.claude/settings.local.json

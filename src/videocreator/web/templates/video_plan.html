@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% block title %}Kịch bản & Video — Video Creator{% endblock %}
+{% block content %}
+<h1>Danh sách Video & Kịch bản ({{ videos|length }})</h1>
+
+{% if msg == "plan_queued" %}
+  <div class="alert alert-success">Đã xếp hàng job sinh kịch bản remix (sẽ xuất hiện bên dưới sau khi hoàn tất).</div>
+{% elif msg == "plan_saved" %}
+  <div class="alert alert-success">Đã lưu chỉnh sửa kịch bản và caption.</div>
+{% elif msg == "render_queued" %}
+  <div class="alert alert-success">Đã xếp hàng job dựng video MP4 9:16 (Render).</div>
+{% endif %}
+
+{% if editing_video %}
+  <section class="card" style="border:2px solid var(--primary);">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
+      <h2>Chỉnh sửa kịch bản Video #{{ editing_video.id }} ({{ editing_video.formula }})</h2>
+      <div class="inline-secret-form">
+        <form method="post" action="/videos/{{ editing_video.id }}/render" style="display:inline;">
+          <button type="submit" class="btn btn-primary btn-small">
+            {{ "Dựng lại Video (Re-render)" if editing_video.output_path else "Dựng Video 9:16 (Render)" }}
+          </button>
+        </form>
+        <a href="/videos" class="btn btn-small">Đóng chi tiết</a>
+      </div>
+    </div>
+
+    {% if editing_video.output_path %}
+      <div class="grid-2" style="margin:0.75rem 0;">
+        <div>
+          <h3>Bản dựng Master 9:16 ({{ "%.2f"|format(editing_video.duration_s or 0) }}s)</h3>
+          <video controls preload="metadata" src="/media/{{ editing_video.output_path }}" style="width:100%;max-width:260px;border-radius:8px;border:1px solid var(--border);"></video>
+        </div>
+        <div>
+          <h3>Kiểm tra định dạng nền tảng (Preflight)</h3>
+          {% if editing_video.preflight %}
+            <ul>
+              {% for plat, errs in editing_video.preflight.items() %}
+                <li>
+                  <strong>{{ plat }}:</strong>
+                  {% if errs %}
+                    <span class="error-cell">{{ errs|join("; ") }}</span>
+                  {% else %}
+                    <span class="status-ok">Đạt chuẩn 9:16 H.264/AAC</span>
+                  {% endif %}
+                </li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+        </div>
+      </div>
+    {% endif %}
+
+    {% if editing_video.unverified_claims %}
+      <div class="alert alert-error">
+        <strong>Cảnh báo đối chiếu sản phẩm (BR-PRD-06):</strong> Phát hiện câu chữ chưa có căn cứ trong <code>facts_json</code>:
+        <ul style="margin:0.4rem 0 0 1.2rem;">
+          {% for claim in editing_video.unverified_claims %}
+            <li>{{ claim }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endif %}
+
+    <form method="post" action="/videos/{{ editing_video.id }}/update-plan" class="form">
+      <div class="form-row">
+        <label for="title">Tiêu đề kịch bản</label>
+        <input id="title" type="text" name="title" value="{{ editing_video.title }}">
+      </div>
+
+      <h3>Các đoạn shot trong kịch bản ({{ editing_video.shots|length }} đoạn)</h3>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Thứ tự</th>
+            <th>Shot ID & Thời lượng</th>
+            <th>Ảnh thu nhỏ</th>
+            <th>Dòng phụ đề / Lời thoại</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in editing_video.shots %}
+          {% set db_s = shot_details.get(s.shot_id) %}
+          <tr>
+            <td>#{{ loop.index }}</td>
+            <td>
+              <strong>Shot #{{ s.shot_id }}</strong>
+              <div class="small muted">{{ "%.2f"|format(s.start_s) }}s ({{ "%.2f"|format(s.duration_s) }}s)</div>
+              {% if db_s and db_s.description %}
+                <div class="small muted">{{ db_s.description }}</div>
+              {% endif %}
+            </td>
+            <td>
+              {% if db_s and db_s.thumb_path %}
+                <img src="/media/{{ db_s.thumb_path }}" alt="Shot #{{ s.shot_id }}" style="width:72px;height:110px;object-fit:cover;border-radius:4px;">
+              {% endif %}
+            </td>
+            <td>
+              <input type="text" name="shot_text_{{ loop.index0 }}" value="{{ s.text }}" style="width:100%;">
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <h3>4 Bộ Caption riêng từng nền tảng (FR-PLN-05)</h3>
+      <div class="grid-2">
+        {% for platform, label in [('facebook', 'Facebook Reels (<=2200 ký tự, 3-5 hashtag)'), ('instagram', 'Instagram Reels (<=2200 ký tự, 3-8 hashtag)'), ('threads', 'Threads (<=500 ký tự, <=1 hashtag)'), ('tiktok', 'TikTok (<=2200 ký tự, 3-6 hashtag)')] %}
+        {% set cap = editing_video.captions.get(platform, {'text': '', 'hashtags': []}) %}
+        <div class="card" style="margin-bottom:0;">
+          <h4>{{ label }}</h4>
+          <div class="form-row">
+            <label>Nội dung caption</label>
+            <input type="text" name="caption_{{ platform }}_text" value="{{ cap.text }}">
+          </div>
+          <div class="form-row">
+            <label>Hashtags</label>
+            <input type="text" name="caption_{{ platform }}_hashtags" value="{{ cap.hashtags|join(' ') }}">
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+      {% if editing_video.unverified_claims %}
+        <label class="checkbox-label">
+          <input type="checkbox" name="clear_unverified" value="true">
+          Tôi đã rà soát và xác nhận nội dung lời/caption là chính xác (xoá cảnh báo đỏ)
+        </label>
+      {% endif %}
+
+      <div>
+        <button type="submit" class="btn btn-primary">Lưu kịch bản & Caption</button>
+      </div>
+    </form>
+  </section>
+{% endif %}
+
+<section class="card">
+  <h2>Tất cả Video & Kịch bản</h2>
+  {% if videos %}
+    <table class="table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Tiêu đề & Công thức</th>
+          <th>Sản phẩm</th>
+          <th>Số đoạn & Thời lượng</th>
+          <th>Kiểm chứng lời (BR-PRD-06)</th>
+          <th>Trạng thái</th>
+          <th>Thao tác</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for v in videos %}
+        <tr>
+          <td>#{{ v.id }}</td>
+          <td>
+            <strong>{{ v.title }}</strong>
+            <div class="small muted">Formula: <code>{{ v.formula }}</code> | Chế độ: {{ v.mode }}</div>
+          </td>
+          <td>
+            {% if v.product_names %}
+              {% for pname in v.product_names %}
+                <span class="badge">{{ pname }}</span>
+              {% endfor %}
+            {% else %}
+              <span class="muted small">Không có SP</span>
+            {% endif %}
+          </td>
+          <td>
+            {{ v.shots|length }} shots ({{ v.plan.get('total_duration_s', 0) }}s)
+          </td>
+          <td>
+            {% if v.unverified_claims %}
+              <span class="badge status-failed">{{ v.unverified_claims|length }} câu cần rà soát</span>
+            {% else %}
+              <span class="badge status-done">Khớp facts_json</span>
+            {% endif %}
+          </td>
+          <td><span class="badge status-{{ v.status }}">{{ v.status }}</span></td>
+          <td>
+            <div class="inline-secret-form">
+              <a href="/videos/{{ v.id }}" class="btn btn-small">Xem / Sửa</a>
+              <form method="post" action="/videos/{{ v.id }}/render" style="display:inline;">
+                <button type="submit" class="btn btn-small btn-primary">Render</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="muted">Chưa có kịch bản nào. Hãy vào trang <a href="/footage">Footage</a> và bấm "Tạo kịch bản".</p>
+  {% endif %}
+</section>
+{% endblock %}

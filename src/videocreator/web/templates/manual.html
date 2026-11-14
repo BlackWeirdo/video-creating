@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Trạm việc tay ($0 gói thuê bao) — Video Creator{% endblock %}
+{% block content %}
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:center;">
+  <div>
+    <h1>Trạm việc tay (Tạo clip trong Muse / Gemini / Flow)</h1>
+    <p class="muted">Tạo phiếu prompt chuẩn 9:16, làm clip trong ứng dụng gói thuê bao ($0 API), rồi tải file MP4 lên đây hoặc thả vào thư mục <code>inbox/ticket_&lt;id&gt;.mp4</code>.</p>
+  </div>
+  <a href="/broll" class="btn">Quay lại Kho cảnh phụ</a>
+</div>
+
+{% if msg %}
+<div class="alert alert-info">Đã cập nhật: {{ msg }}</div>
+{% endif %}
+
+<section class="card" style="margin-bottom:1.5rem;">
+  <h2>Tạo phiếu việc tay mới</h2>
+  <form method="post" action="/manual/create" style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap;">
+    <input type="text" name="prompt" placeholder="Mô tả cảnh phụ cần tạo..." required style="min-width:360px;">
+    <input type="number" name="seconds" value="6" min="4" max="10" style="width:80px;">
+    <button type="submit" class="btn">Tạo phiếu</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Danh sách phiếu việc tay</h2>
+  {% if not tickets %}
+    <p class="muted">Chưa có phiếu việc tay nào.</p>
+  {% else %}
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Phiếu</th>
+          <th>Prompt chuẩn</th>
+          <th>Trạng thái</th>
+          <th>Nạp file MP4 kết quả</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in tickets %}
+        <tr>
+          <td>#{{ t.id }}<br><small class="muted">{{ t.created_at }}</small></td>
+          <td>{{ t.prompt }}</td>
+          <td><span class="badge">{{ t.status }}</span></td>
+          <td>
+            {% if t.status in ('open', 'reminded') %}
+            <form method="post" action="/manual/{{ t.id }}/upload" enctype="multipart/form-data" style="display:flex;gap:0.5rem;align-items:center;">
+              <input type="file" name="file" accept=".mp4,.mov,.webm" required>
+              <button type="submit" class="btn">Nạp vào kho shot</button>
+            </form>
+            {% else %}
+              <span class="muted">Asset #{{ t.result_asset_id or '-' }}</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+</section>
+{% endblock %}

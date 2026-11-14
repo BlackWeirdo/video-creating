@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% block title %}Cảnh phụ (B-Roll) — Video Creator{% endblock %}
+{% block content %}
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:center;">
+  <div>
+    <h1>Kho cảnh phụ (B-Roll) &amp; Sinh video</h1>
+    <p class="muted">Luật cứng: Cảnh sản phẩm thật luôn lấy từ footage thật. Cảnh phụ AI/Stock chỉ dùng làm cảnh dẫn dắt (tối đa 2 cảnh/video, không đứng ở vị trí mở đầu).</p>
+  </div>
+  <div>
+    <a href="/manual" class="btn">Trạm việc tay ({{ open_tickets|length }} phiếu mở)</a>
+  </div>
+</div>
+
+{% if msg %}
+<div class="alert alert-info">Đã xử lý: {{ msg }}</div>
+{% endif %}
+
+<section class="card" style="margin-bottom:1.5rem;">
+  <h2>Đề xuất cảnh phụ tự động</h2>
+  <p class="muted small">Dựa trên phân tích video xu hướng (mở đầu, cấu trúc, nhịp cắt, không khí nhạc), số đo hình ảnh của video mẫu (góc máy, ánh sáng, màu, độ tương phản) và kho shot footage: AI gợi ý cảnh phụ bù chỗ footage còn thiếu, cùng một look với video mẫu. Bấm "Dùng bản Việt" hoặc "Dùng bản Anh" để điền vào form bên dưới, rồi tự chọn nguồn tạo. Không có gì được tạo hay tính tiền tự động.</p>
+  <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.75rem;">
+    <form method="post" action="/broll/suggest">
+      <button type="submit" class="btn btn-primary" {% if suggest_active %}disabled{% endif %}>
+        {% if suggest_active %}Đang đề xuất...{% elif ideas_batch %}Đề xuất lại{% else %}Đề xuất cảnh phụ{% endif %}
+      </button>
+    </form>
+    {% if suggest_cancellable %}
+    <form method="post" action="/broll/suggest/cancel">
+      <button type="submit" class="btn btn-danger">Huỷ đề xuất</button>
+    </form>
+    {% endif %}
+  </div>
+  {% if suggest_job %}
+    {% if suggest_job.status == "waiting_quota" %}
+      <div class="alert">Đang chờ hạn mức AI hồi lại; job sẽ tự chạy tiếp. Bấm "Huỷ đề xuất" nếu không muốn chờ.</div>
+    {% elif suggest_job.status == "queued" %}
+      <p class="muted small">Đang xếp hàng chờ chạy. Trang tự tải lại.</p>
+    {% elif suggest_job.status == "running" %}
+      <p class="muted small">AI đang phân tích (thường 1–3 phút, không huỷ được khi đã chạy). Trang tự tải lại.</p>
+    {% elif suggest_job.status == "failed" and (not ideas_batch or suggest_job.created_at > ideas_batch.created_at) %}
+      {% if suggest_job.error == suggest_cancelled_error %}
+        <p class="muted small">Đã huỷ lần đề xuất gần nhất.</p>
+      {% else %}
+        <div class="alert alert-danger">Lần đề xuất gần nhất bị lỗi: {{ suggest_job.error }}</div>
+      {% endif %}
+    {% endif %}
+  {% endif %}
+  {% if ideas_batch and ideas_batch.ideas %}
+    <p class="muted small">Tạo lúc {{ ideas_batch.created_at }} từ {{ ideas_batch.trend_count }} video xu hướng đã phân tích và {{ ideas_batch.shot_count }} shot footage.</p>
+    {% if ideas_batch.look_vi %}
+    <div class="alert" style="margin-bottom:0.75rem;">
+      <strong>Look chung theo video mẫu</strong>{% if ideas_batch.look_trend_ids %} (số đo rea-video của xu hướng #{{ ideas_batch.look_trend_ids|join(', #') }}){% else %} (suy ra từ mô tả footage, chưa có số đo video mẫu){% endif %}:
+      <div class="small">{{ ideas_batch.look_vi }}</div>
+      <div class="small muted">{{ ideas_batch.look_en }}</div>
+    </div>
+    {% endif %}
+    <table class="table">
+      <thead>
+        <tr><th>Ý tưởng</th><th>Prompt</th><th>Vị trí / Lý do</th><th>Thời lượng</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for idea in ideas_batch.ideas %}
+        <tr>
+          <td><strong>{{ idea.label }}</strong>{% if idea.trend_item_id %}<div class="small muted">Theo xu hướng #{{ idea.trend_item_id }}</div>{% endif %}</td>
+          <td class="small">
+            <div>{{ idea.prompt }}</div>
+            {% if idea.prompt_en %}<div class="muted" style="margin-top:0.35rem;" lang="en">EN: {{ idea.prompt_en }}</div>{% endif %}
+          </td>
+          <td class="small"><div>{{ idea.placement }}</div><div class="muted">{{ idea.reason }}</div></td>
+          <td>{{ idea.seconds }}s</td>
+          <td>
+            <button type="button" class="btn btn-small" data-prompt="{{ idea.prompt }}" data-seconds="{{ idea.seconds }}" onclick="fillBrollForm(this)">Dùng bản Việt</button>
+            {% if idea.prompt_en %}
+            <button type="button" class="btn btn-small" style="margin-top:0.25rem;" data-prompt="{{ idea.prompt_en }}" data-seconds="{{ idea.seconds }}" onclick="fillBrollForm(this)">Dùng bản Anh</button>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% elif ideas_batch %}
+    <p class="muted">Lần đề xuất gần nhất không ra ý tưởng hợp lệ. Hãy bấm đề xuất lại.</p>
+  {% endif %}
+</section>
+
+<section class="card" style="margin-bottom:1.5rem;">
+  <h2>Tạo cảnh phụ mới (Ngân sách generative hôm nay: ${{ '%.2f'|format(gen_spent) }} / ${{ '%.2f'|format(settings.budget.generative_daily_usd) }})</h2>
+  <form method="post" action="/broll/create">
+    <div style="margin-bottom:0.75rem;">
+      <label>Chọn nguồn tạo video:</label>
+      <select name="source" style="width:100%;max-width:520px;">
+        {% for src in sources %}
+        <option value="{{ src.key }}">{{ src.label }} — Ước tính 6s: ${{ '%.2f'|format(src.est_6s) }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div style="margin-bottom:0.75rem;">
+      <label>Thời lượng (giây):</label>
+      <input type="number" id="broll-seconds" name="seconds" value="6" min="4" max="10" style="width:90px;">
+    </div>
+    <div style="margin-bottom:0.75rem;">
+      <label>Mẫu gợi ý nhanh:</label>
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.25rem;">
+        {% for p in presets %}
+        <button type="button" class="btn" data-prompt="{{ p.prompt }}" onclick="fillBrollForm(this)">{{ p.label }}</button>
+        {% endfor %}
+      </div>
+    </div>
+    <div style="margin-bottom:0.75rem;">
+      <label>Prompt cảnh phụ (9:16 dọc, không mô tả sản phẩm thật):</label>
+      <textarea id="broll-prompt" name="prompt" rows="3" required style="width:100%;" placeholder="VD: Cận cảnh bàn gỗ của nghệ nhân kim hoàn, ánh đèn vàng ấm..."></textarea>
+    </div>
+    <button type="submit" class="btn">Tạo cảnh phụ</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Các cảnh phụ đang có trong kho shot ({{ broll_shots|length }})</h2>
+  {% if not broll_shots %}
+    <p class="muted">Chưa có cảnh phụ nào trong kho.</p>
+  {% else %}
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Shot ID</th>
+          <th>Xem trước</th>
+          <th>Mô tả / Prompt</th>
+          <th>Thời lượng</th>
+          <th>Nhãn</th>
+          <th>Giữ / Bỏ</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in broll_shots %}
+        <tr>
+          <td>#{{ s.id }}</td>
+          <td>
+            {% if s.path %}
+              <video controls preload="metadata" src="/media/{{ s.path }}" style="width:100px;border-radius:6px;border:1px solid var(--border);"></video>
+            {% endif %}
+          </td>
+          <td>{{ s.description }}</td>
+          <td>{{ '%.1f'|format(s.end_s - s.start_s) }}s</td>
+          <td><span class="badge">{{ s.tags_json }}</span></td>
+          <td>
+            <span class="badge status-done" style="margin-right:0.35rem;">Đang giữ</span>
+            <form method="post" action="/broll/{{ s.id }}/delete" style="display:inline;">
+              <button type="submit" class="btn btn-small btn-danger">Bỏ (Xoá)</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+</section>
+<script>
+  // Prompts travel in data-* attributes (auto-escaped by Jinja) instead of inline JS strings.
+  function fillBrollForm(btn) {
+    var promptBox = document.getElementById('broll-prompt');
+    promptBox.value = btn.dataset.prompt || '';
+    if (btn.dataset.seconds) {
+      document.getElementById('broll-seconds').value = btn.dataset.seconds;
+    }
+    promptBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    promptBox.focus();
+  }
+  {% if suggest_active %}
+  setTimeout(function () { window.location.href = '/broll'; }, 15000);
+  {% endif %}
+</script>
+{% endblock %}

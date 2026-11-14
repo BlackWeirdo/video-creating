@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <title>Video Creator — OAuth Callback</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; max-width: 640px; margin: 3rem auto; padding: 1.5rem; background: #0f172a; color: #f8fafc; }
+    .box { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 1.25rem; margin-top: 1rem; }
+    code { display: block; background: #020617; padding: 0.75rem; border-radius: 4px; word-break: break-all; margin-top: 0.35rem; color: #38bdf8; }
+  </style>
+</head>
+<body>
+  <h1>Kết nối OAuth — Video Creator</h1>
+  <p>Sao chép <strong>code</strong> và <strong>state</strong> bên dưới rồi dán vào mục <em>Dán mã OAuth</em> trong trang Tài khoản của ứng dụng Video Creator (không gửi dữ liệu đi bất kỳ đâu):</p>
+  <div class="box">
+    <div><strong>Authorization Code:</strong> <code id="code-val">(đang đọc tham số URL...)</code></div>
+    <div style="margin-top:1rem;"><strong>CSRF State:</strong> <code id="state-val">(đang đọc tham số URL...)</code></div>
+  </div>
+  <script>
+    (function () {
+      var params = new URLSearchParams(window.location.search);
+      document.getElementById("code-val").textContent = params.get("code") || params.get("error") || "(không có code)";
+      document.getElementById("state-val").textContent = params.get("state") || "(không có state)";
+    })();
+  </script>
+</body>
+</html>

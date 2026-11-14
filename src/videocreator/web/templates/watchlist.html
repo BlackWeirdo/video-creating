@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Danh sách theo dõi Xu hướng — Video Creator{% endblock %}
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;">
+  <h1>Danh sách Theo dõi Xu hướng (Watchlist)</h1>
+  <div>
+    <a href="/trends" class="btn">Xem kết quả xếp hạng</a>
+    <a href="/suggestions" class="btn btn-primary">Đề xuất kịch bản</a>
+  </div>
+</div>
+
+{% if msg == "added" %}
+  <div class="alert alert-success">Đã thêm mục theo dõi vào Watchlist.</div>
+{% elif msg == "toggled" %}
+  <div class="alert alert-success">Đã bật/tắt mục theo dõi.</div>
+{% elif msg == "deleted" %}
+  <div class="alert alert-success">Đã xoá mục theo dõi.</div>
+{% endif %}
+
+<div class="grid-2">
+  <section class="card">
+    <h2>1. Trạng thái các Nguồn Xu hướng</h2>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Nguồn</th>
+          <th>Loại hỗ trợ</th>
+          <th>Trạng thái</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in source_statuses %}
+        <tr>
+          <td><code>{{ s.name }}</code></td>
+          <td class="small">{{ s.kinds }}</td>
+          <td class="small">
+            {% if s.enabled %}
+              <span class="status-ok">Đang bật</span>
+            {% else %}
+              <span class="muted">{{ s.reason }}</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <section class="card">
+    <h2>2. Thêm Brand / Kênh / Từ khoá / Hashtag</h2>
+    <form method="post" action="/watchlist/add" class="form">
+      <div class="form-row">
+        <label for="source">Nguồn dữ liệu</label>
+        <select id="source" name="source">
+          <option value="youtube">YouTube Shorts (youtube)</option>
+          <option value="ig_discovery">Instagram Business Discovery (ig_discovery)</option>
+          <option value="ad_library">Meta Ad Library EU (ad_library)</option>
+          <option value="ig_hashtag">Instagram Hashtag Search (ig_hashtag)</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label for="kind">Loại mục theo dõi</label>
+        <select id="kind" name="kind">
+          <option value="keyword">Từ khoá (keyword)</option>
+          <option value="account">Tài khoản / Channel ID (account)</option>
+          <option value="page">Page ID quảng cáo (page)</option>
+          <option value="hashtag">Hashtag (hashtag)</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label for="value">Giá trị (từ khoá, @username, Channel ID, hoặc #hashtag) *</label>
+        <input id="value" type="text" name="value" placeholder="VD: handcrafted silver ring" required>
+      </div>
+      <button type="submit" class="btn btn-primary">Thêm vào Watchlist</button>
+    </form>
+  </section>
+</div>
+
+<section class="card">
+  <h2>Danh sách đang theo dõi ({{ watch_items|length }})</h2>
+  {% if watch_items %}
+    <table class="table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Nguồn</th>
+          <th>Loại</th>
+          <th>Giá trị</th>
+          <th>Trạng thái</th>
+          <th>Thao tác</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for w in watch_items %}
+        <tr>
+          <td>#{{ w.id }}</td>
+          <td><span class="badge">{{ w.source }}</span></td>
+          <td><code>{{ w.kind }}</code></td>
+          <td><strong>{{ w.value }}</strong></td>
+          <td>
+            {% if w.enabled %}
+              <span class="badge status-done">Đang bật</span>
+            {% else %}
+              <span class="badge">Đã tắt</span>
+            {% endif %}
+          </td>
+          <td>
+            <div class="inline-secret-form">
+              <form method="post" action="/watchlist/{{ w.id }}/toggle">
+                <button type="submit" class="btn btn-small">{{ "Tắt" if w.enabled else "Bật" }}</button>
+              </form>
+              <form method="post" action="/watchlist/{{ w.id }}/delete">
+                <button type="submit" class="btn btn-small btn-danger">Xoá</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="muted">Chưa có mục theo dõi nào.</p>
+  {% endif %}
+</section>
+{% endblock %}

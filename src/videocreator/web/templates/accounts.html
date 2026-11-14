@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+{% block title %}Tài khoản mạng xã hội — Video Creator{% endblock %}
+{% block content %}
+<h1>Quản lý Tài khoản Đăng bài (Facebook, Instagram, Threads, TikTok)</h1>
+
+{% if msg %}
+  <div class="alert alert-success">
+    {% if msg.startswith("connected_") %}
+      Đã tự động tìm thấy và lưu {{ msg.split("_")[1] }} tài khoản Page / Instagram Business!
+    {% elif msg.startswith("oauth_") %}
+      Đã kết nối thành công tài khoản OAuth {{ msg.split("_")[1]|upper }}!
+    {% elif msg == "saved" %}
+      Đã lưu thông tin tài khoản và mã hoá token vào <code>secrets.enc</code>.
+    {% elif msg == "slots_saved" %}
+      Đã cập nhật khung giờ đăng riêng cho tài khoản.
+    {% elif msg == "toggled" %}
+      Đã đổi trạng thái kích hoạt tài khoản.
+    {% elif msg == "deleted" %}
+      Đã xoá tài khoản và token liên kết.
+    {% else %}
+      {{ msg }}
+    {% endif %}
+  </div>
+{% endif %}
+{% if err %}
+  <div class="alert alert-error">{{ err }}</div>
+{% endif %}
+
+<div class="grid-2">
+  <section class="card">
+    <h2>1. Kết nối tự động Meta (Facebook Page + Instagram Business)</h2>
+    <p class="small muted">Dán System User Token hoặc User Long-Lived Token để tự động liệt kê các Page và tài khoản IG Business liên kết.</p>
+    <form method="post" action="/accounts/connect-meta" class="form">
+      <div class="form-row">
+        <label for="token">Meta Access Token *</label>
+        <input id="token" type="password" name="token" placeholder="EAAB..." autocomplete="new-password" required>
+      </div>
+      <div class="form-row">
+        <label for="default_lang">Ngôn ngữ mặc định của các tài khoản này</label>
+        <select id="default_lang" name="default_lang">
+          <option value="vi">Tiếng Việt (vi)</option>
+          <option value="en">Tiếng Anh (en)</option>
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary">Quét & Lưu Page / Instagram</button>
+    </form>
+
+    <hr style="margin:1.25rem 0;border:0;border-top:1px solid #334155;">
+    <h3>Kết nối OAuth (Threads & TikTok — bấm lặp lại cho nhiều tài khoản)</h3>
+    <div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-bottom:0.75rem;">
+      <a href="/oauth/threads/start?lang=vi" class="btn btn-primary">🔗 Kết nối Threads (VI)</a>
+      <a href="/oauth/threads/start?lang=en" class="btn">🔗 Kết nối Threads (EN)</a>
+      <a href="/oauth/tiktok/start?lang=vi" class="btn btn-primary">🎵 Kết nối TikTok (VI)</a>
+      <a href="/oauth/tiktok/start?lang=en" class="btn">🎵 Kết nối TikTok (EN)</a>
+    </div>
+    <details>
+      <summary class="small muted" style="cursor:pointer;">Dán mã OAuth thủ công (khi dùng trang callback tĩnh HTTPS)</summary>
+      <form method="post" action="/oauth/tiktok/code" class="form" style="margin-top:0.5rem;">
+        <div class="form-row">
+          <label>Code & State (TikTok)</label>
+          <div class="inline-secret-form">
+            <input type="text" name="code" placeholder="code..." required>
+            <input type="text" name="state" placeholder="state..." required>
+            <button type="submit" class="btn btn-small">Đổi token TikTok</button>
+          </div>
+        </div>
+      </form>
+      <form method="post" action="/oauth/threads/code" class="form" style="margin-top:0.5rem;">
+        <div class="form-row">
+          <label>Code & State (Threads)</label>
+          <div class="inline-secret-form">
+            <input type="text" name="code" placeholder="code..." required>
+            <input type="text" name="state" placeholder="state..." required>
+            <button type="submit" class="btn btn-small">Đổi token Threads</button>
+          </div>
+        </div>
+      </form>
+    </details>
+  </section>
+
+  <section class="card">
+    <h2>2. Thêm / Cập nhật từng tài khoản thủ công</h2>
+    <form method="post" action="/accounts/add" class="form">
+      <div class="form-row">
+        <label for="platform">Nền tảng</label>
+        <select id="platform" name="platform">
+          <option value="facebook">Facebook Page</option>
+          <option value="instagram">Instagram Business</option>
+          <option value="threads">Threads</option>
+          <option value="tiktok">TikTok</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label for="external_id">ID tài khoản trên nền tảng (Page ID / IG User ID) *</label>
+        <input id="external_id" type="text" name="external_id" placeholder="VD: 17841400000000" required>
+      </div>
+      <div class="form-row">
+        <label for="name">Tên hiển thị *</label>
+        <input id="name" type="text" name="name" placeholder="VD: Bạc Thủ Công VN" required>
+      </div>
+      <div class="form-row">
+        <label for="lang">Ngôn ngữ bài đăng</label>
+        <select id="lang" name="lang">
+          <option value="vi">Tiếng Việt (vi)</option>
+          <option value="en">Tiếng Anh (en)</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label for="access_token">Access Token *</label>
+        <input id="access_token" type="password" name="access_token" placeholder="Token được mã hoá vào secrets.enc" autocomplete="new-password" required>
+      </div>
+      <button type="submit" class="btn btn-primary">Lưu tài khoản</button>
+    </form>
+  </section>
+</div>
+
+<section class="card">
+  <h2>Danh sách Tài khoản đã kết nối ({{ accounts|length }})</h2>
+  {% if accounts %}
+    <table class="table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Nền tảng</th>
+          <th>Tên & External ID</th>
+          <th>Ngôn ngữ</th>
+          <th>Khung giờ riêng</th>
+          <th>Token & Hạn</th>
+          <th>Trạng thái</th>
+          <th>Thao tác</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in accounts %}
+        <tr>
+          <td>#{{ a.id }}</td>
+          <td><span class="badge">{{ a.platform }}</span></td>
+          <td>
+            <strong>{{ a.name }}</strong>
+            <div class="small muted">ID: <code>{{ a.external_id }}</code></div>
+          </td>
+          <td><code>{{ a.lang }}</code></td>
+          <td>
+            <form method="post" action="/accounts/{{ a.id }}/slots" class="inline-secret-form">
+              <input type="text" name="slots" value="{{ a.slots_json or '' }}" placeholder="Mặc định chung" style="width:140px;">
+              <button type="submit" class="btn btn-small">Lưu giờ</button>
+            </form>
+          </td>
+          <td class="small">
+            {% if a.has_token %}
+              <span class="status-ok">Đã lưu ({{ a.secret_key }})</span>
+            {% else %}
+              <span class="error-cell">Thiếu token</span>
+            {% endif %}
+            {% if a.token_expires_at %}
+              <div class="muted">Hết hạn: {{ a.token_expires_at }}</div>
+            {% endif %}
+          </td>
+          <td>
+            {% if a.enabled %}
+              <span class="badge status-done">Đang bật</span>
+            {% else %}
+              <span class="badge">Đã tắt</span>
+            {% endif %}
+          </td>
+          <td>
+            <div class="inline-secret-form">
+              <form method="post" action="/accounts/{{ a.id }}/toggle">
+                <button type="submit" class="btn btn-small">{{ "Tắt" if a.enabled else "Bật" }}</button>
+              </form>
+              <form method="post" action="/accounts/{{ a.id }}/delete">
+                <button type="submit" class="btn btn-small btn-danger">Xoá</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="muted">Chưa có tài khoản nào được kết nối.</p>
+  {% endif %}
+</section>
+{% endblock %}

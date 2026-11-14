@@ -1,0 +1,52 @@
+{
+ "_note": "Real structured_output of claude -p (sonnet) run with the exact app prompt and schema on 2026-11-14, before normalize_broll_ideas.",
+ "look_vi": "Ánh sáng mềm hắt từ phía trước ngang tầm chủ thể, tỉ lệ sáng-tối gần như phẳng (khoảng 1.2:1), nhiệt độ màu trung tính khoảng 5000K; màu lên tự nhiên đúng màu gốc, bão hòa và tương phản ở mức bình thường, vùng tối không bị cắt sâu; hậu cảnh mờ rõ nhờ chụp ở độ sâu trường ảnh nông; máy giữ bằng gimbal/cầm tay với chuyển động lia hoặc đẩy nhẹ, có lúc đặt cố định trên bàn thợ.",
+ "look_en": "Soft frontal light at subject height with a nearly flat lighting ratio (about 1.2:1), neutral color temperature around 5000K; natural true-to-source colors, normal saturation and contrast, no crushed shadows; background clearly blurred from a shallow depth of field; camera held on a gimbal or handheld with gentle pan or push moves, occasionally locked on a tripod on the workbench.",
+ "ideas": [
+  {
+   "label": "Bụi kim loại bay trong luồng sáng",
+   "prompt": "Cận cảnh trung bình bụi kim loại mịn bay lơ lửng trong một luồng sáng mỏng phía trên bàn gỗ của thợ, các hạt bụi lấp lánh khi rơi chậm xuống bề mặt bàn đầy vết xước, máy gimbal lia ngang nhẹ theo chuyển động bụi rơi.",
+   "prompt_en": "Medium close-up of fine metal dust floating in a thin beam of light above a worn wooden workbench, sparkling particles drifting slowly down onto the scratched surface, gimbal panning gently to follow the falling dust.",
+   "seconds": 5,
+   "placement": "Chèn ngay sau cảnh mài giũa/đánh nhám phôi kim loại, trước khi chuyển sang công đoạn hàn.",
+   "reason": "Trend dùng ASMR mài/dũa liên tục và kho có nhiều cảnh tay thợ mài nhưng thiếu cảnh không khí 'bụi kim loại trong ánh sáng' để làm nhịp nghỉ thị giác giữa các công đoạn.",
+   "trend_item_id": 1
+  },
+  {
+   "label": "Tia lửa bắn ra từ đá mài",
+   "prompt": "Cận cảnh trung bình đầu đá mài quay tốc độ cao chạm vào một thanh kim loại thô cố định trên bàn thợ, tia lửa cam bắn tung tóe ra hai bên trong không gian tối phía sau, máy cầm tay giữ ổn định lia nhẹ theo hướng tia lửa.",
+   "prompt_en": "Medium close-up of a high-speed grinding wheel head touching a raw metal bar clamped on a workbench, orange sparks shooting out to both sides against a dark backdrop, handheld camera holding steady with a slight pan following the sparks.",
+   "seconds": 5,
+   "placement": "Chèn sau cảnh gò búa/uốn phôi bạc, ngay trước khi vào cảnh hàn nhiệt bằng đèn khò.",
+   "reason": "Trend xây dựng cảm giác 'oddly satisfying' từ va chạm kim loại (gõ búa, cưa dũa) nhưng kho chưa có cảnh tia lửa động - bù chất liệu/ánh sáng kịch tính mà trend hay khai thác.",
+   "trend_item_id": 1
+  },
+  {
+   "label": "Phôi bạc thô xoắn trên bàn gỗ",
+   "prompt": "Cận cảnh trung bình một đoạn dây bạc thô xoắn tự nhiên nằm trên bề mặt gỗ cũ nhiều vết xước, một bàn tay không đeo trang sức chạm nhẹ và xoay đoạn dây để lộ các mặt xoắn, máy đặt cố định trên chân máy.",
+   "prompt_en": "Medium close-up of a raw twisted silver wire coil resting on a scratched old wooden surface, a bare hand gently touching and rotating the coil to reveal its twisted facets, camera locked on a tripod.",
+   "seconds": 6,
+   "placement": "Chèn ngay sau cảnh mở đầu uốn/gò phôi, trước khi chuyển sang cảnh tạo hình chi tiết.",
+   "reason": "Trend mở màn bằng gò/uốn phôi bạc thô nhưng kho chưa có cảnh cận riêng cho nguyên liệu gốc chưa qua tay nghề - bù cảnh chất liệu mà missing_shots gợi ý.",
+   "trend_item_id": 1
+  },
+  {
+   "label": "Khói mỏng từ đầu đèn khò",
+   "prompt": "Cận cảnh trung bình đầu đèn khò vừa tắt lửa, một làn khói mỏng màu xám nhạt bốc lên xoắn nhẹ trong không khí phía trên bàn thợ tối, ánh sáng cam còn sót lại hắt nhẹ lên khói, máy gimbal lia dọc theo luồng khói bốc lên.",
+   "prompt_en": "Medium close-up of a torch nozzle right after the flame is switched off, a thin pale grey wisp of smoke curling upward into the air above a dark workbench, lingering warm light catching the smoke, gimbal tilting upward following the rising smoke.",
+   "seconds": 4,
+   "placement": "Chèn ngay sau cảnh khò lửa nung phôi, làm nhịp chuyển cảnh sang công đoạn mài giũa.",
+   "reason": "Trend có cảnh khò lửa nổi bật nhưng kho chỉ có cảnh lửa chính diện, thiếu nhịp chuyển cảnh mềm - bù loại 'chuyển cảnh' mà kho hiện đang thiếu.",
+   "trend_item_id": 1
+  },
+  {
+   "label": "Dụng cụ xếp trên bàn dưới ánh sáng điểm",
+   "prompt": "Cận cảnh trung bình một dãy dụng cụ kim hoàn gồm nhíp, dao khắc và dũa nhỏ xếp song song trên bề mặt gỗ cũ, một luồng sáng điểm từ một phía quét dọc qua từng dụng cụ tạo điểm sáng kim loại, máy trượt ngang chậm qua hàng dụng cụ.",
+   "prompt_en": "Medium close-up of a row of jewelry hand tools including tweezers, a carving knife and small files laid out side by side on an old wooden surface, a focused side light sweeping along each tool creating metallic highlights, camera slowly tracking sideways across the row of tools.",
+   "seconds": 5,
+   "placement": "Chèn giữa cảnh tạo hình sáp và cảnh chế tác kim loại, làm nhịp chuyển công đoạn.",
+   "reason": "Kho có nhiều dụng cụ xuất hiện riêng lẻ trong tay thợ nhưng thiếu cảnh tổng quan bối cảnh xưởng với dụng cụ xếp gọn - bù cảnh bối cảnh xưởng tĩnh làm nhịp nghỉ giữa các cảnh động.",
+   "trend_item_id": 1
+  }
+ ]
+}

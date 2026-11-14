@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Kết quả Xu hướng & Xếp hạng — Video Creator{% endblock %}
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;">
+  <h1>Xu hướng & Xếp hạng theo Nguồn</h1>
+  <div style="display:flex;gap:0.5rem;">
+    <a href="/watchlist" class="btn">Danh sách theo dõi (Watchlist)</a>
+    <a href="/suggestions" class="btn">Đề xuất kịch bản</a>
+    <form method="post" action="/trends/scan" style="display:inline;">
+      <button type="submit" class="btn btn-primary">🔍 Quét ngay</button>
+    </form>
+  </div>
+</div>
+
+{% if msg == "scan_queued" %}
+  <div class="alert alert-success">Đã đưa việc quét xu hướng, phân tích và sinh đề xuất vào hàng đợi xử lý!</div>
+{% elif msg == "reference_uploaded" %}
+  <div class="alert alert-success">Đã nạp video tham khảo nội bộ vào <code>media/reference/</code> (tự xoá sau 7 ngày).</div>
+{% endif %}
+
+<section class="card">
+  <h2>Lọc theo nguồn (xếp hạng riêng trong từng nguồn)</h2>
+  <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+    <a href="/trends" class="btn btn-small {{ 'btn-primary' if not source_filter else '' }}">Tất cả nguồn</a>
+    {% for sname, st in source_statuses.items() %}
+      <a href="/trends?source={{ sname }}" class="btn btn-small {{ 'btn-primary' if source_filter == sname else '' }}">
+        {{ sname }} {% if not st[0] %}<span class="small muted">({{ st[1] }})</span>{% endif %}
+      </a>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="card">
+  <h2>Danh sách bài xu hướng ({{ trend_items|length }})</h2>
+  {% if trend_items %}
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Nguồn</th>
+          <th>Điểm</th>
+          <th>Tác giả & Nội dung</th>
+          <th>Số liệu</th>
+          <th>Phân tích cấu trúc</th>
+          <th>Liên kết / Nạp file tham khảo</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in trend_items %}
+        <tr>
+          <td><span class="badge">{{ item.source }}</span></td>
+          <td><strong>{{ "%.2f"|format(item.score or 0) }}</strong></td>
+          <td>
+            <strong>{{ item.author }}</strong>
+            <div class="small muted">{{ (item.caption or "")[:140] }}</div>
+          </td>
+          <td class="small">
+            {% if item.source == "ad_library" %}
+              Chạy: {{ item.metrics.days_running }} ngày | EU reach: {{ item.metrics.eu_reach }}
+            {% else %}
+              👁 {{ item.metrics.views or 0 }} | ❤️ {{ item.metrics.likes or 0 }} | 💬 {{ item.metrics.comments or 0 }}
+            {% endif %}
+          </td>
+          <td class="small">
+            {% if item.analysis %}
+              <div><strong>Hook:</strong> {{ item.analysis.hook }}</div>
+              <div class="muted">Nhịp cắt: {{ item.analysis.cut_pace_s }}s | {{ item.analysis.why_it_works }}</div>
+            {% else %}
+              <span class="muted">Chưa phân tích</span>
+            {% endif %}
+          </td>
+          <td class="small">
+            <a href="{{ item.url }}" target="_blank" rel="noopener" class="btn btn-small">Mở bài gốc</a>
+            <form method="post" action="/trends/{{ item.id }}/upload-reference" enctype="multipart/form-data" class="inline-secret-form" style="margin-top:0.35rem;">
+              <input type="file" name="file" accept=".mp4,.mov" required style="width:145px;">
+              <button type="submit" class="btn btn-small">Nạp video tham khảo</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="muted">Chưa có dữ liệu xu hướng. Hãy thêm mục vào <a href="/watchlist">Watchlist</a> và bấm <strong>Quét ngay</strong>.</p>
+  {% endif %}
+</section>
+{% endblock %}

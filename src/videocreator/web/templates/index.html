@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}Trang chủ — Video Creator{% endblock %}
+{% block content %}
+<h1>Trang chủ</h1>
+
+<div class="grid-2">
+  <section class="card">
+    <h2>Footage theo trạng thái</h2>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Trạng thái</th>
+          <th>Số lượng</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Đã nạp (imported)</td><td><strong>{{ stats.footage_counts.imported }}</strong></td></tr>
+        <tr><td>Đang phân tích (analysing)</td><td><strong>{{ stats.footage_counts.analysing }}</strong></td></tr>
+        <tr><td>Đã phân tích (analysed)</td><td><strong>{{ stats.footage_counts.analysed }}</strong></td></tr>
+        <tr><td>Lỗi (failed)</td><td><strong>{{ stats.footage_counts.failed }}</strong></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="card">
+    <h2>Chi phí & Lượt gọi AI hôm nay ({{ stats.ai_today.day }})</h2>
+    <table class="table">
+      <tbody>
+        <tr>
+          <td>Lượt qua gói thuê bao (CLI)</td>
+          <td><strong>{{ stats.ai_today.subscription_calls }}</strong> lượt (0 USD)</td>
+        </tr>
+        <tr>
+          <td>Lượt qua API trả phí</td>
+          <td><strong>{{ stats.ai_today.api_calls }}</strong> lượt</td>
+        </tr>
+        <tr>
+          <td>Chi phí chữ & nhìn ảnh (API)</td>
+          <td><strong>${{ "%.4f"|format(stats.ai_today.text_api_cost_usd) }}</strong> / ${{ "%.2f"|format(stats.ai_today.daily_limit_usd) }}</td>
+        </tr>
+        <tr>
+          <td>Chi phí sinh video B-roll (API)</td>
+          <td><strong>${{ "%.4f"|format(stats.ai_today.generative_api_cost_usd) }}</strong> / ${{ "%.2f"|format(stats.ai_today.generative_limit_usd) }}</td>
+        </tr>
+        <tr>
+          <td>Chi phí Studio (API)</td>
+          <td><strong>${{ "%.4f"|format(stats.ai_today.studio_api_cost_usd) }}</strong> / ${{ "%.2f"|format(stats.ai_today.studio_limit_usd) }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+</div>
+
+<section class="card">
+  <h2>Video theo trạng thái</h2>
+  <div class="stat-chips">
+    {% for status, count in stats.video_counts.items() %}
+      <div class="chip">
+        <span class="chip-label">{{ status }}</span>
+        <span class="chip-val">{{ count }}</span>
+      </div>
+    {% endfor %}
+  </div>
+</section>
+
+<div class="grid-2">
+  <section class="card">
+    <h2>Hàng đợi công việc (Jobs)</h2>
+    <div class="stat-chips">
+      {% for status, count in stats.job_counts.items() %}
+        <div class="chip">
+          <span class="chip-label">{{ status }}</span>
+          <span class="chip-val">{{ count }}</span>
+        </div>
+      {% endfor %}
+    </div>
+    {% if stats.recent_jobs %}
+      <table class="table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Loại</th>
+            <th>Đối tượng</th>
+            <th>Trạng thái</th>
+            <th>Lỗi</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for job in stats.recent_jobs %}
+          <tr>
+            <td>#{{ job.id }}</td>
+            <td><code>{{ job.kind }}</code></td>
+            <td>{{ job.ref_id if job.ref_id is not none else "—" }}</td>
+            <td>{{ job.status }}</td>
+            <td class="text-danger">{{ job.error or "" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="muted">Chưa có công việc nào trong hàng đợi.</p>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <h2>Tình trạng nhà cung cấp AI</h2>
+    {% if stats.provider_states %}
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Nhà cung cấp</th>
+            <th>Nghỉ tới</th>
+            <th>Lỗi gần nhất</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in stats.provider_states %}
+          <tr>
+            <td><code>{{ p.name }}</code></td>
+            <td>{{ p.resting_until or "Đang sẵn sàng" }}</td>
+            <td>{{ p.last_error or "—" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="muted">Tất cả nhà cung cấp đều ở trạng thái sẵn sàng.</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}
