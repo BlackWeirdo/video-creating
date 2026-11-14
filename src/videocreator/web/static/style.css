@@ -1037,3 +1037,113 @@ small {
   border: 2px dashed var(--color-border-strong);
   border-radius: var(--radius-md);
 }
+
+/* ==========================================================================
+   Micro-interactions. Every transition and animation lives inside the
+   reduced-motion query; without it only the static hover colours remain.
+   ========================================================================== */
+.table tbody tr:hover {
+  background: var(--color-surface-hover);
+}
+
+.table .table tbody tr:hover {
+  background: transparent;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .btn,
+  .icon-btn,
+  .nav a,
+  .input,
+  .select,
+  .textarea,
+  .chip,
+  .toast-close,
+  .grid-3 > .card,
+  .table tbody tr {
+    transition: background-color 150ms ease-out, border-color 150ms ease-out, color 150ms ease-out,
+      box-shadow 150ms ease-out, transform 150ms ease-out;
+  }
+
+  /* Hover: lift slightly. */
+  .btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .grid-3 > .card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+  }
+
+  /* Active: press in. */
+  .btn:active:not(:disabled),
+  .icon-btn:active,
+  .nav a:active,
+  .chip:active {
+    transform: scale(0.97);
+    box-shadow: none;
+  }
+
+  /* Entrance: the first 12 items of a list fade and slide up one after another.
+     --i is the item's position, set by the :nth-child rules below. */
+  :is(.container > .card, .grid-2 > .card, .grid-3 > .card, .stat-chips > .chip, .table > tbody > tr):nth-child(-n + 12) {
+    animation: rise-in 260ms ease-out backwards;
+    animation-delay: calc(var(--i) * 40ms);
+  }
+
+  :is(.container > .card, .grid-2 > .card, .grid-3 > .card, .stat-chips > .chip, .table > tbody > tr):nth-child(1) {
+    --i: 0;
+  }
+
+  :is(.container > .card, .grid-2 > .card, .grid-3 > .card, .stat-chips > .chip, .table > tbody > tr):nth-child(2) {
+    --i: 1;
+  }
+
+  :is(.container > .card, .grid-2 > .card, .grid-3 > .card, .stat-chips > .chip, .table > tbody > tr):nth-child(3) {
+    --i: 2;
+  }
+
+  :is(.container > .card, .grid-2 > .card, .grid-3 > .card, .stat-chips > .chip, .table > tbody > tr):nth-child(4) {
+    --i: 3;
+  }
+
+  :is(.container > .card, .grid-2 > .card, .grid-3 > .card, .stat-chips > .chip, .table > tbody > tr):nth-child(5) {
+    --i: 4;
+  }
+
+  :is(.container > .card, .grid-2 > .card, .grid-3 > .card, .stat-chips > .chip, .table > tbody > tr):nth-child(6) {
+    --i: 5;
+  }
+
+  :is(.container > .card, .grid-2 > .card, .grid-3 > .card, .stat-chips > .chip, .table > tbody > tr):nth-child(7) {
+    --i: 6;
+  }
+
+  :is(.container > .card, .grid-2 > .card, .grid-3 > .card, .stat-chips > .chip, .table > tbody > tr):nth-child(8) {
+    --i: 7;
+  }
+
+  :is(.container > .card, .grid-2 > .card, .grid-3 > .card, .stat-chips > .chip, .table > tbody > tr):nth-child(9) {
+    --i: 8;
+  }
+
+  :is(.container > .card, .grid-2 > .card, .grid-3 > .card, .stat-chips > .chip, .table > tbody > tr):nth-child(10) {
+    --i: 9;
+  }
+
+  :is(.container > .card, .grid-2 > .card, .grid-3 > .card, .stat-chips > .chip, .table > tbody > tr):nth-child(11) {
+    --i: 10;
+  }
+
+  :is(.container > .card, .grid-2 > .card, .grid-3 > .card, .stat-chips > .chip, .table > tbody > tr):nth-child(12) {
+    --i: 11;
+  }
+
+  @keyframes rise-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
+}
