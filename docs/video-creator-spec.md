@@ -443,8 +443,8 @@ Ngôn ngữ giao diện: tiếng Việt. Trang, theo thanh điều hướng:
 
 | Vai trò | Việc | Thứ tự mặc định |
 |---|---|---|
-| `vision` | Mô tả shot, phân tích video tham khảo, chấm điểm | `claude_cli`, `gemini_api` |
-| `writer` | Kịch bản, caption, đề xuất | `claude_cli`, `muse_api`, `claude_api` |
+| `vision` | Mô tả shot, phân tích video tham khảo, chấm điểm | `claude_api` (mặc định từ 2026-11-15, xem dưới) |
+| `writer` | Kịch bản, caption, đề xuất | `claude_api` (mặc định từ 2026-11-15, xem dưới) |
 | `checker` | Đối chiếu lời với dữ liệu sản phẩm | `claude_cli`, `claude_api`, `gemini_api` |
 | `studio` | Phiên Studio | `claude_cli`, `claude_api` (Agent SDK) |
 | `videogen` | Cảnh phụ | Danh sách LỰA CHỌN, không tự chuyển: `manual`, Kling, Seedance, Veo |
@@ -465,6 +465,7 @@ Giọng đọc không thuộc bộ định tuyến này; nó do MoneyPrinterTurb
 | FR-AI-08 | `muse_api` (Muse Spark qua Meta Model API) chỉ bật khi người dùng có key hợp lệ; chỉ cho `writer` và `checker`. Muse không có đường tạo video tự động; tạo video bằng Muse đi qua trạm việc tay. |
 | FR-AI-09 | Đổi thứ tự, model hay chính sách trong Settings có hiệu lực ở lượt gọi kế tiếp. |
 | FR-AI-10 | `muse_fox`: gọi Muse (muse.ai) qua REST của FoxProfile mà Muse2Tele đang chạy tại máy (`127.0.0.1:8090`). Quyết định của chủ dự án ngày 2026-11-15, chấp nhận rủi ro điều khoản và khoá tài khoản Muse. App không tự điều khiển trình duyệt, không giữ proxy hay cookie; chỉ gửi prompt (kèm video khi có) vào profile được chọn và đọc trả lời. Tắt mặc định, chỉ bật khi đã cấu hình profile và token FoxProfile. |
+| FR-AI-11 | Quyết định của chủ dự án ngày 2026-11-15 (thay đổi `BR-COST-01` và thứ tự ở mục 8.1): `vision` và `writer` mặc định chỉ dùng `claude_api`, gọi qua cổng tương thích Anthropic của bên thứ ba tại `ai.claude_base_url` (mặc định Shopdonk; để trống thì SDK dùng endpoint Anthropic chính thức). Chủ chấp nhận rằng mọi lượt vision/writer tính tiền API (trong hạn mức `[budget]`), và khoá API, ảnh thu nhỏ, dữ liệu sản phẩm và kịch bản đi qua cổng đó. `claude_cli` và `gemini_api` vẫn dùng được: thêm lại vào `[ai.routes]` trong Settings nếu muốn đường gói thuê bao hoặc dự phòng. Model chưa có giá trong `[prices]` bị chặn trước khi gọi (`BR-COST-02`) và bộ định tuyến chuyển sang nhà cung cấp kế tiếp. |
 
 ---
 
@@ -478,7 +479,8 @@ Giọng đọc không thuộc bộ định tuyến này; nó do MoneyPrinterTurb
 | MoneyPrinterTurbo | Lồng tiếng, phụ đề, nhạc, lắp ráp, lô, stock | API tại 127.0.0.1, bản ghim, venv riêng | Chờ S12 |
 | Claude Code CLI | `writer`, `vision`, `checker`, `studio` | `claude -p` | Gói thuê bao của chủ máy; chờ S13 |
 | Gemini CLI | `vision`, `writer`, `checker` | `gemini -p` | Chờ S13 |
-| Anthropic API, Gemini API | Dự phòng | SDK chính thức | Có hạn mức tiền |
+| Anthropic API (qua cổng tương thích) | Đường mặc định của `vision` và `writer` (`FR-AI-11`); dự phòng của `checker`, `studio` | SDK `anthropic` với `base_url` cấu hình được (mặc định `https://api.shopdonk.com/v1`) | Có hạn mức tiền; dữ liệu đi qua cổng bên thứ ba |
+| Gemini API | Dự phòng | SDK chính thức | Có hạn mức tiền |
 | Meta Model API | `muse_api` | Tương thích OpenAI SDK | Tuỳ khả năng đăng ký |
 | FoxProfile (Muse2Tele) | `muse_fox` | REST `127.0.0.1:8090/api/v1`, token Bearer | `FR-AI-10`; phụ thuộc giao diện web của Muse |
 | Cổng model (fal.ai hoặc Replicate), Veo API | Sinh cảnh phụ | SDK/HTTP | Người dùng chọn từng lần |
@@ -503,6 +505,7 @@ File `config.toml` (không chứa bí mật). Các nhóm khoá:
 | chung | `role`, `host`, `port` | `server`, `127.0.0.1`, 8765 |
 | `[ai.routes]` | `vision`, `writer`, `checker`, `studio`, `videogen` | Mục 8.1 |
 | `[ai.policy]` | `api_fallback`, `offpeak_hours` | `ask`, 23:00–06:00 |
+| `[ai]` | `claude_base_url`, `claude_writer_model`, `claude_checker_model` | `https://api.shopdonk.com/v1`, `claude-opus-5-5`, `claude-haiku-5-5` |
 | `[budget]` | `daily_usd`, `generative_daily_usd`, `studio_daily_usd` | 5, 15, 10 |
 | `[prices.<model>]` | Giá từng model | Theo S7 |
 | `[quality]` | `min_score`, `max_retries` | 8, 2 |
