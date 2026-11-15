@@ -37,6 +37,18 @@ Mẫu thật: `tests/samples/ytdlp_facebook_*.json`, `tests/samples/ytdlp_instag
 - Tự quét Fanpage qua Graph API khi app có quyền Page Public Content Access.
 - Chạy thật nguồn `ig_hashtag` / `ig_discovery` khi có token Meta (plan app phase 01 S2/S3).
 
+## Đợt 2 (2026-11-14): Apify cho dữ liệu xu hướng
+
+Chủ quyết định: (1) đổi quy tắc `BR-REF-04` cho dữ liệu xu hướng, dùng Apify; (2) dùng gói miễn phí $5/tháng trước, hiệu quả thì nâng tối đa $20; (3) quét cả Profile cá nhân. Token lưu trong kho bí mật (`APIFY_API_TOKEN`), không ghi vào mã hay tài liệu.
+
+- `trends/apify.py`: 5 nguồn Apify giữ tên cũ (`tiktok`, `ig_hashtag`, `ig_discovery`, `facebook`, `ad_library`); `build_trend_sources` dùng chúng khi có token. Đặc tả `FR-TRD-11`.
+- Trần chi: đọc mức dùng tài khoản trước mỗi lần chạy (`trends.apify_monthly_usd`, mặc định 5) + trần 0,5 USD mỗi lần chạy (TikTok không nhận trần thấp hơn); thử lại lỗi 5xx.
+- Chạy thật trên dữ liệu thật: lượt quét đủ 5 nguồn, không lỗi, khoảng $0,11–0,13 mỗi lượt với 4 mục theo dõi × 10 kết quả. Tổng đã dùng sau thử nghiệm: $0,55/$5.
+- Sửa sau lần chạy thật: Ad Library khớp nguyên cụm (khớp từng chữ ra quảng cáo không liên quan); TikTok từ khoá lọc video trong tháng (tìm "Top" trả video cũ, bị bộ lọc 30 ngày loại hết); thử lại khi Apify trả 502.
+- Test: `tests/test_trends_apify.py` trên đầu ra Apify thật (`tests/samples/apify_*.json`), 1 test live có cổng `RUN_LIVE_APIFY`.
+
 ## Câu hỏi chưa giải quyết
+
+- Ad Library VN với cụm "trang sức bạc": không có quảng cáo video nào chạy từ 30 ngày. Chủ nên thêm mã Page đối thủ (loại `page`) hoặc cụm từ khác.
 
 - Lượt xem Reel: yt-dlp trả `view_count` khác số trong tiêu đề trang (427 so với 9.9K). App lấy số lớn hơn; chưa rõ số nào Facebook coi là "lượt xem".

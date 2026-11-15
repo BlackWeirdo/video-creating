@@ -144,7 +144,7 @@ Các quy tắc này áp cho mọi chế độ dựng và mọi module; chúng đ
 | BR-REF-01 | Video tham khảo chỉ dùng phân tích nội bộ: lưu ở `media/reference/`, tối đa N video mỗi ngày (mặc định 5), tự xoá file sau 7 ngày, giữ lại kết quả phân tích dạng văn bản. |
 | BR-REF-02 | Không có đường nào trong mã đưa video tham khảo vào kho shot, vào bản dựng hay vào bài đăng. |
 | BR-REF-03 | Chỉ học cấu trúc (mở đầu, nhịp, thứ tự cảnh); không sao chép hình, lời, nhạc của video gốc. |
-| BR-REF-04 | Tải video không đăng nhập, không cookie, không proxy, không vượt chặn; lỗi thì lùi về phân tích số liệu và caption. |
+| BR-REF-04 | App tự tải video không đăng nhập, không cookie, không proxy, không vượt chặn; lỗi thì lùi về phân tích số liệu và caption. **Ngoại lệ do chủ quyết định 2026-11-14:** dữ liệu xu hướng (danh sách video, số liệu, quảng cáo) được lấy qua dịch vụ quét bên thứ ba Apify (`FR-TRD-11`), kể cả Profile cá nhân công khai; tài khoản của chủ không tham gia việc quét. Không áp dụng cho đăng bài và quản lý quảng cáo (luôn qua API chính thức). |
 
 ### 3.4 Chi phí và gói thuê bao
 
@@ -242,6 +242,7 @@ Các quy tắc này áp cho mọi chế độ dựng và mọi module; chúng đ
 | FR-TRD-07 | Đề xuất: tối đa 3 mỗi ngày, mỗi đề xuất có mô tả ngắn, công thức áp được vào bộ lập kịch bản, shot gợi ý, link tham khảo. Kho thiếu loại shot cần thì ghi "cần quay thêm: ...". |
 | FR-TRD-08 | Đề xuất gửi lên Telegram để quyết định (`FR-TG-10`) và hiện trong giao diện với trạng thái mới / đã gửi / đã nhận / đã bỏ. |
 | FR-TRD-09 | Video sinh từ đề xuất lưu liên kết tới đề xuất để so hiệu quả sau này. |
+| FR-TRD-11 | Khi có `APIFY_API_TOKEN` trong kho bí mật, các nguồn sau dùng Apify (giữ nguyên tên nguồn): `tiktok` (từ khoá, hashtag, tài khoản; từ khoá lọc video trong tháng), `ig_hashtag` (Reels theo hashtag), `ig_discovery` (Reels theo tài khoản), `facebook` (Reels của Fanpage/Profile), `ad_library` (quảng cáo video đang chạy ở quốc gia `trends.ads_country`, mặc định VN, khớp nguyên cụm từ hoặc mã Page; vẫn chỉ lấy quảng cáo chạy từ 30 ngày). Trước mỗi lần chạy đọc mức đã dùng của tài khoản Apify và dừng nguồn nếu sắp vượt `trends.apify_monthly_usd` (mặc định 5; chủ cho nâng tối đa 20 nếu hiệu quả) hoặc trần tài khoản; mỗi lần chạy có trần riêng 0,5 USD; lỗi tạm thời của Apify được thử lại 2 lần. Không có token thì dùng các nguồn ở `FR-TRD-02`. |
 | FR-TRD-10 | Dán link một video/Reel Facebook hoặc Instagram công khai (ô "Thêm video theo link" trên trang Xu hướng, hoặc `/link <link>` trên Telegram, chỉ người duyệt): app đọc số liệu bằng yt-dlp theo `BR-REF-04`, lưu thành bài xu hướng có nhãn "tự chọn", tải + phân tích (rea-video) ngay, không chiếm suất tải N video/ngày của phần quét; bài tự chọn được ưu tiên khi chọn đề xuất. Tối đa 20 link/ngày, chỉ tính link đọc thành công. Không đọc được thì báo lý do và hướng dẫn nạp file tay. |
 
 ### 4.7 Cảnh phụ (BRL)
@@ -483,6 +484,7 @@ Giọng đọc không thuộc bộ định tuyến này; nó do MoneyPrinterTurb
 | YouTube Data API | Nguồn xu hướng | API key | Theo dõi quota |
 | Meta Ad Library API | Nguồn xu hướng | Token + xác minh danh tính | Chờ S6 |
 | yt-dlp | Tải video tham khảo; đọc số liệu công khai của một video Facebook/Instagram được dán link | Tiến trình con, phiên bản ghim, `--ignore-config` (không cookie) | `BR-REF-*` |
+| Apify (`clockworks/tiktok-scraper`, `apify/instagram-hashtag-scraper`, `apify/instagram-reel-scraper`, `apify/facebook-reels-scraper`, `apify/facebook-ads-scraper`) | Dữ liệu xu hướng TikTok, Instagram, Facebook Reels, Thư viện quảng cáo Meta mọi quốc gia | REST API, token `APIFY_API_TOKEN`, trả theo kết quả | `FR-TRD-11`, ngoại lệ `BR-REF-04` |
 | Telegram Bot API | Điều khiển, thông báo | python-telegram-bot, long polling | Giới hạn file khoảng 50 MB gửi, 20 MB nhận |
 
 ---
@@ -617,7 +619,7 @@ File `config.toml` (không chứa bí mật). Các nhóm khoá:
 | FR-PST-10, Threads, TikTok | 11 |
 | FR-TRD-01..04 | 12 |
 | FR-TRD-05..09; BR-REF | 13 |
-| FR-TRD-10; FR-TRD-02 (nguồn Facebook) | plan `261114-meta-reels-facebook-sources` |
+| FR-TRD-10, FR-TRD-11; FR-TRD-02 (nguồn Facebook) | plan `261114-meta-reels-facebook-sources` |
 | FR-TG-02, 10..21; FR-APR-05, 06; FR-PLN-07; FR-PST-14 | 16 |
 | FR-STD | 17 |
 | FR-BRL; BR-PRD-07, 08; BR-COST-03 | 14 |
@@ -654,7 +656,7 @@ Tính năng bổ sung khi rà soát vì trước đó thiếu: sao lưu cơ sở
 2. Mỗi tài khoản Instagram là Business/Creator và liên kết một Page.
 3. Chủ máy sở hữu các gói thuê bao AI và tự đăng nhập CLI trên máy chủ.
 4. Sản lượng 5–10 video mỗi ngày, mỗi video 15–30 giây.
-5. Người dùng chấp nhận tính chất vùng xám của việc tải video tham khảo trong giới hạn `BR-REF-*`.
+5. Người dùng chấp nhận tính chất vùng xám của việc tải video tham khảo trong giới hạn `BR-REF-*`, và (2026-11-14) của việc lấy dữ liệu xu hướng qua dịch vụ quét bên thứ ba Apify, trái điều khoản của Meta và TikTok; rủi ro chính là bộ quét hỏng khi nền tảng đổi trang.
 
 ## 16. Rủi ro chính
 

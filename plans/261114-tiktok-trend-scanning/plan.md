@@ -1,6 +1,6 @@
 # Kế hoạch: xu hướng đa nền tảng, thêm TikTok (theo dõi tài khoản + dán link + chia suất đều)
 
-Ngày: 2026-11-14 (sửa lần 2 cùng ngày theo phản hồi của chủ). Trạng thái: chưa bắt đầu, chưa viết mã. Gốc repo: `c:\Project Video Creator\`.
+Ngày: 2026-11-14 (sửa lần 2 cùng ngày theo phản hồi của chủ). Trạng thái: **phase 01–03 được thay bằng Apify** (2026-11-14, xem [plan nguồn Facebook, đợt 2](../261114-meta-reels-facebook-sources/plan.md) và đặc tả `FR-TRD-11`): TikTok đã quét được theo từ khoá, hashtag, tài khoản. Còn giá trị: **phase 04 chia suất đều giữa nền tảng** (giờ đã có 5–6 nguồn thật cùng chạy) và phase 06 phần ma trận xung đột. Phase 05 (bật nguồn Meta chính thức) chỉ còn là dự phòng khi không dùng Apify. Gốc repo: `c:\Project Video Creator\`.
 Nguồn: [scout 01](scout/scout-01-trend-pipeline-touchpoints.md), [spike chạy thật](reports/01-spike-ytdlp-tiktok-real-run.md) (ưu tiên hơn research khi khác nhau), [research 01](research/researcher-01-tiktok-official-data-access.md), [research 02](research/researcher-02-ytdlp-tiktok-extraction.md), [đặc tả](../../docs/video-creator-spec.md), [CLAUDE.md](../../CLAUDE.md).
 
 ## Tóm tắt
