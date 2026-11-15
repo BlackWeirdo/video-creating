@@ -6,9 +6,9 @@ from pathlib import Path
 from videocreator.config import load_settings
 from videocreator.db import get_conn, query_one, record_audit
 from videocreator.jobs import enqueue_job
-from videocreator.jsonutil import loads_or
 from videocreator.paths import AppPaths
 from videocreator.pipeline.plan_request import save_plan_request_params
+from videocreator.trends.suggestion_formula import load_suggestion_formula
 
 logger = logging.getLogger("videocreator.trends.suggest")
 
@@ -54,7 +54,8 @@ def accept_suggestion(
         )
 
     cfg = load_settings(paths.config_file)
-    formula_obj = loads_or(row.get("formula_json"), {})
+    # Formula + the reference video's analysis (hook, structure, pace...) for the writer (FR-TRD-07)
+    formula_obj = load_suggestion_formula(paths.db_file, suggestion_id) or {}
 
     # Use negative ref_id (-suggestion_id) so each suggestion's plan request file is isolated and uses library shots
     ref_key = -int(suggestion_id)

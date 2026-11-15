@@ -75,6 +75,11 @@ class MPTConfig(BaseModel):
     port: int = 8080
 
 
+class RenderConfig(BaseModel):
+    # Keep the footage's own sound (tapping, filing, polishing silver), mixed low under voice/music.
+    keep_original_audio: bool = False
+
+
 class VoiceConfig(BaseModel):
     # Only Edge TTS voices were verified through MoneyPrinterTurbo (spike S12).
     vi_provider: str = "edge"
@@ -90,6 +95,9 @@ class TrendsConfig(BaseModel):
     )
     lookback_days: int = 30
     download_top_n: int = 5
+    # Unanalysed trend items per source queued for AI structure analysis after each scan.
+    # Kept small: each analysis can run rea-video for many minutes on the single job worker.
+    auto_analyse_top_n: int = 3
     reference_keep_days: int = 7
     # Apify (third-party scrapers) for TikTok / Instagram / Facebook Reels / Meta Ad Library,
     # used when APIFY_API_TOKEN is in the secrets store. Owner decision 2026-11-14: free $5 first,
@@ -129,6 +137,7 @@ class Settings(BaseModel):
     )
     safe_zone: SafeZoneConfig = Field(default_factory=SafeZoneConfig)
     mpt: MPTConfig = Field(default_factory=MPTConfig)
+    render: RenderConfig = Field(default_factory=RenderConfig)
     voice: VoiceConfig = Field(default_factory=VoiceConfig)
     trends: TrendsConfig = Field(default_factory=TrendsConfig)
     tiktok: TikTokConfig = Field(default_factory=TikTokConfig)

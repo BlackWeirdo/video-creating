@@ -30,6 +30,8 @@ from videocreator.timeutil import parse_iso_utc, utc_now
 logger = logging.getLogger("videocreator.posting.publish")
 
 MISSED_THRESHOLD_HOURS = 6
+# Platforms that fetch the video from a public URL (R2); Facebook and TikTok receive the file itself.
+PUBLIC_URL_PLATFORMS = frozenset({"instagram", "threads"})
 
 R2Uploader = Callable[[Path], tuple[str, str]]
 
@@ -104,7 +106,9 @@ def _publish_one_post(
     video_id = int(post_row["video_id"])
     platform = str(post_row["platform"])
 
-    if _is_overdue(post_row, now_utc):
+    # A post with a platform container/reel id already started publishing on time; it is finished,
+    # never marked missed (otherwise it could be published while the app thinks it was not).
+    if _is_overdue(post_row, now_utc) and not str(post_row.get("remote_container_id") or "").strip():
         return mark_missed(paths, post_row)
 
     # Atomically claim the post by transitioning scheduled -> publishing
@@ -127,7 +131,7 @@ def _publish_one_post(
         except Exception as ref_exc:
             logger.warning("Token refresh check failed for account %s: %s", post_row.get("account_id"), ref_exc)
 
-        if platform != "tiktok":
+        if platform in PUBLIC_URL_PLATFORMS:
             _staged_video_url(paths, video_row, video_path, staged_urls, r2_uploader)
         video_url = staged_urls.get(video_id, "")
         result = poster.publish(

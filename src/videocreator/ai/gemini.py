@@ -49,7 +49,7 @@ class GeminiAPIProvider:
         from google.genai import types  # type: ignore[import-untyped]
 
         settings = load_settings(self.config_file)
-        check_budget(self.db_file, settings, kind=self.role)
+        check_budget(self.db_file, settings, kind=self.role, model=self.model)
         client = self._get_client()
 
         last_val_err: Exception | None = None
@@ -98,7 +98,7 @@ class GeminiAPIProvider:
             except ValidationError as val_exc:
                 last_val_err = val_exc
                 if val_attempt == 0:
-                    check_budget(self.db_file, settings, kind=self.role)
+                    check_budget(self.db_file, settings, kind=self.role, model=self.model)
                     continue
                 raise SchemaValidationError(
                     f"Gemini API output failed schema validation after 2 attempts: {val_exc}"
@@ -115,7 +115,7 @@ class GeminiAPIProvider:
         thumbnails: list[Path] | None = None,
     ) -> T:
         settings = load_settings(self.config_file)
-        check_budget(self.db_file, settings, kind=self.role)
+        check_budget(self.db_file, settings, kind=self.role, model=self.model)
         video_str = str(video)
         if video_str.startswith(("http://", "https://")):
             from google.genai import types  # type: ignore[import-untyped]

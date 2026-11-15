@@ -30,7 +30,7 @@ Phần mềm nội bộ giúp một thương hiệu trang sức bạc thủ côn
 - Bán phần mềm cho bên khác; nhiều thương hiệu trong một bản cài.
 - Tạo và quản lý quảng cáo trả tiền (app chỉ xuất video; lên quảng cáo làm trong công cụ của nền tảng).
 - Trả lời bình luận, tin nhắn khách hàng.
-- Đăng bài, lấy dữ liệu hay dùng dịch vụ AI bằng cách điều khiển trình duyệt, lấy token từ trình duyệt, giả lập dấu vân tay trình duyệt, proxy lách giới hạn vùng, hoặc nhiều tài khoản để cộng hạn mức (bao gồm Google Flow qua CDP và phần lõi của Muse2Tele).
+- Đăng bài, lấy dữ liệu hay dùng dịch vụ AI bằng cách điều khiển trình duyệt, lấy token từ trình duyệt, giả lập dấu vân tay trình duyệt, proxy lách giới hạn vùng, hoặc nhiều tài khoản để cộng hạn mức (bao gồm Google Flow qua CDP). Ngoại lệ duy nhất: `muse_fox` (`FR-AI-10`).
 - Dịch vụ trung gian đăng bài (aggregator).
 - AI tạo hoặc chỉnh sửa hình ảnh sản phẩm.
 - Ra lệnh cho bot bằng câu tự do; nạp footage qua Telegram.
@@ -151,7 +151,7 @@ Các quy tắc này áp cho mọi chế độ dựng và mọi module; chúng đ
 | Mã | Quy tắc |
 |---|---|
 | BR-COST-01 | Việc AI chữ và nhìn ảnh thử đường gói thuê bao trước, API trả tiền chỉ là dự phòng theo chính sách người dùng chọn (`never` / `ask` / `auto`). |
-| BR-COST-02 | Ba hạn mức tiền API mỗi ngày, tách riêng: chữ và nhìn ảnh (mặc định 5 USD), sinh video (15 USD), Studio qua API (đặt sau S11/S13, tạm 10 USD). Chạm hạn mức thì chặn trước khi gọi. |
+| BR-COST-02 | Ba hạn mức tiền API mỗi ngày, tách riêng: chữ và nhìn ảnh (mặc định 5 USD), sinh video (15 USD), Studio qua API (đặt sau S11/S13, tạm 10 USD). Chạm hạn mức thì chặn trước khi gọi. Model chưa có giá trong `[prices]` cũng bị chặn trước khi gọi (nếu không, lượt gọi bị tính 0 USD). "Ngày" của mọi hạn mức, báo cáo ngày và giới hạn theo ngày là ngày theo `schedule.timezone` (đổi lúc 00:00 giờ địa phương). |
 | BR-COST-03 | Sinh video qua API không bao giờ tự chạy; chỉ khi người dùng chọn một model cụ thể và đã thấy giá ước tính. |
 | BR-COST-04 | Mỗi lượt gọi AI ghi lại: vai trò, nhà cung cấp, đường (`subscription` / `api` / `manual`), số đơn vị, tiền. |
 | BR-COST-05 | Một gói thuê bao là của một người; app không lưu, không đọc, không xuất token đăng nhập của CLI. |
@@ -186,7 +186,7 @@ Các quy tắc này áp cho mọi chế độ dựng và mọi module; chúng đ
 
 | Mã | Yêu cầu |
 |---|---|
-| FR-PLN-01 | Tạo N kịch bản từ một footage, hoặc từ toàn bộ kho shot (khi tạo theo đề xuất xu hướng). Chọn: ngôn ngữ lời (không / Việt / Anh), ngôn ngữ caption (Việt / Anh), thời lượng mục tiêu (15–30 giây), gói chỉ dẫn. |
+| FR-PLN-01 | Tạo N kịch bản từ một footage, hoặc từ toàn bộ kho shot (khi tạo theo đề xuất xu hướng). Chọn: ngôn ngữ lời (không / Việt / Anh), ngôn ngữ caption (Việt / Anh), thời lượng mục tiêu (15–30 giây), gói chỉ dẫn. Chế độ kho shot chỉ đưa shot đã mô tả, tối đa 40, ưu tiên shot gợi ý của đề xuất và chỉ thêm shot cùng sản phẩm (trừ công thức bộ sưu tập), liệt kê theo nhóm sản phẩm. Kịch bản theo đề xuất nhận đủ phân tích video mẫu (mở đầu, cấu trúc, nhịp cắt, kiểu chữ, không khí nhạc, lý do hiệu quả), đánh dấu là dữ liệu. |
 | FR-PLN-02 | Kịch bản chỉ chứa `shot_id` có thật; mốc cắt nằm trong shot; tổng thời lượng trong khoảng mục tiêu. Vi phạm thì bị loại khi kiểm tra. |
 | FR-PLN-03 | Mỗi kịch bản trong một lần tạo dùng một công thức khác nhau; kịch bản có tập shot trùng trên 70% với bản đã có của cùng nguồn bị loại. Kho quá ít shot thì báo, không ép ra bản trùng. |
 | FR-PLN-04 | Mỗi kịch bản có bốn caption riêng cho Facebook, Instagram, Threads, TikTok (độ dài và hashtag theo từng nền tảng), sinh trong cùng một lượt gọi. Cắt theo giới hạn ký tự của nền tảng. |
@@ -199,7 +199,7 @@ Các quy tắc này áp cho mọi chế độ dựng và mọi module; chúng đ
 | Mã | Yêu cầu |
 |---|---|
 | FR-REN-01 | Dựng một kịch bản thành bản master theo `BR-FMT-*` và `BR-PRD-*`. |
-| FR-REN-02 | Engine `ffmpeg`: cắt shot, ghép, phụ đề ASS (font Be Vietnam Pro, đúng dấu tiếng Việt), nhạc nền người dùng nạp cắt theo độ dài và mờ dần cuối. Không có nhạc thì chèn track im lặng. |
+| FR-REN-02 | Engine `ffmpeg`: cắt shot, ghép, phụ đề ASS (font Be Vietnam Pro, đúng dấu tiếng Việt), nhạc nền người dùng nạp cắt theo độ dài và mờ dần cuối. Không có nhạc thì chèn track im lặng. Tuỳ chọn `render.keep_original_audio` (mặc định tắt): giữ tiếng gốc của footage, trộn ở mức 0,3 dưới giọng đọc/nhạc; shot không có tiếng được đệm im lặng. |
 | FR-REN-03 | Engine `mpt` (MoneyPrinterTurbo, chờ S12): nhận các đoạn đã cắt theo thứ tự cùng lời có sẵn; làm lồng tiếng, phụ đề khớp giọng, nhạc, chuyển cảnh. Mặc định dùng khi video có lồng tiếng. |
 | FR-REN-04 | Trong MoneyPrinterTurbo phải tắt: AI tự viết kịch bản, tư liệu stock và AI video cho cảnh sản phẩm, đổi tốc độ, cắt lấp khung, nhạc mặc định, tính năng đăng bài. Cấu hình của nó do app sinh ra. |
 | FR-REN-05 | Engine `mpt` lỗi hoặc dịch vụ tắt thì video tự lùi về `ffmpeg`, có ghi chú trên màn hình duyệt. |
@@ -239,7 +239,7 @@ Các quy tắc này áp cho mọi chế độ dựng và mọi module; chúng đ
 | FR-TRD-04 | Chấm điểm trong từng nguồn, không trộn thang giữa các nguồn. Mạng xã hội: theo tương tác chia cho tuổi bài. Quảng cáo: theo số ngày chạy, còn chạy hay không, reach EU; chỉ lấy quảng cáo video chạy từ 30 ngày. |
 | FR-TRD-05 | Tải file của top N video theo `BR-REF-*` bằng yt-dlp; Ad Library không tải được thì người dùng tự nạp file tham khảo. |
 | FR-TRD-06 | Phân tích: có file thì chạy rea-video rồi provider vai trò `vision` viết phân tích; không có file thì YouTube qua URL, còn lại theo số liệu và caption. Kết quả: mở đầu, cấu trúc theo thời gian, nhịp cắt, kiểu chữ, không khí nhạc, lý do hiệu quả. |
-| FR-TRD-07 | Đề xuất: tối đa 3 mỗi ngày, mỗi đề xuất có mô tả ngắn, công thức áp được vào bộ lập kịch bản, shot gợi ý, link tham khảo. Kho thiếu loại shot cần thì ghi "cần quay thêm: ...". |
+| FR-TRD-07 | Đề xuất: tối đa 3 mỗi ngày, mỗi đề xuất có mô tả ngắn, công thức áp được vào bộ lập kịch bản, shot gợi ý, link tham khảo. Kho thiếu loại shot cần thì ghi "cần quay thêm: ...". Video quét tự động: đề xuất được sinh một lần khi cả lô phân tích xong (kể cả khi việc cuối lỗi), để 3 suất/ngày rơi vào video điểm cao nhất; link dán tay có đề xuất riêng ngay khi phân tích xong. |
 | FR-TRD-08 | Đề xuất gửi lên Telegram để quyết định (`FR-TG-10`) và hiện trong giao diện với trạng thái mới / đã gửi / đã nhận / đã bỏ. |
 | FR-TRD-09 | Video sinh từ đề xuất lưu liên kết tới đề xuất để so hiệu quả sau này. |
 | FR-TRD-11 | Khi có `APIFY_API_TOKEN` trong kho bí mật, các nguồn sau dùng Apify (giữ nguyên tên nguồn): `tiktok` (từ khoá, hashtag, tài khoản; từ khoá lọc video trong tháng), `ig_hashtag` (Reels theo hashtag), `ig_discovery` (Reels theo tài khoản), `facebook` (Reels của Fanpage/Profile), `ad_library` (quảng cáo video đang chạy ở quốc gia `trends.ads_country`, mặc định VN, khớp nguyên cụm từ hoặc mã Page; vẫn chỉ lấy quảng cáo chạy từ 30 ngày). Trước mỗi lần chạy đọc mức đã dùng của tài khoản Apify và dừng nguồn nếu sắp vượt `trends.apify_monthly_usd` (mặc định 5; chủ cho nâng tối đa 20 nếu hiệu quả) hoặc trần tài khoản; mỗi lần chạy có trần riêng 0,5 USD; lỗi tạm thời của Apify được thử lại 2 lần. Không có token thì dùng các nguồn ở `FR-TRD-02`. |
@@ -264,7 +264,7 @@ Các quy tắc này áp cho mọi chế độ dựng và mọi module; chúng đ
 | FR-APR-02 | Màn hình duyệt: xem video, caption bốn nền tảng sửa được, tài khoản đích (mặc định các tài khoản đang bật cùng ngôn ngữ với caption và đạt kiểm tra định dạng), ảnh bìa, các thông tin của `BR-PRD-09`, điểm tự động, nút Duyệt / Loại (lý do tuỳ chọn). |
 | FR-APR-03 | Một người trong danh sách người duyệt bấm là đủ. Lưu ai duyệt, lúc nào, từ đâu. |
 | FR-APR-04 | Hai người bấm gần như cùng lúc: chỉ một lần có hiệu lực, người sau nhận "đã xử lý rồi". |
-| FR-APR-05 | Chấm điểm tự động trước khi gửi duyệt: thang 10 theo mở đầu, độ rõ sản phẩm, vùng an toàn của chữ, khớp hình và lời. Dưới ngưỡng (mặc định 8) thì tự làm lại tối đa 2 lần trong hạn mức; vẫn không đạt thì vẫn gửi duyệt kèm điểm và lý do. |
+| FR-APR-05 | Chấm điểm tự động trước khi gửi duyệt: thang 10 theo mở đầu, độ rõ sản phẩm, vùng an toàn của chữ, khớp hình và lời. Dưới ngưỡng (mặc định 8) thì tự làm lại tối đa 2 lần trong hạn mức; vẫn không đạt thì gửi duyệt bản điểm CAO NHẤT trong chuỗi làm lại, kèm điểm và lý do. Mô hình chỉ xem ảnh nhận khung 0,3/1,3/2,3 giây và một khung mỗi shot (tối đa 12); mô hình xem video nhận cả file. Mỗi tiêu chí có bằng chứng trước điểm; điểm tổng do app tính. Không chấm được (thiếu file, quá ít khung, lỗi hoặc hết hạn mức AI, mô hình báo không chấm được) thì KHÔNG tự làm lại, gửi duyệt với điểm trống và lý do. Lần làm lại nhận tiêu chí yếu nhất kèm bằng chứng. |
 | FR-APR-06 | Người duyệt bấm "Làm lại" tối đa 2 lần mỗi video (đếm riêng với tự làm lại). Bản bị thay chuyển trạng thái `superseded` và không gửi duyệt nữa. |
 
 ### 4.9 Đăng bài và lịch (PST)
@@ -275,12 +275,12 @@ Các quy tắc này áp cho mọi chế độ dựng và mọi module; chúng đ
 | FR-PST-02 | Một bài đăng = một video x một tài khoản, dùng caption của đúng nền tảng. Không thể có hai bài đăng cho cùng cặp video–tài khoản. |
 | FR-PST-03 | Khi duyệt: với mỗi tài khoản đích, tự xếp vào khung giờ trống sớm nhất của tài khoản đó (một video mỗi khung mỗi tài khoản). Người dùng đổi giờ, huỷ bài chưa đăng, hoặc "Đăng ngay" (có bước xác nhận). |
 | FR-PST-04 | Khung giờ mặc định trong cấu hình (múi giờ `Asia/Ho_Chi_Minh`), ghi đè theo tài khoản. Lưu thời gian dạng UTC. |
-| FR-PST-05 | Video được tải lên Cloudflare R2 một lần để có URL public (Instagram, Threads); xoá sau khi mọi bài đăng của video ở trạng thái cuối 24 giờ. |
+| FR-PST-05 | Video được tải lên Cloudflare R2 một lần để có URL public (Instagram, Threads; Facebook và TikTok nhận file trực tiếp); xoá sau khi mọi bài đăng của video ở trạng thái cuối 24 giờ. |
 | FR-PST-06 | Kiểm tra định dạng lại ngay trước khi đăng; lỗi thì dừng và báo, không gọi API. |
-| FR-PST-07 | Đăng nhiều bước (Instagram, Threads): lưu mã container trước khi publish; khi thử lại phải hỏi trạng thái container cũ trước, không tạo bài trùng. |
+| FR-PST-07 | Đăng nhiều bước (Instagram, Threads, Facebook Reels): lưu mã container / mã Reel trước khi tải lên hoặc publish; khi thử lại phải hỏi trạng thái cũ trước và chỉ làm bước còn thiếu, không tạo bài trùng. Container đã `PUBLISHED` thì tìm bài trong các bài mới nhất (khớp caption); không thấy thì chuyển sang chờ người xác nhận "Đã đăng". Facebook đăng dạng Reel 3 bước (start → tải file → finish), giới hạn 30 Reel/Page/24 giờ. |
 | FR-PST-08 | Lỗi tạm thời (mạng, 5xx, giới hạn tần suất): thử lại tối đa 3 lần, giãn 1, 5, 30 phút. Lỗi vĩnh viễn (token, nội dung bị từ chối) hoặc hết lượt: đánh dấu thất bại, báo Telegram kèm hướng dẫn ngắn và nút Thử lại. |
 | FR-PST-09 | Bài trễ quá 6 giờ so với lịch (máy tắt): không tự đăng bù, đánh dấu lỡ lịch và hỏi người dùng. |
-| FR-PST-10 | TikTok: chế độ hộp nháp cho tới khi app được audit (bot nhắc người dùng bấm đăng trong ứng dụng, có nút "Đã đăng"); chế độ đăng trực tiếp bật bằng một cờ cấu hình sau audit (chờ S5). |
+| FR-PST-10 | TikTok: chế độ hộp nháp cho tới khi app được audit (bot nhắc người dùng bấm đăng trong ứng dụng, có nút "Đã đăng"); chế độ đăng trực tiếp bật bằng một cờ cấu hình sau audit (chờ S5). API hộp nháp không nhận caption, nên tin nhắc kèm caption TikTok để dán. |
 | FR-PST-11 | Token sắp hết hạn trong 7 ngày: cảnh báo Telegram. Token TikTok/Threads tự làm mới trước khi đăng. |
 | FR-PST-12 | Sau khi đăng: lưu mã bài và đường link; bot gửi link. |
 | FR-PST-13 | Nếu Meta không cho đăng công khai khi chưa review (S2 không đạt): cung cấp gói "tải video + caption" để đăng tay cho tới khi review xong. |
@@ -391,6 +391,7 @@ video   : planned → rendering → rendered → scoring → pending_approval �
           rendering → failed (dựng lại được)
           pending_approval → rejected
           planned | rendered | scoring | pending_approval → superseded (bị thay bằng bản làm lại)
+          superseded → pending_approval (chỉ chấm điểm tự động: bản điểm cao nhất của chuỗi làm lại được gửi duyệt)
           scheduled → failed (khi có bài đăng lỗi vĩnh viễn; đăng lại được)
           posted khi mọi bài đăng ở trạng thái posted hoặc needs_user_action
 
@@ -407,7 +408,9 @@ studio  : created → analysing → scripting → awaiting_confirm → building 
 ticket  : open → received → imported | rejected ; open → expired (48 giờ + 1 lần nhắc)
 ```
 
-Mọi chuyển trạng thái của video và bài đăng là một câu lệnh cập nhật có điều kiện trên trạng thái hiện tại; không đạt điều kiện thì thao tác bị coi là đã có người xử lý. Khi app khởi động: việc đang `running` trở về `queued`; bài đang `publishing` có mã container thì hỏi trạng thái từ nền tảng, không có thì trở về `scheduled`.
+Mọi chuyển trạng thái của video và bài đăng là một câu lệnh cập nhật có điều kiện trên trạng thái hiện tại; không đạt điều kiện thì thao tác bị coi là đã có người xử lý. Khi app khởi động: việc đang `running` trở về `queued`; bài đang `publishing` trở về `scheduled`, giữ mã container nếu có; vòng đăng kế tiếp hỏi trạng thái container đó từ nền tảng (không tạo mới) và không đánh bài đã có container là lỡ lịch.
+
+Hàng đợi việc: một worker, lấy việc ưu tiên cao trước rồi việc cũ trước. Việc người dùng chờ (`plan`, `render`, `replan`, `studio`) = 10; phân tích link dán tay = 5; việc nền (quét, phân tích xu hướng, mô tả shot...) = 0. Mỗi lần quét chỉ xếp `trends.auto_analyse_top_n` (mặc định 3) video mỗi nguồn để phân tích.
 
 ---
 
@@ -461,6 +464,7 @@ Giọng đọc không thuộc bộ định tuyến này; nó do MoneyPrinterTurb
 | FR-AI-07 | Claude API chỉ nhận ảnh, không nhận file video: nhà cung cấp Claude mô tả shot bằng ảnh thu nhỏ. Gemini nhận video trực tiếp qua API; qua CLI thì chờ S13. |
 | FR-AI-08 | `muse_api` (Muse Spark qua Meta Model API) chỉ bật khi người dùng có key hợp lệ; chỉ cho `writer` và `checker`. Muse không có đường tạo video tự động; tạo video bằng Muse đi qua trạm việc tay. |
 | FR-AI-09 | Đổi thứ tự, model hay chính sách trong Settings có hiệu lực ở lượt gọi kế tiếp. |
+| FR-AI-10 | `muse_fox`: gọi Muse (muse.ai) qua REST của FoxProfile mà Muse2Tele đang chạy tại máy (`127.0.0.1:8090`). Quyết định của chủ dự án ngày 2026-11-15, chấp nhận rủi ro điều khoản và khoá tài khoản Muse. App không tự điều khiển trình duyệt, không giữ proxy hay cookie; chỉ gửi prompt (kèm video khi có) vào profile được chọn và đọc trả lời. Tắt mặc định, chỉ bật khi đã cấu hình profile và token FoxProfile. |
 
 ---
 
@@ -476,6 +480,7 @@ Giọng đọc không thuộc bộ định tuyến này; nó do MoneyPrinterTurb
 | Gemini CLI | `vision`, `writer`, `checker` | `gemini -p` | Chờ S13 |
 | Anthropic API, Gemini API | Dự phòng | SDK chính thức | Có hạn mức tiền |
 | Meta Model API | `muse_api` | Tương thích OpenAI SDK | Tuỳ khả năng đăng ký |
+| FoxProfile (Muse2Tele) | `muse_fox` | REST `127.0.0.1:8090/api/v1`, token Bearer | `FR-AI-10`; phụ thuộc giao diện web của Muse |
 | Cổng model (fal.ai hoặc Replicate), Veo API | Sinh cảnh phụ | SDK/HTTP | Người dùng chọn từng lần |
 | Cloudflare R2 | URL public tạm cho video | S3 API | Tên đối tượng ngẫu nhiên, tự xoá |
 | Graph API (Meta) | Đăng Facebook Page, Instagram; Business Discovery; Hashtag | HTTPS, phiên bản ghim | Chờ S2, S3 |

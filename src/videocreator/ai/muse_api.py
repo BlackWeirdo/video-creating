@@ -61,7 +61,7 @@ class MuseAPIProvider:
                 "MUSE_API_KEY is not configured in Settings / secrets.enc",
             )
         settings = load_settings(self.config_file)
-        check_budget(self.db_file, settings, kind=self.role)
+        check_budget(self.db_file, settings, kind=self.role, model=self.model)
 
         for attempt in range(2):
             resp = httpx.post(

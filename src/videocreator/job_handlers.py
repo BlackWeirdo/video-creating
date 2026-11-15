@@ -11,7 +11,8 @@ from videocreator.pipeline.render import render_video
 from videocreator.pipeline.replan import replan_video
 from videocreator.studio.agent import run_studio_job
 from videocreator.studio.session import STUDIO_JOB_KIND
-from videocreator.trends.links import ANALYSE_TREND_JOB_KIND, run_analyse_trend_job
+from videocreator.trends.analyse_queue import ANALYSE_TREND_JOB_KIND
+from videocreator.trends.links import run_analyse_trend_job
 from videocreator.trends.scan_job import run_scan_and_suggest_job
 
 

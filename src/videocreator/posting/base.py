@@ -24,6 +24,12 @@ class PermanentPostError(RuntimeError):
     """Unrecoverable auth (code 190), permission, preflight, or media rejection failure."""
 
 
+class MetricsFetchError(RuntimeError):
+    """Metrics could not be read this time (network, HTTP error, missing token). Nothing is recorded,
+    so the checkpoint is tried again on the next run; a platform that simply has no data returns
+    `empty_metrics()` instead."""
+
+
 class Poster(Protocol):
     platform: str
 
@@ -51,6 +57,14 @@ class MetricsReader(Protocol):
 def empty_metrics() -> dict[str, int | None]:
     """Metrics of a post that could not be read."""
     return {"views": None, "likes": None, "comments": None, "shares": None}
+
+
+def metrics_http_outcome(status_code: int, label: str) -> None:
+    """Decides what a non-200 metrics reply means: network-like failures (429, 5xx) raise
+    `MetricsFetchError` so the checkpoint is tried again; any other 4xx (post deleted, no
+    permission, an id that is not a post) is final, and the caller records "no data"."""
+    if status_code == 429 or status_code >= 500:
+        raise MetricsFetchError(f"{label} HTTP {status_code}")
 
 
 def check_preflight_or_raise(config_file: Path, video_path: Path, platform: str) -> Settings:

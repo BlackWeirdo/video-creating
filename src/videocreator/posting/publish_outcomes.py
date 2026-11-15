@@ -4,9 +4,10 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from videocreator.db import get_conn
+from videocreator.db import get_conn, query_one
 from videocreator.paths import AppPaths
 from videocreator.posting.base import PostResult
+from videocreator.posting.captions import format_platform_caption
 from videocreator.state_posts import recompute_video_status_from_posts, transition_post
 from videocreator.tg.messages import KeyboardRows
 from videocreator.tg.sender import send_text
@@ -71,17 +72,35 @@ def fail_post(db_file: Path, post_id: int, error: str) -> None:
     transition_post(db_file, post_id, "failed", expected_from="publishing", error=error)
 
 
+def inbox_message_text(video_row: dict[str, Any] | None, post_row: dict[str, Any]) -> str:
+    """Telegram text for a draft waiting in the app's inbox (`FR-PST-10`). The inbox API takes no
+    caption, so the platform caption is included for the user to paste."""
+    platform = str(post_row["platform"])
+    text = (
+        f"📥 Video #{post_row['video_id']} đã đẩy vào hộp nháp {platform} ({post_row['account_name']}). "
+        f"Mở ứng dụng {platform}, vào hộp thư, dán caption bên dưới rồi bấm đăng, sau đó bấm 'Đã đăng'."
+    )
+    caption = format_platform_caption(video_row, platform) if video_row else ""
+    if caption:
+        text += f"\n\nCaption để dán:\n{caption}"
+    return text
+
+
 def notify_published(paths: AppPaths, post_row: dict[str, Any], result: PostResult) -> None:
     post_id = int(post_row["id"])
     video_id = int(post_row["video_id"])
     platform = str(post_row["platform"])
     if result.status == "needs_user_action":
-        _send_alert(
-            paths,
-            f"📥 Video #{video_id} đã đẩy vào hộp nháp {platform} ({post_row['account_name']}). Mở ứng dụng {platform}, vào hộp thư và bấm đăng, sau đó bấm 'Đã đăng'.",
-            keyboard=[[("✅ Đã đăng", f"posted:{post_id}")]],
-            topic="posted",
-        )
+        if platform == "tiktok":
+            video_row = query_one(paths.db_file, "SELECT * FROM videos WHERE id = ?", (video_id,))
+            text = inbox_message_text(video_row, post_row)
+        else:
+            text = (
+                f"❓ Video #{video_id} có thể đã đăng lên {platform} ({post_row['account_name']}) ở lần thử trước "
+                "nhưng app không tìm thấy bài. Mở trang để kiểm tra; nếu đã có bài thì bấm 'Đã đăng', "
+                "nếu chưa có thì đăng tay rồi bấm 'Đã đăng'."
+            )
+        _send_alert(paths, text, keyboard=[[("✅ Đã đăng", f"posted:{post_id}")]], topic="posted")
         return
     _send_alert(
         paths,

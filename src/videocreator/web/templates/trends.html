@@ -16,6 +16,8 @@
   <div class="alert alert-success" data-toast="success">Đã đưa việc quét xu hướng, phân tích và sinh đề xuất vào hàng đợi xử lý!</div>
 {% elif msg == "reference_uploaded" %}
   <div class="alert alert-success" data-toast="success">Đã nạp video tham khảo nội bộ vào <code>media/reference/</code> (tự xoá sau 7 ngày).</div>
+{% elif msg == "analysis_queued" %}
+  <div class="alert alert-success" data-toast="success">Đã đưa bài vào hàng đợi phân tích. Tải lại trang sau ít phút để xem kết quả.</div>
 {% elif msg == "link_added" %}
   <div class="alert alert-success" data-toast="success">Đã thêm video. App đang tải và phân tích (thường 5–25 phút), rồi ưu tiên đưa vào đề xuất.</div>
 {% endif %}
@@ -78,8 +80,19 @@
             {% if item.analysis %}
               <div><strong>Hook:</strong> {{ item.analysis.hook }}</div>
               <div class="muted">Nhịp cắt: {{ item.analysis.cut_pace_s }}s | {{ item.analysis.why_it_works }}</div>
+            {% elif item.analysis_status == "queued" %}
+              <span class="muted">Đang chờ phân tích…</span>
+            {% elif item.analysis_status == "running" %}
+              <span class="muted">Đang phân tích…</span>
             {% else %}
-              <span class="muted">Chưa phân tích</span>
+              {% if item.analysis_status == "failed" %}
+                <div class="muted">Lỗi: {{ item.analysis_error or "không rõ nguyên nhân" }}</div>
+              {% else %}
+                <span class="muted">Chưa phân tích</span>
+              {% endif %}
+              <form method="post" action="/trends/{{ item.id }}/analyse" style="margin-top:0.35rem;">
+                <button type="submit" class="btn btn-small">{% if item.analysis_status == "failed" %}Phân tích lại{% else %}Phân tích{% endif %}</button>
+              </form>
             {% endif %}
           </td>
           <td class="small">

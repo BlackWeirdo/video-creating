@@ -10,7 +10,7 @@ from videocreator.config import Settings
 from videocreator.db import query_one
 from videocreator.paths import AppPaths
 from videocreator.pipeline.ffmpeg import RenderError, run_ffmpeg
-from videocreator.pipeline.probe import probe_duration
+from videocreator.pipeline.probe import probe_duration, probe_video
 from videocreator.pipeline.render_inputs import build_segment_filter_args
 from videocreator.pipeline.subtitles import FONTS_DIR, SubtitleEvent, build_ass, parse_srt
 
@@ -43,15 +43,33 @@ def _load_shot_source(paths: AppPaths, shot_id: int) -> tuple[dict[str, Any], Pa
     return shot_row, src_file
 
 
+SEGMENT_AUDIO_ARGS: tuple[str, ...] = ("-c:a", "aac", "-ar", "48000", "-ac", "2", "-b:a", "128k")
+
+
+def _segment_audio_args(
+    filter_args: list[str], src_has_audio: bool, duration_s: float
+) -> tuple[list[str], list[str]]:
+    """`(extra_inputs, output_args)` giving a segment the source's own sound, or silence of the same
+    length when the source has none, so every segment has the same AAC track and `concat -c copy`
+    keeps working. A `-filter_complex` video output is mapped automatically; `-vf` needs `-map 0:v:0`."""
+    video_map = [] if filter_args[0] == "-filter_complex" else ["-map", "0:v:0"]
+    if src_has_audio:
+        return [], [*video_map, "-map", "0:a:0", *SEGMENT_AUDIO_ARGS]
+    silence = ["-f", "lavfi", "-t", f"{duration_s:.3f}", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000"]
+    return silence, [*video_map, "-map", "1:a:0", *SEGMENT_AUDIO_ARGS, "-shortest"]
+
+
 def cut_shot_segments(
-    paths: AppPaths, planned_shots: list[dict[str, Any]], work_dir: Path
+    paths: AppPaths, planned_shots: list[dict[str, Any]], work_dir: Path, *, keep_audio: bool = False
 ) -> tuple[list[str], list[SubtitleEvent], float]:
-    """Step 1: cuts each planned shot into a 1080x1920 30fps segment.
+    """Step 1: cuts each planned shot into a 1080x1920 30fps segment, without sound unless
+    `keep_audio` (then each segment carries the footage sound, or silence when it has none).
 
     Returns `(segment_file_names, subtitle_events_on_shot_timing, total_duration_s)`."""
     seg_files: list[str] = []
     sub_events: list[SubtitleEvent] = []
     cursor_s = 0.0
+    has_audio_by_file: dict[Path, bool] = {}
     for idx, planned in enumerate(planned_shots, start=1):
         shot_row, src_file = _load_shot_source(paths, int(planned.get("shot_id") or 0))
         start_s = max(0.0, float(planned.get("start_s", shot_row["start_s"])))
@@ -68,6 +86,13 @@ def cut_shot_segments(
             crop_cfg=crop_cfg,
         )
 
+        if keep_audio:
+            if src_file not in has_audio_by_file:
+                has_audio_by_file[src_file] = probe_video(src_file).has_audio
+            extra_inputs, audio_args = _segment_audio_args(filter_args, has_audio_by_file[src_file], duration_s)
+        else:
+            extra_inputs, audio_args = [], ["-an"]
+
         seg_name = f"seg_{idx:02d}.mp4"
         seg_path = work_dir / seg_name
         run_ffmpeg(
@@ -78,6 +103,7 @@ def cut_shot_segments(
                 f"{duration_s:.3f}",
                 "-i",
                 str(src_file.resolve()),
+                *extra_inputs,
                 *filter_args,
                 "-c:v",
                 "libx264",
@@ -89,7 +115,7 @@ def cut_shot_segments(
                 "yuv420p",
                 "-r",
                 "30",
-                "-an",
+                *audio_args,
                 str(seg_path.resolve()),
             ],
             cwd=work_dir,

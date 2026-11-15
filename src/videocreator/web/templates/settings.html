@@ -65,6 +65,11 @@
         <input class="input" id="offpeak_hours" type="text" name="offpeak_hours" value="{{ settings.ai.policy.offpeak_hours }}">
       </div>
       <div class="form-row">
+        <label for="claude_base_url">Claude API endpoint (nhà cung cấp)</label>
+        <input class="input" id="claude_base_url" type="url" name="claude_base_url" value="{{ settings.ai.claude_base_url }}" placeholder="https://api.shopdonk.com/v1">
+        <small class="muted">Dùng chuẩn Anthropic Messages API. Mặc định: Shopdonk.</small>
+      </div>
+      <div class="form-row">
         <label for="vision_routes">Thứ tự vai trò vision</label>
         <input class="input" id="vision_routes" type="text" name="vision_routes" value="{{ settings.ai.routes.vision | join(', ') }}">
       </div>
@@ -91,6 +96,13 @@
           <input type="checkbox" name="schedule_auto" value="true" {% if settings.schedule.auto %}checked{% endif %}>
           Tự động xếp lịch khi duyệt
         </label>
+      </div>
+      <div class="form-row checkbox-row">
+        <label>
+          <input type="checkbox" name="keep_original_audio" value="true" {% if settings.render.keep_original_audio %}checked{% endif %}>
+          Giữ tiếng gốc của footage (trộn nhỏ dưới giọng đọc/nhạc)
+        </label>
+        <small class="muted">Tiếng gõ, dũa, đánh bóng bạc. Tắt nếu lúc quay có tiếng nói hoặc nhạc phát trong phòng.</small>
       </div>
       <div class="form-row">
         <label for="schedule_slots">Khung giờ mặc định (phân cách bằng dấu phẩy)</label>

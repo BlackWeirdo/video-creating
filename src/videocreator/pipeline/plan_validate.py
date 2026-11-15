@@ -89,10 +89,15 @@ def _check_subtitle_products(
             )
 
 
+def is_collection_formula(formula: str) -> bool:
+    """A collection video is the only kind allowed to show several products (`BR-PRD-05`)."""
+    lower = (formula or "").lower()
+    return "collection" in lower or "suu-tap" in lower
+
+
 def _check_products_not_mixed(formula: str, shot_product_sets: list[set[int]]) -> None:
     """`BR-PRD-05`: non-collection formulas must not mix shots of disjoint products."""
-    is_collection = "collection" in formula.lower() or "suu-tap" in formula.lower()
-    if is_collection or len(shot_product_sets) < 2:
+    if is_collection_formula(formula) or len(shot_product_sets) < 2:
         return
     first_set = shot_product_sets[0]
     for other_set in shot_product_sets[1:]:

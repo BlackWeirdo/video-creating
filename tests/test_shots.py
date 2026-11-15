@@ -173,3 +173,52 @@ def test_footage_shots_and_media_traversal_routes(tmp_path: Path) -> None:
         # Path traversal attempt must be rejected (NFR-SEC-05)
         traversal = client.get("/media/..%2Fvideocreator.db")
         assert traversal.status_code in (403, 404)
+
+
+@pytest.mark.local
+def test_import_copies_outside_the_db_write_lock(tmp_path: Path) -> None:
+    """While a (multi-GB) footage file is being copied, other jobs must still be able to write to SQLite."""
+    import shutil
+    import sqlite3
+
+    paths = get_paths(tmp_path)
+    migrate(paths.db_file)
+    pid = create_product(paths.db_file, name="Nhẫn Bạc", material="Bạc S925", facts={})
+    writes_during_copy: list[str] = []
+
+    def copy_while_another_connection_writes(src: Path, dst: Path) -> None:
+        shutil.copy2(src, dst)
+        # busy_timeout=0: fails at once with "database is locked" if the import held the write lock
+        other = sqlite3.connect(str(paths.db_file), timeout=0)
+        try:
+            other.execute("INSERT INTO settings (key, value) VALUES ('probe_write', 'ok')")
+            other.commit()
+            writes_during_copy.append("ok")
+        finally:
+            other.close()
+
+    fid = import_footage_file(
+        paths,
+        CLIP_PORTRAIT,
+        product_ids=[pid],
+        enqueue_analysis=False,
+        copy_file=copy_while_another_connection_writes,
+    )
+    assert writes_during_copy == ["ok"]
+    row = query_one(paths.db_file, "SELECT path FROM footage WHERE id = ?", (fid,))
+    assert row is not None and row["path"] == f"footage/{fid}.mp4"
+    assert (paths.media_dir / row["path"]).stat().st_size == CLIP_PORTRAIT.stat().st_size
+    incoming = paths.media_dir / "footage" / ".incoming"
+    assert list(incoming.iterdir()) == []
+
+    # A failed copy leaves neither a temporary file nor a 'pending' row behind
+    def failing_copy(src: Path, dst: Path) -> None:
+        dst.write_bytes(b"partial")
+        raise OSError("disk full")
+
+    with pytest.raises(OSError, match="disk full"):
+        import_footage_file(
+            paths, CLIP_LANDSCAPE, product_ids=[pid], enqueue_analysis=False, copy_file=failing_copy
+        )
+    assert list(incoming.iterdir()) == []
+    assert query_all(paths.db_file, "SELECT id FROM footage WHERE path = 'pending'") == []

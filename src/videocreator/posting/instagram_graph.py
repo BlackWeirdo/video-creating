@@ -4,7 +4,7 @@ from typing import Any
 
 import httpx
 
-from videocreator.posting.base import TransientPostError, insight_values
+from videocreator.posting.base import MetricsFetchError, TransientPostError, insight_values
 from videocreator.posting.meta_auth import GRAPH_BASE_URL, classify_meta_error
 
 def graph_request(
@@ -41,7 +41,9 @@ def fetch_reel_permalink(media_id: str, token: str) -> str:
 
 
 def fetch_reel_insights(media_id: str, token: str) -> dict[str, int]:
-    """`views` and `shares` of a reel; empty when insights cannot be read."""
+    """`views` and `shares` of a reel; empty when Meta refuses them (e.g. no insights permission).
+
+    Network and server errors raise `MetricsFetchError`, so the checkpoint is tried again later."""
     try:
         resp = httpx.get(
             f"{GRAPH_BASE_URL}/{media_id}/insights",
@@ -49,8 +51,10 @@ def fetch_reel_insights(media_id: str, token: str) -> dict[str, int]:
             params={"metric": "views,shares"},  # `plays` was replaced by `views`
             timeout=20.0,
         )
+        if resp.status_code == 429 or resp.status_code >= 500:
+            raise MetricsFetchError(f"Instagram insights HTTP {resp.status_code}")
         if resp.status_code != 200:
             return {}
         return insight_values(resp.json().get("data") or [])
-    except Exception:
-        return {}
+    except (httpx.HTTPError, ValueError) as exc:
+        raise MetricsFetchError(f"Instagram insights: {exc}") from exc

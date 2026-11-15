@@ -10,13 +10,14 @@ import httpx
 from videocreator.db import get_conn
 from videocreator.paths import AppPaths
 from videocreator.posting.base import (
+    MetricsFetchError,
     PermanentPostError,
     PostResult,
     TransientPostError,
     check_preflight_or_raise,
-    empty_metrics,
 )
 from videocreator.posting.meta_auth import classify_meta_error
+from videocreator.posting.meta_published import find_recent_post, threads_recent_posts, unconfirmed_result
 from videocreator.posting.threads_metrics import THREADS_API_BASE, fetch_threads_metrics
 from videocreator.secrets_store import SecretsStore
 
@@ -75,7 +76,19 @@ class ThreadsPoster:
 
             for _ in range(MAX_POLLS):
                 st = self._poll_container_status(client, container_id, token)
-                if st in ("FINISHED", "PUBLISHED"):
+                if st == "PUBLISHED":
+                    # An earlier attempt published it but its reply was lost: find it, never publish twice
+                    found = find_recent_post(
+                        threads_recent_posts(client, user_id, token), caption[:500], post.get("scheduled_at")
+                    )
+                    if found is None:
+                        return unconfirmed_result(container_id)
+                    return PostResult(
+                        status="posted",
+                        external_post_id=str(found.get("id") or ""),
+                        permalink=str(found.get("permalink") or "") or None,
+                    )
+                if st == "FINISHED":
                     break
                 if st in ("ERROR", "EXPIRED"):
                     raise PermanentPostError(
@@ -181,5 +194,5 @@ class ThreadsPoster:
     ) -> dict[str, int | None]:
         token = self.secrets.get(str(account["secret_key"]))
         if not token or not external_post_id:
-            return empty_metrics()
+            raise MetricsFetchError(f"Threads metrics: missing token or post id (account #{account.get('id')})")
         return fetch_threads_metrics(token, external_post_id)

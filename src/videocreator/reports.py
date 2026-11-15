@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 from videocreator.config import load_settings
 from videocreator.db import query_all, query_one
 from videocreator.paths import AppPaths
-from videocreator.timeutil import UTC_ISO_FORMAT, utc_now
+from videocreator.timeutil import UTC_ISO_FORMAT, local_day, utc_now
 
 logger = logging.getLogger("videocreator.reports")
 
@@ -65,7 +65,7 @@ def daily_summary(
         (two_days_later_iso,),
     )
 
-    day_str = base_utc.strftime("%Y-%m-%d")
+    day_str = local_day(cfg.schedule.timezone, base_utc)
     sub_calls = query_one(
         paths.db_file,
         "SELECT COUNT(*) AS c FROM ai_usage WHERE day = ? AND route = 'subscription'",

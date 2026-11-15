@@ -19,6 +19,11 @@ class BudgetExceeded(AIError):
     """Raised when an API call would exceed the configured daily USD budget."""
 
 
+class UnpricedModelError(AIError):
+    """Raised before a paid API call whose model has no `[prices]` entry: its cost would be recorded
+    as $0 and never count against the cap. The router moves on to the next provider of the role."""
+
+
 class ProviderQuotaExhausted(AIError):
     """Raised when a subscription CLI or API provider hits a rate/quota limit."""
 

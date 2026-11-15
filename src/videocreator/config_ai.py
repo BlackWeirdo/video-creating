@@ -8,10 +8,10 @@ from pydantic import BaseModel, Field
 
 class AIRoutesConfig(BaseModel):
     vision: list[str] = Field(
-        default_factory=lambda: ["claude_cli", "gemini_api"]
+        default_factory=lambda: ["claude_api"]
     )
     writer: list[str] = Field(
-        default_factory=lambda: ["claude_cli", "muse_api", "claude_api"]
+        default_factory=lambda: ["claude_api"]
     )
     checker: list[str] = Field(
         default_factory=lambda: ["claude_cli", "claude_api", "gemini_api"]
@@ -38,6 +38,8 @@ class AIConfig(BaseModel):
     routes: AIRoutesConfig = Field(default_factory=AIRoutesConfig)
     policy: AIPolicyConfig = Field(default_factory=AIPolicyConfig)
     gemini_model: str = "gemini-3.8-flash"
+    # Anthropic-compatible gateway endpoint used by claude_api.
+    claude_base_url: str = "https://api.shopdonk.com/v1"
     claude_writer_model: str = "claude-opus-5-5"
     claude_checker_model: str = "claude-haiku-5-5"
 

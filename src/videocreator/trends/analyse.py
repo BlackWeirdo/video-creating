@@ -2,19 +2,16 @@
 from __future__ import annotations
 
 import json
-import logging
 from pathlib import Path
 from typing import Any, Callable
 
 from pydantic import BaseModel, Field
 
 from videocreator.ai import AIProvider, get_provider
-from videocreator.db import get_conn, query_all, query_one
+from videocreator.db import get_conn, query_one
 from videocreator.paths import AppPaths
 from videocreator.trends.download import fetch_reference_video
 from videocreator.trends.rea_reference import run_rea_decompose_reference
-
-logger = logging.getLogger("videocreator.trends.analyse")
 
 
 class TrendBeatSchema(BaseModel):
@@ -109,44 +106,3 @@ def analyse_trend_item(
             (json.dumps(analysis_dict, ensure_ascii=False), trend_item_id),
         )
     return analysis_dict
-
-
-def analyse_top_trends(
-    paths: AppPaths,
-    *,
-    top_k_per_source: int = 3,
-    vision_provider: AIProvider | None = None,
-    writer_provider: AIProvider | None = None,
-    downloader_fn: Callable[[str, Path], bool] | None = None,
-) -> list[int]:
-    """Analyses top `K` unanalysed `trend_items` per source (`FR-TRD-06`)."""
-    sources = query_all(
-        paths.db_file, "SELECT DISTINCT source FROM trend_items ORDER BY source ASC"
-    )
-    analysed_ids: list[int] = []
-    for s_row in sources:
-        src = str(s_row["source"])
-        candidates = query_all(
-            paths.db_file,
-            """
-            SELECT id FROM trend_items
-            WHERE source = ? AND (analysis_json IS NULL OR analysis_json = '')
-            ORDER BY score DESC, id ASC
-            LIMIT ?
-            """,
-            (src, top_k_per_source),
-        )
-        for c in candidates:
-            tid = int(c["id"])
-            try:
-                analyse_trend_item(
-                    paths,
-                    tid,
-                    vision_provider=vision_provider,
-                    writer_provider=writer_provider,
-                    downloader_fn=downloader_fn,
-                )
-                analysed_ids.append(tid)
-            except Exception as exc:
-                logger.warning("Skipping trend analysis for #%d: %s", tid, exc)
-    return analysed_ids

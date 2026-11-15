@@ -49,7 +49,10 @@ def _render_to_master(
     if not planned_shots:
         raise RenderError(f"Video #{video_id} plan has no shots")
 
-    seg_files, sub_events, cut_duration_s = cut_shot_segments(paths, planned_shots, work_dir)
+    keep_audio = settings.render.keep_original_audio
+    seg_files, sub_events, cut_duration_s = cut_shot_segments(
+        paths, planned_shots, work_dir, keep_audio=keep_audio
+    )
     cut_mp4 = concat_segments(seg_files, work_dir)
 
     engine_mode = str(video_row.get("engine") or "ffmpeg")
@@ -82,6 +85,7 @@ def _render_to_master(
         cwd=work_dir,
         preset=preset,
         crf=18,
+        mix_source_audio=keep_audio,
     )
     extract_cover_frame(abs_out, paths.media_dir / rel_cover, at_s=1.0)
 
@@ -153,14 +157,14 @@ def render_video(
             or score_override is not None
             or int(video_row.get("auto_render") or 0) == 1
         )
-        final_status = score_or_send_to_approval(
+        waiting_id = score_or_send_to_approval(
             paths, video_id, should_score=should_score, score_provider=score_provider, score_override=score_override
         )
-        if final_status == "pending_approval":
+        if waiting_id is not None:  # this video, or a better-scored earlier attempt of it
             try:
-                notify_pending(paths, video_id)
+                notify_pending(paths, waiting_id)
             except Exception as tg_exc:
-                logger.warning("notify_pending hook warning for video #%d: %s", video_id, tg_exc)
+                logger.warning("notify_pending hook warning for video #%d: %s", waiting_id, tg_exc)
         return f"Rendered video #{video_id} ({actual_duration_s:.2f}s) -> {rel_out}"
 
     except Exception as exc:

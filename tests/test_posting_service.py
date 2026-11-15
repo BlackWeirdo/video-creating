@@ -281,3 +281,124 @@ def test_tiktok_chunk_plan_follows_media_transfer_rules() -> None:
     assert (chunk, total) == (32 * mb, 3)
     last_chunk = 100 * mb + 123 - chunk * (total - 1)
     assert 5 * mb <= last_chunk <= 128 * mb
+
+
+@pytest.mark.local
+def test_tiktok_inbox_message_carries_caption_to_paste(tmp_path: Path) -> None:
+    """The inbox API takes no caption, so the Telegram notice must carry it (FR-PST-10)."""
+    from videocreator.posting.publish_outcomes import inbox_message_text
+
+    paths = get_paths(tmp_path)
+    migrate(paths.db_file)
+    captions = {"tiktok": {"text": "Nhẫn bạc chế tác thủ công", "hashtags": ["#bacthucong", "#nhanbac"]}}
+    with get_conn(paths.db_file) as conn:
+        conn.execute(
+            "INSERT INTO videos (id, status, plan_json, captions_json) VALUES (7, 'scheduled', '{}', ?)",
+            (json.dumps(captions, ensure_ascii=False),),
+        )
+    video_row = query_one(paths.db_file, "SELECT * FROM videos WHERE id = 7")
+    post_row = {"id": 70, "video_id": 7, "platform": "tiktok", "account_name": "Shop TikTok"}
+
+    text = inbox_message_text(video_row, post_row)
+    assert "hộp nháp tiktok" in text
+    assert "Caption để dán:\nNhẫn bạc chế tác thủ công\n\n#bacthucong #nhanbac" in text
+
+    # No caption stored -> message still sent, without an empty caption block
+    assert "Caption để dán" not in inbox_message_text({"id": 8, "captions_json": None, "plan_json": "{}"}, post_row)
+
+
+# Status payloads in the shape documented by Meta's Reels Publishing guide
+# (https://developers.facebook.com/docs/video-api/guides/reels-publishing); replace with a recorded
+# live response after the first real Reel is published.
+def _reel_status(video_status: str, upload: str, publish_phase: str = "not_started", publish_status: str = "") -> dict:
+    return {
+        "id": "991",
+        "status": {
+            "video_status": video_status,
+            "uploading_phase": {"status": upload, "bytes_transfered": 0},
+            "processing_phase": {"status": "not_started"},
+            "publishing_phase": {"status": publish_phase, "publish_status": publish_status},
+        },
+    }
+
+
+@pytest.mark.local
+def test_reel_next_step_reads_status_before_any_retry() -> None:
+    from videocreator.posting.facebook import reel_next_step
+
+    assert reel_next_step(_reel_status("uploading", "not_started")) == "upload"
+    assert reel_next_step(_reel_status("uploading", "in_progress")) == "wait"
+    assert reel_next_step(_reel_status("upload_complete", "complete")) == "finish"
+    assert reel_next_step(_reel_status("processing", "complete", "in_progress", "draft")) == "wait"
+    assert reel_next_step(_reel_status("ready", "complete", "complete", "published")) == "done"
+    assert reel_next_step(_reel_status("ready", "complete", "in_progress", "published")) == "done"
+    assert reel_next_step(_reel_status("expired", "complete")) == "restart"
+    assert reel_next_step(_reel_status("upload_failed", "error")) == "restart"
+    assert reel_next_step({}) == "upload"
+
+
+@pytest.mark.local
+def test_find_recent_post_matches_caption_after_schedule() -> None:
+    from videocreator.posting.meta_published import find_recent_post
+
+    items = [
+        {"id": "3", "caption": "Khác", "timestamp": "2026-11-15T10:05:00+0000"},
+        {"id": "2", "caption": "Nhẫn bạc\n\n#bac", "timestamp": "2026-11-15T10:01:00+0000"},
+        {"id": "1", "caption": "Nhẫn bạc\n\n#bac", "timestamp": "2026-11-01T10:00:00+0000"},
+    ]
+    assert find_recent_post(items, " Nhẫn bạc\n\n#bac ", "2026-11-15T10:00:00Z")["id"] == "2"
+    assert find_recent_post(items[2:], "Nhẫn bạc\n\n#bac", "2026-11-15T10:00:00Z") is None  # older post with same text
+    assert find_recent_post([{"id": "9", "text": "Threads post"}], "Threads post", None)["id"] == "9"
+
+
+@pytest.mark.local
+def test_in_flight_post_is_recovered_and_finished_not_marked_missed(tmp_path: Path) -> None:
+    from videocreator.job_store import recover_interrupted_jobs
+
+    paths = get_paths(tmp_path)
+    migrate(paths.db_file)
+    acc_fb = upsert_account(paths, platform="facebook", external_id="page_1", name="FB", access_token="t", lang="vi")
+    acc_ig = upsert_account(paths, platform="instagram", external_id="ig_1", name="IG", access_token="t", lang="vi")
+    out_video = paths.media_dir / "output" / "video_5.mp4"
+    out_video.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(CLIP_PORTRAIT, out_video)
+    sched = datetime(2026, 11, 13, 8, 0, tzinfo=timezone.utc)
+    with get_conn(paths.db_file) as conn:
+        conn.execute(
+            "INSERT INTO videos (id, status, output_path, captions_json) VALUES (5, 'scheduled', 'output/video_5.mp4', '{}')"
+        )
+        conn.execute(
+            "INSERT INTO posts (id, video_id, account_id, status, scheduled_at, remote_container_id) VALUES "
+            "(51, 5, ?, 'publishing', ?, 'reel_777'), (52, 5, ?, 'publishing', ?, NULL)",
+            (acc_fb, sched.strftime("%Y-%m-%dT%H:%M:%SZ"), acc_ig, sched.strftime("%Y-%m-%dT%H:%M:%SZ")),
+        )
+
+    # App restart: both posts go back to scheduled, the reel id is kept
+    recover_interrupted_jobs(paths.db_file)
+    rows = {r["id"]: r for r in query_all(paths.db_file, "SELECT id, status, remote_container_id FROM posts")}
+    assert rows[51]["status"] == "scheduled" and rows[51]["remote_container_id"] == "reel_777"
+    assert rows[52]["status"] == "scheduled" and rows[52]["remote_container_id"] is None
+
+    class ResumingPoster:
+        """Poster object recording the container id it was asked to finish."""
+
+        def __init__(self) -> None:
+            self.resumed: list[str] = []
+
+        def publish(self, account, video_url, video_path, caption, post):  # type: ignore[no-untyped-def]
+            self.resumed.append(str(post.get("remote_container_id") or ""))
+            return PostResult(status="posted", external_post_id="reel_777", permalink="https://www.facebook.com/reel/777")
+
+    fb = ResumingPoster()
+    r2_calls: list[Path] = []
+    # 7 hours late (server was off): the started reel is finished, the IG post that never started is missed
+    publish_due_posts(
+        paths,
+        poster_overrides={"facebook": fb, "instagram": ResumingPoster()},
+        r2_uploader=lambda p: (r2_calls.append(p) or ("k", "https://r2.example.com/k")),
+        now_dt=sched + timedelta(hours=7),
+    )
+    assert fb.resumed == ["reel_777"]
+    after = {r["id"]: r["status"] for r in query_all(paths.db_file, "SELECT id, status FROM posts")}
+    assert after == {51: "posted", 52: "missed"}
+    assert r2_calls == []  # Facebook uploads the file itself: no public R2 copy is made for it

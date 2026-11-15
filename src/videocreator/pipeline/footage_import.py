@@ -3,9 +3,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
+import sqlite3
+import time
+import uuid
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from videocreator.db import get_conn, query_one, record_audit
 from videocreator.jobs import enqueue_job
@@ -14,6 +18,19 @@ from videocreator.pipeline.probe import probe_video
 
 ALLOWED_VIDEO_EXTENSIONS: set[str] = {".mp4", ".mov", ".mkv", ".webm"}
 MAX_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024  # 2 GB
+INCOMING_DIRNAME = ".incoming"
+STALE_INCOMING_S = 24 * 3600
+
+
+def _remove_stale_incoming(incoming_dir: Path) -> None:
+    """Drops half-copied files left by a crash or power cut during an earlier import."""
+    cutoff = time.time() - STALE_INCOMING_S
+    for part in incoming_dir.glob("*.part"):
+        try:
+            if part.stat().st_mtime < cutoff:
+                part.unlink(missing_ok=True)
+        except OSError:
+            continue
 
 
 class DuplicateFootageError(ValueError):
@@ -36,6 +53,7 @@ def import_footage_file(
     no_product: bool = False,
     enqueue_analysis: bool = True,
     actor: str = "ui",
+    copy_file: Callable[[Path, Path], Any] = shutil.copy2,
 ) -> int:
     """Validates, probes, deduplicates by sha256, copies into media/footage/<id>.mp4,
     and optionally enqueues the `analyse` job."""
@@ -74,44 +92,56 @@ def import_footage_file(
     if info.is_landscape:
         crop_data = {"mode": "blur_pad", "x_offset_ratio": 0.5}
 
-    with get_conn(paths.db_file) as conn:
-        cur = conn.execute(
-            """
-            INSERT INTO footage (
-                path, sha256, duration_s, width, height, orientation,
-                crop_json, product_ids_json, status
+    # A multi-GB copy must not hold the SQLite write lock (other jobs would get "database is locked"):
+    # copy to a temporary name first, then insert the row and rename inside a short transaction.
+    incoming_dir = paths.media_dir / "footage" / INCOMING_DIRNAME
+    incoming_dir.mkdir(parents=True, exist_ok=True)
+    _remove_stale_incoming(incoming_dir)
+    tmp_file = incoming_dir / f"{uuid.uuid4().hex}.part"
+    try:
+        copy_file(source_file, tmp_file)
+        with get_conn(paths.db_file) as conn:
+            cur = conn.execute(
+                """
+                INSERT INTO footage (
+                    path, sha256, duration_s, width, height, orientation,
+                    crop_json, product_ids_json, status
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'imported')
+                """,
+                (
+                    "pending",
+                    sha256,
+                    info.duration_s,
+                    info.width,
+                    info.height,
+                    info.orientation,
+                    json.dumps(crop_data) if crop_data else None,
+                    json.dumps(clean_pids),
+                ),
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'imported')
-            """,
-            (
-                "pending",
-                sha256,
-                info.duration_s,
-                info.width,
-                info.height,
-                info.orientation,
-                json.dumps(crop_data) if crop_data else None,
-                json.dumps(clean_pids),
-            ),
-        )
-        footage_id = int(cur.lastrowid or 0)
-        rel_path = f"footage/{footage_id}.mp4"
-        dest_file = paths.media_dir / rel_path
-        dest_file.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source_file, dest_file)
-
-        conn.execute(
-            "UPDATE footage SET path = ? WHERE id = ?",
-            (rel_path, footage_id),
-        )
-        record_audit(
-            conn,
-            actor=actor,
-            action="footage.imported",
-            object_type="footage",
-            object_id=footage_id,
-            detail=f"sha256={sha256[:12]}, {info.width}x{info.height}, {info.duration_s}s",
-        )
+            footage_id = int(cur.lastrowid or 0)
+            rel_path = f"footage/{footage_id}.mp4"
+            os.replace(tmp_file, paths.media_dir / rel_path)  # same folder tree: instant rename
+            conn.execute(
+                "UPDATE footage SET path = ? WHERE id = ?",
+                (rel_path, footage_id),
+            )
+            record_audit(
+                conn,
+                actor=actor,
+                action="footage.imported",
+                object_type="footage",
+                object_id=footage_id,
+                detail=f"sha256={sha256[:12]}, {info.width}x{info.height}, {info.duration_s}s",
+            )
+    except sqlite3.IntegrityError as exc:
+        # The same file was imported concurrently while this copy ran (sha256 is UNIQUE)
+        tmp_file.unlink(missing_ok=True)
+        raise DuplicateFootageError(f"Duplicate footage rejected (sha256={sha256[:12]}...)") from exc
+    except BaseException:
+        tmp_file.unlink(missing_ok=True)
+        raise
 
     if enqueue_analysis:
         enqueue_job(paths.db_file, "analyse", ref_id=footage_id)

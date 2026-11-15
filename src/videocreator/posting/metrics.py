@@ -7,7 +7,7 @@ from typing import Any
 
 from videocreator.db import get_conn, query_all
 from videocreator.paths import AppPaths
-from videocreator.posting.base import Account, MetricsReader
+from videocreator.posting.base import Account, MetricsFetchError, MetricsReader
 from videocreator.posting.facebook import FacebookPagePoster
 from videocreator.posting.instagram import InstagramReelsPoster
 from videocreator.posting.threads import ThreadsPoster
@@ -166,6 +166,10 @@ def collect_due_metrics(
 
         try:
             data = reader.fetch_metrics(account, ext_post_id)
+        except MetricsFetchError as exc:
+            # Nothing recorded: the checkpoint is tried again on the next run until its window closes.
+            logger.info("Metrics not available yet for post #%d (%s): %s", pid, platform, exc)
+            continue
         except Exception as exc:
             logger.warning("Metrics fetch failed for post #%d (%s): %s", pid, platform, exc)
             continue

@@ -1,7 +1,6 @@
 """Health check and dashboard page."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +12,7 @@ from videocreator.config import Settings, load_settings
 from videocreator.db import query_all
 from videocreator.paths import AppPaths
 from videocreator.templating import get_templates
+from videocreator.timeutil import local_day
 
 router = APIRouter()
 
@@ -69,7 +69,7 @@ def _collect_dashboard_stats(db_file: Path, settings: Settings) -> dict[str, Any
         """,
     )
 
-    today_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today_local = local_day(settings.schedule.timezone)
     usage_rows = query_all(
         db_file,
         """
@@ -78,7 +78,7 @@ def _collect_dashboard_stats(db_file: Path, settings: Settings) -> dict[str, Any
         WHERE day = ?
         GROUP BY route, kind
         """,
-        (today_utc,),
+        (today_local,),
     )
     sub_calls = 0
     api_calls = 0
@@ -111,7 +111,7 @@ def _collect_dashboard_stats(db_file: Path, settings: Settings) -> dict[str, Any
         "job_counts": job_counts,
         "recent_jobs": recent_jobs,
         "ai_today": {
-            "day": today_utc,
+            "day": today_local,
             "subscription_calls": sub_calls,
             "api_calls": api_calls,
             "text_api_cost_usd": round(text_api_cost, 4),

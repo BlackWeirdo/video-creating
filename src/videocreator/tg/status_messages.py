@@ -1,13 +1,13 @@
 """Texts of the `/menu`, `/schedule` and `/status` commands."""
 from __future__ import annotations
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from videocreator.config import load_settings
 from videocreator.db import get_setting, query_all
 from videocreator.tg.messages import KeyboardRows
-from videocreator.timeutil import UTC_ISO_FORMAT, utc_now
+from videocreator.timeutil import UTC_ISO_FORMAT, local_day, utc_now
 
 
 def build_schedule_message(
@@ -85,7 +85,7 @@ def build_status_text(db_file: Path, config_file: Path) -> str:
     j_rows = query_all(db_file, "SELECT status, COUNT(*) AS cnt FROM jobs GROUP BY status")
     j_map = {str(r["status"]): int(r["cnt"]) for r in j_rows}
 
-    today_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today_local = local_day(settings.schedule.timezone)
     u_rows = query_all(
         db_file,
         """
@@ -94,7 +94,7 @@ def build_status_text(db_file: Path, config_file: Path) -> str:
         WHERE day = ?
         GROUP BY route
         """,
-        (today_utc,),
+        (today_local,),
     )
     sub_calls = sum(int(r["calls"]) for r in u_rows if r["route"] == "subscription")
     api_calls = sum(int(r["calls"]) for r in u_rows if r["route"] == "api")
@@ -106,7 +106,7 @@ def build_status_text(db_file: Path, config_file: Path) -> str:
         f"- Chế độ đăng tự động: {'⏸ ĐANG TẠM DỪNG' if paused else '▶️ Đang hoạt động'}",
         f"- Video chờ duyệt: {v_map.get('pending_approval', 0)} | Đã duyệt: {v_map.get('approved', 0)} | Đã xếp lịch: {v_map.get('scheduled', 0)} | Đã đăng: {v_map.get('posted', 0)}",
         f"- Job đang chạy: {j_map.get('running', 0)} | Hàng đợi: {j_map.get('queued', 0)} | Chờ quota: {j_map.get('waiting_quota', 0)}",
-        f"- AI hôm nay ({today_utc}): {sub_calls} lượt gói thuê bao ($0) | {api_calls} lượt API (${api_cost:.4f} / trần ${settings.budget.daily_usd:.2f})",
+        f"- AI hôm nay ({today_local}): {sub_calls} lượt gói thuê bao ($0) | {api_calls} lượt API (${api_cost:.4f} / trần ${settings.budget.daily_usd:.2f})",
     ]
     return "\n".join(lines)
 

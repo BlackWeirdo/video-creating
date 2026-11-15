@@ -18,8 +18,10 @@ WAKE_COOLDOWN_S = 300
 
 
 def recover_interrupted_jobs(db_file: Path) -> int:
-    """Resets any jobs stuck in 'running' back to 'queued' on startup,
-    and resets posts stuck in 'publishing' without a remote_container_id back to 'scheduled'."""
+    """Resets any jobs stuck in 'running' back to 'queued' on startup, and posts stuck in
+    'publishing' back to 'scheduled'. A post that already has a platform container/reel id keeps
+    it: the next publish round asks the platform for that container's state instead of creating a
+    new one (spec §6), so it is finished, not posted twice."""
     with get_conn(db_file) as conn:
         cur = conn.execute(
             """
@@ -29,15 +31,12 @@ def recover_interrupted_jobs(db_file: Path) -> int:
             """
         )
         recovered_jobs = int(cur.rowcount or 0)
-        conn.execute(
-            """
-            UPDATE posts
-            SET status = 'scheduled'
-            WHERE status = 'publishing' AND (remote_container_id IS NULL OR remote_container_id = '')
-            """
-        )
+        posts_cur = conn.execute("UPDATE posts SET status = 'scheduled' WHERE status = 'publishing'")
+        recovered_posts = int(posts_cur.rowcount or 0)
     if recovered_jobs:
         logger.info("Recovered %d interrupted running job(s) back to queued", recovered_jobs)
+    if recovered_posts:
+        logger.info("Recovered %d interrupted publishing post(s) back to scheduled", recovered_posts)
     return recovered_jobs
 
 
@@ -92,7 +91,7 @@ def claim_next_queued_job(db_file: Path) -> dict[str, Any] | None:
             SELECT id, kind, ref_id, status, created_at
             FROM jobs
             WHERE status = 'queued'
-            ORDER BY id ASC
+            ORDER BY priority DESC, id ASC
             LIMIT 1
             """
         ).fetchone()

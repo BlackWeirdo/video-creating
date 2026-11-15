@@ -8,7 +8,7 @@ import pytest
 
 from videocreator.db import get_conn, migrate, query_all
 from videocreator.paths import get_paths
-from videocreator.posting.base import Account
+from videocreator.posting.base import Account, MetricsFetchError
 from videocreator.posting.metrics import _default_metrics_reader, collect_due_metrics, due_checkpoints
 from videocreator.posting.performance import list_performance_rows
 from videocreator.reports import weekly_summary
@@ -144,3 +144,51 @@ def test_collect_due_metrics_and_weekly_summary_aggregation(tmp_path: Path) -> N
         reader = _default_metrics_reader(plat, secrets, paths)
         assert reader is not None
         assert hasattr(reader, "fetch_metrics")
+
+
+class _FailingThenWorkingReader:
+    """Real reader object: the first call fails the way an unreachable Graph API does, later calls succeed."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def fetch_metrics(self, account: Account, external_post_id: str) -> dict[str, int | None]:
+        self.calls += 1
+        if self.calls == 1:
+            raise MetricsFetchError("Facebook metrics HTTP 503")
+        return {"views": 900, "likes": 40, "comments": 3, "shares": None}
+
+
+@pytest.mark.local
+def test_failed_metric_fetch_is_retried_not_recorded_empty(tmp_path: Path) -> None:
+    paths = get_paths(tmp_path)
+    migrate(paths.db_file)
+    with get_conn(paths.db_file) as conn:
+        conn.execute(
+            "INSERT INTO accounts (id, platform, external_id, name, lang, secret_key, enabled) "
+            "VALUES (1, 'facebook', 'fb_1', 'FB', 'vi', 'META_1', 1), (2, 'tiktok', 'tt_1', 'TT', 'vi', 'TT_1', 1)"
+        )
+        conn.execute("INSERT INTO videos (id, status, plan_json) VALUES (1, 'posted', '{}')")
+        conn.execute(
+            "INSERT INTO posts (id, video_id, account_id, status, scheduled_at, external_post_id, posted_at) VALUES "
+            "(201, 1, 1, 'posted', '2026-11-10T10:00:00Z', 'fb_201', '2026-11-10T10:00:00Z'), "
+            "(202, 1, 2, 'posted', '2026-11-10T10:00:00Z', 'tt_202', '2026-11-10T10:00:00Z')"
+        )
+    fb_reader = _FailingThenWorkingReader()
+    tiktok_reader = _default_metrics_reader("tiktok", SecretsStore(paths.secrets_file), paths)
+    readers = {"facebook": fb_reader, "tiktok": tiktok_reader}
+
+    # 25h: Facebook fails -> nothing recorded; TikTok has no metrics API -> NULL row ("no data")
+    assert collect_due_metrics(paths, now_dt=datetime(2026, 11, 11, 11, 0, tzinfo=timezone.utc), reader_overrides=readers) == 1
+    rows = query_all(paths.db_file, "SELECT post_id, views FROM post_metrics ORDER BY post_id")
+    assert rows == [{"post_id": 202, "views": None}]
+
+    # One hour later, still inside the 24h checkpoint window -> retried and recorded
+    assert collect_due_metrics(paths, now_dt=datetime(2026, 11, 11, 12, 0, tzinfo=timezone.utc), reader_overrides=readers) == 1
+    fb_row = query_all(paths.db_file, "SELECT checkpoint, views FROM post_metrics WHERE post_id = 201")
+    assert fb_row == [{"checkpoint": "24h", "views": 900}]
+
+    # Real Facebook reader without a stored token fails instead of writing an empty row
+    fb_real = _default_metrics_reader("facebook", SecretsStore(paths.secrets_file), paths)
+    with pytest.raises(MetricsFetchError):
+        fb_real.fetch_metrics({"id": 1, "secret_key": "META_1"}, "fb_201")

@@ -100,12 +100,14 @@ async def update_config(
     studio_daily_usd: float = Form(10.0),
     api_fallback: str = Form("ask"),
     offpeak_hours: str = Form("23:00-06:00"),
-    vision_routes: str = Form("claude_cli, gemini_api"),
-    writer_routes: str = Form("claude_cli, muse_api, claude_api"),
+    claude_base_url: str = Form("https://api.shopdonk.com/v1"),
+    vision_routes: str = Form("claude_api"),
+    writer_routes: str = Form("claude_api"),
     checker_routes: str = Form("claude_cli, claude_api, gemini_api"),
     studio_routes: str = Form("claude_cli, claude_api"),
     timezone_name: str = Form("Asia/Ho_Chi_Minh"),
     schedule_auto: bool = Form(False),
+    keep_original_audio: bool = Form(False),
     schedule_slots: str = Form("08:00, 11:30, 15:00, 19:00, 21:00"),
     allowed_chat_ids: str = Form(""),
     approver_user_ids: str = Form(""),
@@ -124,12 +126,14 @@ async def update_config(
     if api_fallback in ("auto", "ask", "never"):
         cfg.ai.policy.api_fallback = api_fallback  # type: ignore[assignment]
     cfg.ai.policy.offpeak_hours = offpeak_hours.strip() or "23:00-06:00"
+    cfg.ai.claude_base_url = claude_base_url.strip().rstrip("/")
     cfg.ai.routes.vision = _parse_str_list(vision_routes)
     cfg.ai.routes.writer = _parse_str_list(writer_routes)
     cfg.ai.routes.checker = _parse_str_list(checker_routes)
     cfg.ai.routes.studio = _parse_str_list(studio_routes)
     cfg.schedule.timezone = timezone_name.strip() or "Asia/Ho_Chi_Minh"
     cfg.schedule.auto = bool(schedule_auto)
+    cfg.render.keep_original_audio = bool(keep_original_audio)
     cfg.schedule.slots = _parse_str_list(schedule_slots)
     cfg.telegram.allowed_chat_ids = _parse_int_list(allowed_chat_ids)
     cfg.telegram.approver_user_ids = _parse_int_list(approver_user_ids)

@@ -1,16 +1,31 @@
 """Daily USD budget checking and AI usage recording in SQLite (Phase 04 & Phase 18)."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 
-from videocreator.ai.base import BudgetExceeded, RouteKind
-from videocreator.config import Settings
+from videocreator.ai.base import BudgetExceeded, RouteKind, UnpricedModelError
+from videocreator.config import ScheduleConfig, Settings, load_settings
 from videocreator.db import get_conn, query_one
+from videocreator.paths import AppPaths
+from videocreator.timeutil import local_day
 
 
-def today_utc_str() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+def app_timezone(db_file: Path) -> str:
+    """`schedule.timezone` of the data directory that holds `db_file` (default when no config yet)."""
+    config_file = AppPaths(db_file.parent).config_file
+    if config_file.exists():
+        return load_settings(config_file).schedule.timezone
+    return ScheduleConfig().timezone
+
+
+def budget_day(db_file: Path, now_dt: datetime | None = None) -> str:
+    """The budget day (`YYYY-MM-DD`): it rolls over at local midnight, not at 00:00 UTC."""
+    return local_day(app_timezone(db_file), now_dt)
+
+
+def unpriced_model_message(model: str) -> str:
+    return f"Model '{model}' chưa có giá trong mục [prices] của config.toml; thêm giá rồi thử lại."
 
 
 def estimate_token_cost(
@@ -37,7 +52,7 @@ def get_daily_api_spend(
     day: str | None = None,
 ) -> float:
     """Returns total API USD spent on `day` for the given budget bucket (`daily`, `generative`, `studio`)."""
-    target_day = day or today_utc_str()
+    target_day = day or budget_day(db_file)
     if bucket == "generative":
         row = query_one(
             db_file,
@@ -78,9 +93,15 @@ def check_budget(
     kind: str = "writer",
     estimated_cost_usd: float = 0.0,
     day: str | None = None,
+    model: str | None = None,
 ) -> float:
-    """Checks that the daily API budget has not been reached; raises `BudgetExceeded` if exceeded."""
-    target_day = day or today_utc_str()
+    """Checks that the daily API budget has not been reached; raises `BudgetExceeded` if exceeded.
+
+    With `model`, a model missing from `[prices]` is blocked too: its calls would be recorded at
+    $0 and never count against the cap (`BR-COST-02`)."""
+    if model is not None and model not in settings.prices:
+        raise UnpricedModelError(unpriced_model_message(model))
+    target_day = day or budget_day(db_file)
     if kind == "videogen":
         bucket = "generative"
         limit_usd = float(settings.budget.generative_daily_usd)
@@ -113,7 +134,7 @@ def record_usage(
     day: str | None = None,
 ) -> int:
     """Records an AI call into `ai_usage`. Subscription calls always record `cost_usd = 0.0`."""
-    target_day = day or today_utc_str()
+    target_day = day or budget_day(db_file)
     actual_cost = 0.0 if route != "api" else round(max(0.0, float(cost_usd)), 6)
     with get_conn(db_file) as conn:
         cur = conn.execute(

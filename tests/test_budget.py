@@ -1,14 +1,17 @@
 """Real SQLite tests for AI budget calculation, daily caps, and subscription zero-cost accounting (Phase 04 & 18)."""
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
 
-from videocreator.ai.base import BudgetExceeded
-from videocreator.ai.budget import check_budget, estimate_token_cost, get_daily_api_spend, record_usage
-from videocreator.config import Settings
-from videocreator.db import migrate
+from videocreator.ai.base import BudgetExceeded, UnpricedModelError
+from videocreator.ai.budget import budget_day, check_budget, estimate_token_cost, get_daily_api_spend, record_usage
+from videocreator.config import Settings, save_settings
+from videocreator.db import migrate, query_all
+from videocreator.paths import get_paths
+from videocreator.timeutil import local_day, local_day_start_utc_iso
 
 
 @pytest.mark.local
@@ -64,3 +67,79 @@ def test_api_budget_cap_blocks_when_daily_limit_reached(tmp_path: Path) -> None:
     # Separate studio and generative budgets remain unaffected
     assert check_budget(db_file, settings, kind="studio", day="2026-11-13") == 0.0
     assert check_budget(db_file, settings, kind="videogen", day="2026-11-13") == 0.0
+
+
+@pytest.mark.local
+def test_unpriced_model_is_blocked_before_the_call(tmp_path: Path) -> None:
+    """A model missing from [prices] would be recorded at $0 and never hit the cap (BR-COST-02)."""
+    db_file = tmp_path / "app.db"
+    migrate(db_file)
+    settings = Settings()
+
+    with pytest.raises(UnpricedModelError, match="gemini-9-unknown"):
+        check_budget(db_file, settings, kind="writer", model="gemini-9-unknown")
+    assert query_all(db_file, "SELECT * FROM ai_usage") == []
+
+    assert check_budget(db_file, settings, kind="writer", model="claude-opus-5-5") == 0.0
+
+
+@pytest.mark.local
+def test_budget_day_rolls_over_at_local_midnight(tmp_path: Path) -> None:
+    paths = get_paths(tmp_path)
+    migrate(paths.db_file)
+    save_settings(paths.config_file, Settings())  # schedule.timezone = Asia/Ho_Chi_Minh
+
+    # 06:00 and 08:00 Vietnam time on the 15th are the same budget day (UTC changes date in between)
+    assert budget_day(paths.db_file, datetime(2026, 11, 14, 23, 0, tzinfo=timezone.utc)) == "2026-11-15"
+    assert budget_day(paths.db_file, datetime(2026, 11, 15, 1, 0, tzinfo=timezone.utc)) == "2026-11-15"
+    # 23:30 Vietnam time on the 15th is still the 15th; 00:30 on the 16th is the 16th
+    assert budget_day(paths.db_file, datetime(2026, 11, 15, 16, 30, tzinfo=timezone.utc)) == "2026-11-15"
+    assert budget_day(paths.db_file, datetime(2026, 11, 15, 17, 30, tzinfo=timezone.utc)) == "2026-11-16"
+
+    assert local_day("Asia/Ho_Chi_Minh", datetime(2026, 11, 15, 18, 30, tzinfo=timezone.utc)) == "2026-11-16"
+    assert (
+        local_day_start_utc_iso("Asia/Ho_Chi_Minh", datetime(2026, 11, 15, 18, 30, tzinfo=timezone.utc))
+        == "2026-11-15T17:00:00Z"
+    )
+
+    # Usage recorded without an explicit day lands on the local day the cap reads
+    record_usage(paths.db_file, provider="gemini_api", model="gemini-3.8-flash", kind="writer", cost_usd=0.5)
+    row = query_all(paths.db_file, "SELECT day FROM ai_usage")[0]
+    assert row["day"] == budget_day(paths.db_file)
+
+
+@pytest.mark.local
+def test_router_skips_an_unpriced_api_model_and_uses_the_next_provider(tmp_path: Path) -> None:
+    """The real Gemini provider stops at the price check (before any key or network use); the
+    role then falls through to the next provider instead of failing."""
+    from pydantic import BaseModel
+
+    from videocreator.ai.gemini import GeminiAPIProvider
+    from videocreator.ai.router import RoutedProvider
+    from videocreator.secrets_store import SecretsStore
+
+    class Answer(BaseModel):
+        text: str
+
+    class NextProvider:
+        name = "next_provider"
+        route_kind = "subscription"
+
+        def generate_json(self, prompt, schema):  # type: ignore[no-untyped-def]
+            return schema.model_validate({"text": "ok"})
+
+    paths = get_paths(tmp_path)
+    migrate(paths.db_file)
+    settings = Settings()
+    settings.ai.routes.writer = ["gemini_api", "next_provider"]
+    settings.ai.policy.api_fallback = "auto"
+    save_settings(paths.config_file, settings)
+    unpriced = GeminiAPIProvider(
+        paths.db_file, paths.config_file, SecretsStore(paths.secrets_file), role="writer", model="gemini-9-unknown"
+    )
+    routed = RoutedProvider(
+        paths, "writer", provider_overrides={"gemini_api": unpriced, "next_provider": NextProvider()}
+    )
+    assert routed.generate_json("x", Answer).text == "ok"
+    assert routed.last_used_provider == "next_provider"
+    assert query_all(paths.db_file, "SELECT * FROM ai_usage") == []

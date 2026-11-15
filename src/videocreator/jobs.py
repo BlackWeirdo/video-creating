@@ -48,11 +48,24 @@ class JobRegistry:
 default_registry = JobRegistry()
 
 
-def enqueue_job(db_file: Path, kind: str, ref_id: int | None = None) -> int:
+PRIORITY_USER = 10  # someone is waiting for the result
+PRIORITY_PINNED = 5  # a trend video the owner pasted by hand
+PRIORITY_BACKGROUND = 0
+USER_FACING_KINDS = frozenset({"plan", "render", "replan", "studio"})
+
+
+def enqueue_job(
+    db_file: Path, kind: str, ref_id: int | None = None, *, priority: int | None = None
+) -> int:
+    """Queues a job. The worker takes higher `priority` first, then the oldest; user-facing kinds
+    default to `PRIORITY_USER` so they never wait behind a batch of background analyses."""
+    prio = priority if priority is not None else (
+        PRIORITY_USER if kind in USER_FACING_KINDS else PRIORITY_BACKGROUND
+    )
     with get_conn(db_file) as conn:
         cur = conn.execute(
-            "INSERT INTO jobs (kind, ref_id, status) VALUES (?, ?, 'queued')",
-            (kind, ref_id),
+            "INSERT INTO jobs (kind, ref_id, status, priority) VALUES (?, ?, 'queued', ?)",
+            (kind, ref_id, prio),
         )
         return int(cur.lastrowid or 0)
 

@@ -35,8 +35,8 @@ from videocreator.trends.link_parse import (
     extract_first_url,
     parse_single_video,
 )
+from videocreator.trends.analyse_queue import ANALYSE_TREND_JOB_KIND
 from videocreator.trends.links import (
-    ANALYSE_TREND_JOB_KIND,
     MAX_PASTED_LINKS_PER_DAY,
     add_pasted_link,
     run_analyse_trend_job,
@@ -213,7 +213,7 @@ def test_migration_010_keeps_rows_and_allows_new_sources(tmp_path: Path) -> None
             conn.execute("INSERT INTO watch_items (source, kind, value) VALUES ('facebook', 'page', 'x')")
     before = query_all(db, "SELECT * FROM watch_items ORDER BY id")
 
-    assert migrate(db) == 10
+    assert migrate(db) == len(list(DEFAULT_MIGRATIONS_DIR.glob("*.sql")))  # every later migration applied
     assert query_all(db, "SELECT * FROM watch_items ORDER BY id") == before
     with get_conn(db) as conn:
         conn.execute("INSERT INTO watch_items (source, kind, value) VALUES ('facebook', 'page', 'https://www.facebook.com/a')")
@@ -223,10 +223,10 @@ def test_migration_010_keeps_rows_and_allows_new_sources(tmp_path: Path) -> None
             with get_conn(db) as conn:
                 conn.execute("INSERT INTO watch_items (source, kind, value) VALUES (?, ?, ?)", bad)
     after = query_all(db, "SELECT COUNT(*) AS c FROM watch_items")[0]["c"]
-    assert migrate(db) == 10  # running again changes nothing
+    assert migrate(db) == len(list(DEFAULT_MIGRATIONS_DIR.glob("*.sql")))  # running again changes nothing
     assert query_all(db, "SELECT COUNT(*) AS c FROM watch_items")[0]["c"] == after
     with get_conn(db) as conn:
-        assert get_user_version(conn) == 10
+        assert get_user_version(conn) == len(list(DEFAULT_MIGRATIONS_DIR.glob("*.sql")))
         assert conn.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
 
 

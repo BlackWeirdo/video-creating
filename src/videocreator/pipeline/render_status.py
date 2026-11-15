@@ -34,25 +34,28 @@ def score_or_send_to_approval(
     should_score: bool,
     score_provider: Any,
     score_override: float | None,
-) -> str:
-    """Moves a `rendered` video on; returns its final status (`pending_approval` or `superseded`)."""
+) -> int | None:
+    """Moves a `rendered` video on. Returns the id of the video now waiting for approval (this one,
+    or a better-scored earlier attempt), or None when a redo was queued instead."""
     if not should_score:
         transition(paths.db_file, video_id, "pending_approval", expected_from="rendered")
-        return "pending_approval"
-    try:
-        from videocreator.pipeline.quality_score import score_rendered_video
+        return video_id
+    from videocreator.pipeline.quality_score import score_rendered_video
 
-        final_status, _active_id, _score = score_rendered_video(
+    try:
+        _status, active_id, _score = score_rendered_video(
             paths,
             video_id,
             provider=score_provider,
             score_override=score_override,
         )
-        return final_status
+        active = query_one(paths.db_file, "SELECT status FROM videos WHERE id = ?", (active_id,))
+        return active_id if active and str(active["status"]) == "pending_approval" else None
     except Exception as sc_exc:
         logger.warning("Auto quality score skipped for video #%d: %s", video_id, sc_exc)
         cur_row = query_one(paths.db_file, "SELECT status FROM videos WHERE id = ?", (video_id,))
         cur_st = str(cur_row["status"]) if cur_row else "rendered"
         if cur_st in ("rendered", "scoring"):
             transition(paths.db_file, video_id, "pending_approval", expected_from=cur_st)
-        return "pending_approval"
+            return video_id
+        return video_id if cur_st == "pending_approval" else None  # e.g. already superseded by a redo

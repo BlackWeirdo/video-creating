@@ -30,7 +30,9 @@ VIDEO_TRANSITIONS: dict[str, set[str]] = {
     "failed": {"rendering", "scheduled", "superseded"},
     "rejected": set(),
     "posted": set(),
-    "superseded": set(),
+    # Only automatic scoring uses this: the best-scored attempt of a redo chain goes to approval
+    # (`quality_score.promote_best_attempt`).
+    "superseded": {"pending_approval"},
 }
 
 

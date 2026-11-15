@@ -10,10 +10,14 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from videocreator.ai import AIProvider, get_provider
+from videocreator.ai.budget import app_timezone
+from videocreator.timeutil import local_day_start_utc_iso
 from videocreator.db import get_conn, query_all, query_one
 from videocreator.paths import AppPaths
 
 logger = logging.getLogger("videocreator.trends.suggest")
+
+DAILY_SUGGESTION_CAP = 3  # FR-TRD-07
 
 
 class SuggestionCandidateSchema(BaseModel):
@@ -70,22 +74,35 @@ def summarize_shot_library(db_file: Path) -> dict[str, Any]:
     }
 
 
-def select_suggestion_candidates(db_file: Path) -> list[dict[str, Any]]:
-    """Analysed trend items without a suggestion yet, hand-picked (pinned) ones first, at most 6."""
+def select_suggestion_candidates(
+    db_file: Path, trend_item_ids: list[int] | None = None
+) -> list[dict[str, Any]]:
+    """Analysed trend items without a suggestion yet, hand-picked (pinned) ones first, at most 6.
+
+    `trend_item_ids` limits the candidates to those items (a pasted link is suggested on its own)."""
+    id_filter = ""
+    params: tuple[Any, ...] = ()
+    if trend_item_ids is not None:
+        if not trend_item_ids:
+            return []
+        id_filter = f"AND t.id IN ({','.join('?' for _ in trend_item_ids)})"
+        params = tuple(int(i) for i in trend_item_ids)
     return query_all(
         db_file,
-        """
+        f"""
         SELECT t.*
         FROM trend_items t
         WHERE t.analysis_json IS NOT NULL AND t.analysis_json != ''
           AND NOT EXISTS (
               SELECT 1 FROM suggestions s WHERE s.trend_item_id = t.id
           )
+          {id_filter}
         -- Videos the owner picked by hand (pasted links, metrics.pinned) go first: they are
         -- often older, so their score alone would keep them out of the top 6.
         ORDER BY COALESCE(json_extract(t.metrics_json, '$.pinned'), 0) DESC, t.score DESC, t.id ASC
         LIMIT 6
         """,
+        params,
     )
 
 
@@ -94,15 +111,18 @@ def make_suggestions(
     *,
     writer_provider: AIProvider | None = None,
     max_suggestions: int = 3,
+    trend_item_ids: list[int] | None = None,
 ) -> list[int]:
     """Generates up to `max_suggestions` remix suggestions from analysed `trend_items` and the shot library (`FR-TRD-07`)."""
-    analysed_items = select_suggestion_candidates(paths.db_file)
+    analysed_items = select_suggestion_candidates(paths.db_file, trend_item_ids)
     if not analysed_items:
         return []
     made_today = query_one(
-        paths.db_file, "SELECT COUNT(*) AS c FROM suggestions WHERE created_at >= strftime('%Y-%m-%dT00:00:00Z', 'now')"
+        paths.db_file,
+        "SELECT COUNT(*) AS c FROM suggestions WHERE created_at >= ?",
+        (local_day_start_utc_iso(app_timezone(paths.db_file)),),
     )
-    max_suggestions = max_suggestions - int((made_today or {}).get("c") or 0)
+    max_suggestions = min(max_suggestions, DAILY_SUGGESTION_CAP - int((made_today or {}).get("c") or 0))
     if max_suggestions <= 0:
         return []  # FR-TRD-07: at most 3 suggestions per day, however many scans run
 

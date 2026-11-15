@@ -9,6 +9,8 @@ from videocreator.pipeline.thumbs import extract_thumbnail
 
 __all__ = ["ALLOWED_FILTERS", "extract_cover_frame", "normalize_to_master"]
 
+SOURCE_AUDIO_UNDER = 0.3  # footage sound level under voice-over or music
+
 
 def normalize_to_master(
     src_video: Path,
@@ -20,8 +22,12 @@ def normalize_to_master(
     cwd: Path | None = None,
     preset: str = "veryfast",
     crf: int = 18,
+    mix_source_audio: bool = False,
 ) -> float:
-    """Normalizes `src_video` into the canonical 1080x1920 30fps H.264 High / AAC 48kHz stereo master MP4."""
+    """Normalizes `src_video` into the canonical 1080x1920 30fps H.264 High / AAC 48kHz stereo master MP4.
+
+    `mix_source_audio` keeps the source's own sound at `SOURCE_AUDIO_UNDER` under voice and music;
+    with neither, the source sound is used as is."""
     info = probe_video(src_video)
     total_dur = max(0.5, info.duration_s)
     fade_start = max(0.0, total_dur - 0.5)
@@ -46,21 +52,34 @@ def normalize_to_master(
 
     args: list[str] = ["-i", str(src_video.resolve())]
     af_args: list[str] = []
+    # Footage sound kept under voice/music (render option); `[src]` joins the mix below.
+    with_source = mix_source_audio and info.has_audio
+    src_part = f"[0:a]volume={SOURCE_AUDIO_UNDER}[src];" if with_source else ""
+    src_label = "[src]" if with_source else ""
+    n_src = 1 if with_source else 0
 
     if voice_path is not None and voice_path.exists():
         # Voice-over on a silent bed as long as the footage, optional music underneath.
         # The footage length always wins: a longer voice is cut by `-t`, never the other way round.
         args.extend(["-i", str(voice_path.resolve())])
         args.extend(["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000"])
-        graph = "[2:a][1:a]amix=inputs=2:duration=first:normalize=0"
+        graph = f"{src_part}[2:a][1:a]{src_label}amix=inputs={2 + n_src}:duration=first:normalize=0"
         if music_path is not None and music_path.exists():
             args.extend(["-stream_loop", "-1", "-i", str(music_path.resolve())])
             graph = (
-                f"[3:a]atrim=0:{total_dur:.3f},asetpts=PTS-STARTPTS,volume=0.2,"
+                f"{src_part}[3:a]atrim=0:{total_dur:.3f},asetpts=PTS-STARTPTS,volume=0.2,"
                 f"afade=t=out:st={fade_start:.3f}:d=0.5[bed];"
-                "[2:a][1:a][bed]amix=inputs=3:duration=first:normalize=0"
+                f"[2:a][1:a][bed]{src_label}amix=inputs={3 + n_src}:duration=first:normalize=0"
             )
         graph += ",loudnorm=I=-14:TP=-1.5:LRA=11[aout]"
+        args.extend(["-filter_complex", graph, "-map", "0:v:0", "-map", "[aout]"])
+    elif music_path is not None and music_path.exists() and with_source:
+        args.extend(["-stream_loop", "-1", "-i", str(music_path.resolve())])
+        graph = (
+            f"{src_part}[1:a]atrim=0:{total_dur:.3f},asetpts=PTS-STARTPTS,"
+            f"afade=t=out:st={fade_start:.3f}:d=0.5[bed];"
+            "[bed][src]amix=inputs=2:duration=first:normalize=0,loudnorm=I=-14:TP=-1.5:LRA=11[aout]"
+        )
         args.extend(["-filter_complex", graph, "-map", "0:v:0", "-map", "[aout]"])
     elif music_path is not None and music_path.exists():
         args.extend(["-stream_loop", "-1", "-i", str(music_path.resolve())])

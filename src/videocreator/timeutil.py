@@ -1,7 +1,8 @@
-"""Small time helpers shared across the app: UTC ISO timestamps and `HH:MM` parsing."""
+"""Small time helpers shared across the app: UTC ISO timestamps, the local day, and `HH:MM` parsing."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, time, timezone
+from zoneinfo import ZoneInfo
 
 UTC_ISO_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 
@@ -13,6 +14,18 @@ def utc_now(now_dt: datetime | None = None) -> datetime:
 
 def utc_now_iso(now_dt: datetime | None = None) -> str:
     return utc_now(now_dt).strftime(UTC_ISO_FORMAT)
+
+
+def local_day(tz_name: str, now_dt: datetime | None = None) -> str:
+    """Today's date (`YYYY-MM-DD`) in `tz_name`: daily caps and reports roll over at local midnight."""
+    return utc_now(now_dt).astimezone(ZoneInfo(tz_name)).strftime("%Y-%m-%d")
+
+
+def local_day_start_utc_iso(tz_name: str, now_dt: datetime | None = None) -> str:
+    """Local midnight of today in `tz_name`, as a UTC ISO timestamp comparable with stored `*_at` columns."""
+    tz = ZoneInfo(tz_name)
+    local_date = utc_now(now_dt).astimezone(tz).date()
+    return datetime.combine(local_date, time(0, 0), tzinfo=tz).astimezone(timezone.utc).strftime(UTC_ISO_FORMAT)
 
 
 def parse_iso_utc(iso_str: str | None) -> datetime | None:

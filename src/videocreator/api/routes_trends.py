@@ -18,6 +18,7 @@ from videocreator.jsonutil import loads_or
 from videocreator.paths import AppPaths
 from videocreator.templating import get_templates
 from videocreator.timeutil import UTC_ISO_FORMAT
+from videocreator.trends.analyse_queue import enqueue_trend_analysis
 from videocreator.trends.link_parse import PLATFORM_LABELS
 from videocreator.trends.links import add_pasted_link
 from videocreator.trends.scan import build_trend_sources
@@ -136,4 +137,16 @@ async def upload_reference_video_route(
             """,
             (item_id, rel_path, dl_iso),
         )
+    enqueue_trend_analysis(paths, item_id)
     return RedirectResponse(url="/trends?msg=reference_uploaded", status_code=303)
+
+
+@router.post("/trends/{item_id}/analyse")
+async def analyse_trend_route(request: Request, item_id: int) -> RedirectResponse:
+    """Queues (or re-queues after a failure) AI structure analysis for one trend item."""
+    paths: AppPaths = request.app.state.paths
+    row = query_one(paths.db_file, "SELECT id FROM trend_items WHERE id = ?", (item_id,))
+    if row is None:
+        raise HTTPException(status_code=404, detail="Trend item not found")
+    enqueue_trend_analysis(paths, item_id)
+    return RedirectResponse(url="/trends?msg=analysis_queued", status_code=303)

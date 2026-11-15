@@ -14,9 +14,15 @@ from pathlib import Path
 from typing import Any
 
 from videocreator.db import get_conn, query_one, record_audit
-from videocreator.jobs import enqueue_job
+from videocreator.ai.base import BudgetExceeded
+from videocreator.ai.budget import budget_day
+from videocreator.jobs import QuotaWaitRequested
 from videocreator.paths import AppPaths
-from videocreator.timeutil import utc_now
+from videocreator.trends.analyse_queue import (
+    enqueue_trend_analysis,
+    other_analysis_jobs_pending,
+    set_analysis_status,
+)
 from videocreator.trends.base import TrendItem
 from videocreator.trends.download import find_yt_dlp_command
 from videocreator.trends.link_parse import classify_video_url, parse_single_video
@@ -24,7 +30,6 @@ from videocreator.trends.scan import upsert_trend_item
 
 logger = logging.getLogger("videocreator.trends.links")
 
-ANALYSE_TREND_JOB_KIND = "analyse_trend"
 MAX_PASTED_LINKS_PER_DAY = 20
 YTDLP_TIMEOUT_S = 90
 
@@ -33,12 +38,12 @@ def _pasted_count_key(day: str) -> str:
     return f"pasted_links:{day}"
 
 
-def _today_key(now_dt: datetime | None) -> str:
-    return _pasted_count_key(utc_now(now_dt).strftime("%Y-%m-%d"))
+def _today_key(db_file: Path, now_dt: datetime | None) -> str:
+    return _pasted_count_key(budget_day(db_file, now_dt))
 
 
 def _check_daily_cap(db_file: Path, *, now_dt: datetime | None = None) -> None:
-    row = query_one(db_file, "SELECT value FROM settings WHERE key = ?", (_today_key(now_dt),))
+    row = query_one(db_file, "SELECT value FROM settings WHERE key = ?", (_today_key(db_file, now_dt),))
     used = int(row["value"]) if row and str(row["value"]).isdigit() else 0
     if used >= MAX_PASTED_LINKS_PER_DAY:
         raise ValueError(f"Đã đủ {MAX_PASTED_LINKS_PER_DAY} link hôm nay. Hãy thử lại vào ngày mai.")
@@ -52,7 +57,7 @@ def _count_link(db_file: Path, *, now_dt: datetime | None = None) -> None:
             INSERT INTO settings (key, value) VALUES (?, '1')
             ON CONFLICT(key) DO UPDATE SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT)
             """,
-            (_today_key(now_dt),),
+            (_today_key(db_file, now_dt),),
         )
 
 
@@ -97,9 +102,7 @@ def add_pasted_link(
     _count_link(paths.db_file, now_dt=now_dt)
     trend_id = upsert_trend_item(paths.db_file, item, now_dt=now_dt)
 
-    row = query_one(paths.db_file, "SELECT analysis_json FROM trend_items WHERE id = ?", (trend_id,))
-    if row is not None and not row.get("analysis_json"):
-        enqueue_job(paths.db_file, ANALYSE_TREND_JOB_KIND, ref_id=trend_id)
+    enqueue_trend_analysis(paths, trend_id)
     with get_conn(paths.db_file) as conn:
         record_audit(
             conn, actor=actor, action="trends.link_added", object_type="trend_item",
@@ -108,23 +111,66 @@ def add_pasted_link(
     return trend_id, item
 
 
-def run_analyse_trend_job(paths: AppPaths, trend_item_id: int) -> str:
-    """Job handler for `analyse_trend`: analyse one pasted video, then refresh suggestions."""
-    from videocreator.trends.analyse import analyse_trend_item
+def suggest_after_analysis(
+    paths: AppPaths, trend_item_id: int, *, pinned: bool, writer_provider: Any = None
+) -> list[int]:
+    """Suggestions once an analysis ends (`FR-TRD-07`).
+
+    A pasted (pinned) video gets its own suggestion at once. Scanned videos are suggested once per
+    batch, when no other analysis is waiting, so the 3 daily suggestions go to the best-scored
+    videos instead of the ones that happened to finish first."""
     from videocreator.trends.suggest import make_suggestions
 
-    row = query_one(paths.db_file, "SELECT analysis_json FROM trend_items WHERE id = ?", (trend_item_id,))
+    made: list[int] = []
+    if pinned:
+        made += make_suggestions(
+            paths, trend_item_ids=[trend_item_id], max_suggestions=1, writer_provider=writer_provider
+        )
+    # Whichever analysis ends last (scanned or pasted) closes the batch, so scanned videos are
+    # never left without suggestions because a pasted link happened to finish after them.
+    if not other_analysis_jobs_pending(paths, trend_item_id):
+        made += make_suggestions(paths, writer_provider=writer_provider)
+    return made
+
+
+def run_analyse_trend_job(paths: AppPaths, trend_item_id: int) -> str:
+    """Job handler for `analyse_trend`: analyse one trend video, then make suggestions (see above)."""
+    from videocreator.trends.analyse import analyse_trend_item
+
+    row = query_one(
+        paths.db_file,
+        "SELECT analysis_json, json_extract(metrics_json, '$.pinned') AS pinned FROM trend_items WHERE id = ?",
+        (trend_item_id,),
+    )
     if row is None:
         return f"Trend item #{trend_item_id} no longer exists"
     if row.get("analysis_json"):
+        set_analysis_status(paths, trend_item_id, "done")
         return f"Trend item #{trend_item_id} was already analysed; nothing to do"
-    # Hand-picked videos have their own daily cap, so they skip the scan's download cap.
-    analyse_trend_item(paths, trend_item_id, ignore_download_cap=True)
+    pinned = bool(row.get("pinned"))
+    set_analysis_status(paths, trend_item_id, "running")
+    try:
+        # Hand-picked (pinned) videos have their own daily cap, so they skip the scan's download cap.
+        analyse_trend_item(paths, trend_item_id, ignore_download_cap=pinned)
+    except QuotaWaitRequested:
+        # The job stays alive as 'waiting_quota' and resumes itself, so the item is just queued again.
+        set_analysis_status(paths, trend_item_id, "queued")
+        raise
+    except Exception as exc:
+        reason = "Đã vượt ngân sách AI trong ngày." if isinstance(exc, BudgetExceeded) else str(exc)[:160]
+        set_analysis_status(paths, trend_item_id, "failed", reason)
+        # The last job of a scan batch makes the suggestions even when its own item failed.
+        try:
+            suggest_after_analysis(paths, trend_item_id, pinned=pinned)
+        except Exception as sug_exc:
+            logger.warning("Suggestions after failed analysis of #%d skipped: %s", trend_item_id, sug_exc)
+        raise
+    set_analysis_status(paths, trend_item_id, "done")
     ref = query_one(
         paths.db_file,
         "SELECT path FROM reference_videos WHERE trend_item_id = ? AND deleted_at IS NULL",
         (trend_item_id,),
     )
-    made = make_suggestions(paths)
+    made = suggest_after_analysis(paths, trend_item_id, pinned=pinned)
     how = "with the downloaded video (rea-video)" if ref else "from metrics and caption only (video could not be downloaded)"
     return f"Analysed trend item #{trend_item_id} {how}; suggestions created: {len(made)}"

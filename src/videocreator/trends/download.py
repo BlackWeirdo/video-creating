@@ -11,7 +11,8 @@ from typing import Callable
 from videocreator.config import load_settings
 from videocreator.db import get_conn, query_all, query_one
 from videocreator.paths import AppPaths, find_ffmpeg_binary
-from videocreator.timeutil import UTC_ISO_FORMAT, utc_now
+from videocreator.ai.budget import app_timezone
+from videocreator.timeutil import UTC_ISO_FORMAT, local_day_start_utc_iso, utc_now
 
 logger = logging.getLogger("videocreator.trends.download")
 
@@ -69,12 +70,11 @@ def _default_yt_dlp_download(url: str, dest_path: Path) -> bool:
 def count_today_reference_downloads(
     db_file: Path, now_dt: datetime | None = None
 ) -> int:
-    base_utc = utc_now(now_dt)
-    day_prefix = base_utc.strftime("%Y-%m-%d")
+    day_start = local_day_start_utc_iso(app_timezone(db_file), now_dt)
     row = query_one(
         db_file,
-        "SELECT COUNT(*) AS c FROM reference_videos WHERE downloaded_at LIKE ?",
-        (f"{day_prefix}%",),
+        "SELECT COUNT(*) AS c FROM reference_videos WHERE downloaded_at >= ?",
+        (day_start,),
     )
     return int(row["c"]) if row else 0
 

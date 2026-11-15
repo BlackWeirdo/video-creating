@@ -10,14 +10,17 @@ import httpx
 from videocreator.db import get_conn
 from videocreator.paths import AppPaths
 from videocreator.posting.base import (
+    MetricsFetchError,
     PermanentPostError,
     PostResult,
     TransientPostError,
     check_preflight_or_raise,
     empty_metrics,
+    metrics_http_outcome,
 )
 from videocreator.posting.instagram_graph import fetch_reel_insights, fetch_reel_permalink, graph_request
 from videocreator.posting.meta_auth import GRAPH_BASE_URL
+from videocreator.posting.meta_published import find_recent_post, instagram_recent_media, unconfirmed_result
 from videocreator.secrets_store import SecretsStore
 
 
@@ -58,7 +61,16 @@ class InstagramReelsPoster:
         container_id = str(post.get("remote_container_id") or "").strip()
         if not container_id:
             container_id = self._create_container(ig_id, token, video_url, caption, post_id=int(post["id"]))
-        self._wait_until_finished(container_id, token)
+        if self._wait_until_finished(container_id, token) == "PUBLISHED":
+            # An earlier attempt published it but its reply was lost: find the post, never publish twice
+            found = find_recent_post(instagram_recent_media(ig_id, token), caption, post.get("scheduled_at"))
+            if found is None:
+                return unconfirmed_result(container_id)
+            return PostResult(
+                status="posted",
+                external_post_id=str(found.get("id") or ""),
+                permalink=str(found.get("permalink") or "") or None,
+            )
 
         # Step 3: Publish container
         published = graph_request(
@@ -101,8 +113,8 @@ class InstagramReelsPoster:
             )
         return container_id
 
-    def _wait_until_finished(self, container_id: str, token: str) -> None:
-        """Step 2: polls the container `status_code` until FINISHED."""
+    def _wait_until_finished(self, container_id: str, token: str) -> str:
+        """Step 2: polls the container `status_code` until FINISHED (or PUBLISHED); returns it."""
         for _ in range(self.max_polls):
             status = graph_request(
                 "GET",
@@ -114,7 +126,7 @@ class InstagramReelsPoster:
             )
             status_code = str(status.get("status_code") or "").upper()
             if status_code in ("FINISHED", "PUBLISHED"):
-                return
+                return status_code
             if status_code in ("ERROR", "EXPIRED"):
                 raise PermanentPostError(
                     f"Instagram container {container_id} failed ({status_code}): {status.get('status')}"
@@ -129,7 +141,7 @@ class InstagramReelsPoster:
     ) -> dict[str, int | None]:
         token = self.secrets.get(str(account["secret_key"]))
         if not token or not external_post_id:
-            return empty_metrics()
+            raise MetricsFetchError(f"Instagram metrics: missing token or post id (account #{account.get('id')})")
         try:
             resp = httpx.get(
                 f"{GRAPH_BASE_URL}/{external_post_id}",
@@ -138,16 +150,17 @@ class InstagramReelsPoster:
                 timeout=20.0,
             )
             if resp.status_code != 200:
+                metrics_http_outcome(resp.status_code, "Instagram metrics")
                 return empty_metrics()
             data = resp.json()
-            likes = data.get("like_count")
-            comments = data.get("comments_count")
-            insights = fetch_reel_insights(external_post_id, token)
-            return {
-                "views": insights.get("views"),
-                "likes": int(likes) if likes is not None else None,
-                "comments": int(comments) if comments is not None else None,
-                "shares": insights.get("shares"),
-            }
-        except Exception:
-            return empty_metrics()
+        except (httpx.HTTPError, ValueError) as exc:
+            raise MetricsFetchError(f"Instagram metrics: {exc}") from exc
+        likes = data.get("like_count")
+        comments = data.get("comments_count")
+        insights = fetch_reel_insights(external_post_id, token)
+        return {
+            "views": insights.get("views"),
+            "likes": int(likes) if likes is not None else None,
+            "comments": int(comments) if comments is not None else None,
+            "shares": insights.get("shares"),
+        }

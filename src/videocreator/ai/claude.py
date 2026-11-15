@@ -46,7 +46,11 @@ class ClaudeAPIProvider:
             )
         import anthropic
 
-        return anthropic.Anthropic(api_key=api_key)
+        base_url = load_settings(self.config_file).ai.claude_base_url.strip()
+        client_kwargs: dict[str, Any] = {"api_key": api_key}
+        if base_url:
+            client_kwargs["base_url"] = base_url
+        return anthropic.Anthropic(**client_kwargs)
 
     def _send_messages(self, client: Any, content_blocks: list[dict[str, Any]], schema: type[T]) -> Any:
         if hasattr(client.messages, "parse"):
@@ -64,7 +68,7 @@ class ClaudeAPIProvider:
 
     def _call_messages(self, content_blocks: list[dict[str, Any]], schema: type[T]) -> T:
         settings = load_settings(self.config_file)
-        check_budget(self.db_file, settings, kind=self.role)
+        check_budget(self.db_file, settings, kind=self.role, model=self.model)
         client = self._get_client()
 
         last_val_err: Exception | None = None
@@ -115,7 +119,7 @@ class ClaudeAPIProvider:
             except ValidationError as val_exc:
                 last_val_err = val_exc
                 if val_attempt == 0:
-                    check_budget(self.db_file, settings, kind=self.role)
+                    check_budget(self.db_file, settings, kind=self.role, model=self.model)
                     continue
                 raise SchemaValidationError(
                     f"Claude API output failed schema validation after 2 attempts: {val_exc}"

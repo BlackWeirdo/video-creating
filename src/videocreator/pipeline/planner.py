@@ -15,7 +15,11 @@ from videocreator.pipeline.plan_store import (
     save_plan,
     with_parsed_lists,
 )
-from videocreator.pipeline.plan_validate import jaccard_similarity, validate_and_normalize_plan
+from videocreator.pipeline.plan_validate import (
+    is_collection_formula,
+    jaccard_similarity,
+    validate_and_normalize_plan,
+)
 from videocreator.products import list_products
 
 logger = logging.getLogger("videocreator.pipeline.planner")
@@ -36,6 +40,7 @@ def create_remix_plans(
     writer_provider: AIProvider | None = None,
     checker_provider: AIProvider | None = None,
     replace_video_id: int | None = None,
+    fix_hint: str | None = None,
 ) -> list[int]:
     """Generates `count` remix plans for `footage_id` (or the whole shot library when `footage_id` is None/0),
     validates, deduplicates via Jaccard, runs fact-checking (`BR-PRD-06`), and inserts rows into `videos`.
@@ -50,7 +55,17 @@ def create_remix_plans(
     use_library = footage_id is None or int(footage_id) <= 0
     source_footage_id: int | None = None if use_library else int(footage_id)  # type: ignore[arg-type]
 
-    shots = [with_parsed_lists(row) for row in load_source_shots(paths, source_footage_id)]
+    formula_dict = formula if isinstance(formula, dict) else {}
+    formula_name = str(formula_dict.get("formula") or (formula if isinstance(formula, str) else ""))
+    shots = [
+        with_parsed_lists(row)
+        for row in load_source_shots(
+            paths,
+            source_footage_id,
+            preferred_shot_ids=[int(i) for i in formula_dict.get("recommended_shot_ids") or [] if str(i).isdigit()],
+            collection=is_collection_formula(formula_name),
+        )
+    ]
     shot_map: dict[int, dict[str, Any]] = {int(shot["id"]): shot for shot in shots}
     referenced_product_ids = {pid for shot in shots for pid in shot["product_ids"]}
 
@@ -70,6 +85,7 @@ def create_remix_plans(
         target_duration_s=target_duration_s,
         formula=formula,
         preset_body=preset_body,
+        fix_hint=fix_hint,
     )
     batch = writer.generate_json(prompt, RemixPlansBatch)
 
