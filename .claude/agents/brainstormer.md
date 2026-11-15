@@ -1,5 +1,6 @@
 ---
 name: brainstormer
+model: opus
 description: >-
   Use this agent when you need to brainstorm software solutions, evaluate
   architectural approaches, or debate technical decisions before implementation.

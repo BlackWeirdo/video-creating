@@ -1,6 +1,7 @@
 ---
 description: ⚡⚡⚡ Research, analyze, and create an implementation plan
 argument-hint: [task]
+model: opus
 ---
 
 Think harder.

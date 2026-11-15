@@ -1,6 +1,7 @@
 ---
 description: ⚡⚡ No research. Only analyze and create an implementation plan
 argument-hint: [task]
+model: opus
 ---
 
 Think.

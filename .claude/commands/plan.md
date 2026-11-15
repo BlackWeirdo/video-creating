@@ -1,6 +1,7 @@
 ---
 description: ⚡⚡⚡ Intelligent plan creation with prompt enhancement
 argument-hint: [task]
+model: opus
 ---
 
 ## Your mission
