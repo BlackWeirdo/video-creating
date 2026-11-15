@@ -1,0 +1,397 @@
+[
+ {
+  "inputUrl": "https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=VN&q=trang%20s%E1%BB%A9c%20b%E1%BA%A1c&search_type=keyword_unordered",
+  "pageInfo": {
+   "adLibrarySystemStatus": {
+    "systemStatus": {
+     "status": "NO_KNOWN_ISSUES",
+     "activeIssues": [
+      {
+       "product": "Ad Library",
+       "status": "NO_KNOWN_ISSUES"
+      },
+      {
+       "product": "Ad Library Report",
+       "status": "NO_KNOWN_ISSUES"
+      },
+      {
+       "product": "Ad Library API",
+       "status": "NO_KNOWN_ISSUES"
+      },
+      {
+       "product": "Branded Content",
+       "status": "NO_KNOWN_ISSUES"
+      }
+     ]
+    }
+   },
+   "xfbAdLibraryIsCaptchaRequired": false,
+   "page": null,
+   "adLibraryUser": null
+  },
+  "pageID": "133921787226002",
+  "adArchiveID": "684452717311702",
+  "startDateFormatted": "2025-09-14T07:00:00.000Z",
+  "endDateFormatted": "2026-11-14T08:00:00.000Z",
+  "adArchiveId": "684452717311702",
+  "collationCount": 1,
+  "collationId": "1664516460885283",
+  "pageId": "133921787226002",
+  "snapshot": {
+   "brandedContent": null,
+   "pageId": "133921787226002",
+   "pageIsDeleted": false,
+   "pageProfileUri": "https://www.facebook.com/phuquytapdoan/",
+   "rootResharedPost": null,
+   "byline": null,
+   "disclaimerLabel": null,
+   "pageName": "Tập Đoàn Phú Quý",
+   "pageProfilePictureUrl": "https://scontent-ord5-1.xx.fbcdn.net/v/t39.35426-6/548702196_1746161642679994_8481243935693141614_n.jpg?stp=dst-jpg_s60x60_tt6&_nc_cat=107&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=c53f8f&_nc_ohc=kGBxVZuuN5AQ7kNvwFQQRfU&_nc_oc=AdomKNy-f6aLxJc5Trvv2oJFeg96Fvfv_dB0v2aa0pt0UrS6K2vdBb1fT_Scu6XWmeU&_nc_zt=14&_nc_ht=scontent-ord5-1.xx&_nc_gid=hQMDdtN98Ozwrz8ArcTlqw&_nc_ss=70289&oh=00_AQSL4f9Z1ABbtfoKEVNU9Mvfl7X1p4YYGyn1fklx5G_kHQ&oe=6AFE1805",
+   "event": null,
+   "caption": null,
+   "ctaText": "No button",
+   "cards": [],
+   "body": {
+    "text": "PHÚ QUÝ 51 QUANG TRUNG, HÀ ĐÔNG\nĐiểm đến uy tín, trọn vẹn niềm tin.\n\n✨ 100% các sản phẩm khi bán ra đều được xuất hoá đơn điện tử, đảm bảo minh bạch, an tâm mua sắm;\n✨ Là điểm đến hàng đầu về Vàng miếng 999.9, Nhẫn tròn 999.9, Vàng Rồng Phú Quý 999.9 và Vàng Thần Tài Phú Quý 999.9\n✨ Là điểm đến hàng đầu về Bạc miếng - Bạc thỏi Tích lũy, Đầu tư.\n✨ Bên cạnh đó là các mẫu trang sức hiện đại, thời trang từ vàng 10K, 14K, 18K, 24K;\n✨ Dịch vụ tư vấn chuyên nghiệp, nhiệt tình với đội ngũ tư vấn tận tâm và chân thành mang lại sự an tâm trong mỗi trải nghiệm mua sắm.\n\nLà Doanh nghiệp Uy tín với hơn 22 năm hoạt động trong lĩnh vực vàng bạc đá quý, Phú Quý tự hào là điểm đến uy tín của khách hàng, là nơi mang tới sự yên tâm và hài lòng trong từng trải nghiệm !\n\n-------------------------------------\nTập đoàn vàng bạc đá quý Phú Quý\nHotline: 1800599995\nHotline bạc: 0568 599 995"
+   },
+   "ctaType": "NO_BUTTON",
+   "displayFormat": "MULTI_IMAGES",
+   "linkDescription": null,
+   "linkUrl": null,
+   "images": [
+    {
+     "imageCrops": [],
+     "originalImageUrl": "https://scontent-ord5-2.xx.fbcdn.net/v/t39.35426-6/547621574_684158328047004_7474442732240093484_n.jpg?_nc_cat=107&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=c53f8f&_nc_ohc=-rnGRN7ou5sQ7kNvwHylTAY&_nc_oc=Adr3BxcSmOIm48JoUbwCDxNEs1Qg5gjQkL5EUDf9w_lu_LKIys2HngCtKCkLiiJjDFs&_nc_zt=14&_nc_ht=scontent-ord5-2.xx&_nc_gid=hQMDdtN98Ozwrz8ArcTlqw&_nc_ss=70289&oh=00_AQT2Xut8cCJQtkHeUexOxGKP3tMapMe0X3nKjBBsyuOnTg&oe=6AFDEE2D",
+     "resizedImageUrl": "https://scontent-ord5-2.xx.fbcdn.net/v/t39.35426-6/547286265_3098444953671262_52258118147189686_n.jpg?stp=dst-jpg_s600x600_tt6&_nc_cat=107&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=c53f8f&_nc_ohc=MIOV62ivM7QQ7kNvwFpP4YU&_nc_oc=Adr_FppsjM2uMDBnzJPJXE131TsS94zLdn0EPg3q7LFudYkGP_QSMKBVhxogNiiMc8A&_nc_zt=14&_nc_ht=scontent-ord5-2.xx&_nc_gid=hQMDdtN98Ozwrz8ArcTlqw&_nc_ss=70289&oh=00_AQSUcD1TpVk86Z8yPySKco8IIl9K6mrG2lmeE7Td936THw&oe=6AFE0533",
+     "watermarkedResizedImageUrl": ""
+    },
+    {
+     "imageCrops": [],
+     "originalImageUrl": "https://scontent-ord5-2.xx.fbcdn.net/v/t39.35426-6/548200837_1962881447866697_6559053280264148743_n.jpg?_nc_cat=100&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=c53f8f&_nc_ohc=aM3T5UYQb-0Q7kNvwFE13Hp&_nc_oc=AdqTzimblP-2rKH1UB3-tEJ7egRTJpzwAKi60SB0aMR9zJBji4-lr0pXB4_jfNnZkxY&_nc_zt=14&_nc_ht=scontent-ord5-2.xx&_nc_gid=hQMDdtN98Ozwrz8ArcTlqw&_nc_ss=70289&oh=00_AQQ5gagNhisgtL2-fqgMXZqyHRY8F2vCC1gqd-msrcCypQ&oe=6AFE18C0",
+     "resizedImageUrl": "https://scontent-ord5-2.xx.fbcdn.net/v/t39.35426-6/547946818_1759577698282741_3030440797642449126_n.jpg?stp=dst-jpg_s600x600_tt6&_nc_cat=104&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=c53f8f&_nc_ohc=uiKBeLWS_54Q7kNvwGI2FGK&_nc_oc=Adqj8l2E6S1FHCvBW9ckclM8nGOUYo3yB6ZU5_7s-5hcpctMnEdx8TUZU1Izl374OjI&_nc_zt=14&_nc_ht=scontent-ord5-2.xx&_nc_gid=hQMDdtN98Ozwrz8ArcTlqw&_nc_ss=70289&oh=00_AQSk43EuTYzh-4q0P36A0sCPrCNLhH_IULhwex-YZpfYcw&oe=6AFE0E53",
+     "watermarkedResizedImageUrl": ""
+    },
+    {
+     "imageCrops": [],
+     "originalImageUrl": "https://scontent-ord5-2.xx.fbcdn.net/v/t39.35426-6/547994631_1455304285741367_2931382085856661459_n.jpg?_nc_cat=104&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=c53f8f&_nc_ohc=2CgZJW7xxQwQ7kNvwFCvjC8&_nc_oc=Adqs2PUc8yd4v_R58IyZdx9B8FHXr6_zOG0OBIT4Sb3TUX6d8qBmmpwggc2yxT12OSs&_nc_zt=14&_nc_ht=scontent-ord5-2.xx&_nc_gid=hQMDdtN98Ozwrz8ArcTlqw&_nc_ss=70289&oh=00_AQTfux8l1XXGyDEjmpYn7RouTLcF2d_DYRSY_cz4r_IS6w&oe=6AFE0CF7",
+     "resizedImageUrl": "https://scontent-ord5-2.xx.fbcdn.net/v/t39.35426-6/548503145_789366120151384_3625908939213230039_n.jpg?stp=dst-jpg_s600x600_tt6&_nc_cat=105&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=c53f8f&_nc_ohc=Hz-5B005o6gQ7kNvwHwnC1B&_nc_oc=Adrfpv5KlthtsBF9SLXji2-Q-iF2NaX6zu_3-VYnohyQGxCIRUgLN9Q36mlmbJsE07I&_nc_zt=14&_nc_ht=scontent-ord5-2.xx&_nc_gid=hQMDdtN98Ozwrz8ArcTlqw&_nc_ss=70289&oh=00_AQT9FaCRPKk-zZ5xJXpNcFqRlq_AMSvHEuqlsuARTzMw4Q&oe=6AFE12A2",
+     "watermarkedResizedImageUrl": ""
+    },
+    {
+     "imageCrops": [],
+     "originalImageUrl": "https://scontent-ord5-1.xx.fbcdn.net/v/t39.35426-6/547683145_1316453406789543_3848530820018188767_n.jpg?_nc_cat=108&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=c53f8f&_nc_ohc=f8Tkum-ZU3cQ7kNvwE0Ujpw&_nc_oc=Adq0U6NlRfBzv0YSMR5uCqGFghbPb8HrhnCRY6LtC7ovdgtgbQMn1vzo0mW2wHoPl9Y&_nc_zt=14&_nc_ht=scontent-ord5-1.xx&_nc_gid=hQMDdtN98Ozwrz8ArcTlqw&_nc_ss=70289&oh=00_AQTzBh8RRXovE1JAqZF7YQrX2p6O3sNv_StR61cQC5WXmA&oe=6AFDFAE6",
+     "resizedImageUrl": "https://scontent-ord5-2.xx.fbcdn.net/v/t39.35426-6/548238382_1078422857612816_722065520694416042_n.jpg?stp=dst-jpg_s600x600_tt6&_nc_cat=111&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=c53f8f&_nc_ohc=jXIRZ7Km2a4Q7kNvwEI_P6b&_nc_oc=AdpfZt3sDG5NsrflSmkDJF5aO27iwEb-HKBb7NR6BLhz4qAB6xEos-zLLHi-b_NlYDI&_nc_zt=14&_nc_ht=scontent-ord5-2.xx&_nc_gid=hQMDdtN98Ozwrz8ArcTlqw&_nc_ss=70289&oh=00_AQQwDPm87QmSYetrevBG-zCXhIJGKx0jMwaBZFr_U1uanw&oe=6AFDF338",
+     "watermarkedResizedImageUrl": ""
+    }
+   ],
+   "pageCategories": [
+    "Jewelry/watches",
+    "Business"
+   ],
+   "pageLikeCount": 138862,
+   "title": null,
+   "videos": [],
+   "isReshared": false,
+   "extraLinks": [],
+   "extraTexts": [],
+   "extraImages": [],
+   "extraVideos": [],
+   "countryIsoCode": null,
+   "brazilTaxId": null,
+   "additionalInfo": null,
+   "ecCertificates": []
+  },
+  "isActive": true,
+  "hasUserReported": false,
+  "reportCount": null,
+  "menuItems": [],
+  "stateMediaRunLabel": null,
+  "pageIsDeleted": false,
+  "pageName": "Tập Đoàn Phú Quý",
+  "impressionsWithIndex": {
+   "impressionsText": null,
+   "impressionsIndex": -1
+  },
+  "gatedType": "ELIGIBLE",
+  "categories": [
+   "UNKNOWN"
+  ],
+  "isAaaEligible": false,
+  "containsDigitalCreatedMedia": false,
+  "reachEstimate": null,
+  "currency": "",
+  "spend": null,
+  "endDate": 1794643200,
+  "publisherPlatform": [
+   "FACEBOOK",
+   "INSTAGRAM",
+   "AUDIENCE_NETWORK",
+   "THREADS"
+  ],
+  "startDate": 1757833200,
+  "containsSensitiveContent": false,
+  "totalActiveTime": null,
+  "regionalRegulationData": {
+   "finserv": {
+    "isDeemedFinserv": false,
+    "isLimitedDelivery": false
+   },
+   "twAntiScam": {
+    "isLimitedDelivery": false
+   }
+  },
+  "hideDataStatus": "NONE",
+  "fevInfo": null,
+  "adId": null,
+  "targetedOrReachedCountries": []
+ },
+ {
+  "inputUrl": "https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=VN&q=trang%20s%E1%BB%A9c%20b%E1%BA%A1c&search_type=keyword_unordered",
+  "pageInfo": {
+   "adLibrarySystemStatus": {
+    "systemStatus": {
+     "status": "NO_KNOWN_ISSUES",
+     "activeIssues": [
+      {
+       "product": "Ad Library",
+       "status": "NO_KNOWN_ISSUES"
+      },
+      {
+       "product": "Ad Library Report",
+       "status": "NO_KNOWN_ISSUES"
+      },
+      {
+       "product": "Ad Library API",
+       "status": "NO_KNOWN_ISSUES"
+      },
+      {
+       "product": "Branded Content",
+       "status": "NO_KNOWN_ISSUES"
+      }
+     ]
+    }
+   },
+   "xfbAdLibraryIsCaptchaRequired": false,
+   "page": null,
+   "adLibraryUser": null
+  },
+  "pageID": "637837956391837",
+  "adArchiveID": "2264456437699097",
+  "startDateFormatted": "2026-04-06T07:00:00.000Z",
+  "endDateFormatted": "2026-11-14T08:00:00.000Z",
+  "adArchiveId": "2264456437699097",
+  "collationCount": 1,
+  "collationId": "1457881579348742",
+  "pageId": "637837956391837",
+  "snapshot": {
+   "brandedContent": null,
+   "pageId": "637837956391837",
+   "pageIsDeleted": false,
+   "pageProfileUri": "https://www.facebook.com/trangsuckimtin.kimtin.vn/",
+   "rootResharedPost": null,
+   "byline": null,
+   "disclaimerLabel": null,
+   "pageName": "TRANG SỨC KIM TÍN",
+   "pageProfilePictureUrl": "https://scontent-ord5-2.xx.fbcdn.net/v/t39.35426-6/667911647_977527931291447_1062512371519758112_n.jpg?stp=dst-jpg_s60x60_tt6&_nc_cat=101&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=c53f8f&_nc_ohc=D3g8pkRgSF8Q7kNvwHgIOXz&_nc_oc=AdokK4r69L-jUeoQ4prhTyWp4TR5rz5SBxkCBA5h_Ura4sPomRqzF4daVE6OQaH0ITg&_nc_zt=14&_nc_ht=scontent-ord5-2.xx&_nc_gid=hQMDdtN98Ozwrz8ArcTlqw&_nc_ss=70289&oh=00_AQRcpDTg_h_bhyvl94HvN6AJDaJ8XKk7zAvRIqHGle_wqA&oe=6AFDFCC9",
+   "event": null,
+   "caption": "facebook.com",
+   "ctaText": "Like Page",
+   "cards": [],
+   "body": {
+    "text": "💛 YÊU TRANG SỨC – ĐỪNG QUÊN LIKE TRANG KIM TÍN 💛\n\n👉 Nhấn LIKE TRANG 👍 ngay hôm nay để:\n✨ Cập nhật nhanh nhất các mẫu trang sức vàng 24K mới\n✨ Theo dõi bộ sưu tập nổi bật theo mùa & dịp đặc biệt\n✨ Không bỏ lỡ chương trình ưu đãi và sự kiện livestream hấp dẫn\n\nMỗi thiết kế tại KIM TÍN là sự chỉn chu trong từng chi tiết – dành cho những ai yêu vẻ đẹp tinh tế và sang trọng.\n\n📲 Like ngay để đồng hành cùng KIM TÍN và khám phá thêm nhiều mẫu trang sức ấn tượng nhé!"
+   },
+   "ctaType": "LIKE_PAGE",
+   "displayFormat": "IMAGE",
+   "linkDescription": null,
+   "linkUrl": "https://www.facebook.com/637837956391837",
+   "images": [
+    {
+     "imageCrops": [],
+     "originalImageUrl": "https://scontent-ord5-1.xx.fbcdn.net/v/t39.35426-6/665986359_1502248141269294_7816887837685172744_n.jpg?_nc_cat=111&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=c53f8f&_nc_ohc=ELLW2BX7mGwQ7kNvwFcdCN_&_nc_oc=AdqVsX4VeKxgCAnV7vXIqudJYQ-BhqvXLW4uci2zWTA-M5gArUxg8eItRrgtcSvpU3s&_nc_zt=14&_nc_ht=scontent-ord5-1.xx&_nc_gid=hQMDdtN98Ozwrz8ArcTlqw&_nc_ss=70289&oh=00_AQQ2EX3l16uLQ3OcNHsqj7FCts-IngBt73QQsnJPrgTVvQ&oe=6AFE0B81",
+     "resizedImageUrl": "https://scontent-ord5-2.xx.fbcdn.net/v/t39.35426-6/662842530_1598702027848553_8372378986161628313_n.jpg?stp=dst-jpg_s600x600_tt6&_nc_cat=104&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=c53f8f&_nc_ohc=kTCd5uA1M3MQ7kNvwEgB2h8&_nc_oc=AdqmlMWjqwbrKm0qXZ4zUqw-GF3lafEMXJRjvtgExgPEkRulrm6Qq7wD0g3K-A_KHC0&_nc_zt=14&_nc_ht=scontent-ord5-2.xx&_nc_gid=hQMDdtN98Ozwrz8ArcTlqw&_nc_ss=70289&oh=00_AQQJk8XthbDP9XFWLtHfPCiljs0b6WTGfxFaHd-ELFH63Q&oe=6AFDF616",
+     "watermarkedResizedImageUrl": ""
+    }
+   ],
+   "pageCategories": [
+    "Jewelry/watches"
+   ],
+   "pageLikeCount": 130768,
+   "title": "TRANG SỨC KIM TÍN",
+   "videos": [],
+   "isReshared": false,
+   "extraLinks": [],
+   "extraTexts": [],
+   "extraImages": [],
+   "extraVideos": [],
+   "countryIsoCode": null,
+   "brazilTaxId": null,
+   "additionalInfo": null,
+   "ecCertificates": []
+  },
+  "isActive": true,
+  "hasUserReported": false,
+  "reportCount": null,
+  "menuItems": [],
+  "stateMediaRunLabel": null,
+  "pageIsDeleted": false,
+  "pageName": "TRANG SỨC KIM TÍN",
+  "impressionsWithIndex": {
+   "impressionsText": null,
+   "impressionsIndex": -1
+  },
+  "gatedType": "ELIGIBLE",
+  "categories": [
+   "UNKNOWN"
+  ],
+  "isAaaEligible": false,
+  "containsDigitalCreatedMedia": false,
+  "reachEstimate": null,
+  "currency": "",
+  "spend": null,
+  "endDate": 1794643200,
+  "publisherPlatform": [
+   "FACEBOOK"
+  ],
+  "startDate": 1775458800,
+  "containsSensitiveContent": false,
+  "totalActiveTime": null,
+  "regionalRegulationData": {
+   "finserv": {
+    "isDeemedFinserv": false,
+    "isLimitedDelivery": false
+   },
+   "twAntiScam": {
+    "isLimitedDelivery": false
+   }
+  },
+  "hideDataStatus": "NONE",
+  "fevInfo": null,
+  "adId": null,
+  "targetedOrReachedCountries": []
+ },
+ {
+  "inputUrl": "https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=VN&q=trang%20s%E1%BB%A9c%20b%E1%BA%A1c&search_type=keyword_unordered",
+  "pageInfo": {
+   "adLibrarySystemStatus": {
+    "systemStatus": {
+     "status": "NO_KNOWN_ISSUES",
+     "activeIssues": [
+      {
+       "product": "Ad Library",
+       "status": "NO_KNOWN_ISSUES"
+      },
+      {
+       "product": "Ad Library Report",
+       "status": "NO_KNOWN_ISSUES"
+      },
+      {
+       "product": "Ad Library API",
+       "status": "NO_KNOWN_ISSUES"
+      },
+      {
+       "product": "Branded Content",
+       "status": "NO_KNOWN_ISSUES"
+      }
+     ]
+    }
+   },
+   "xfbAdLibraryIsCaptchaRequired": false,
+   "page": null,
+   "adLibraryUser": null
+  },
+  "pageID": "142561165607953",
+  "adArchiveID": "488676020606088",
+  "startDateFormatted": "2025-01-23T08:00:00.000Z",
+  "endDateFormatted": "2026-11-14T08:00:00.000Z",
+  "adArchiveId": "488676020606088",
+  "collationCount": 1,
+  "collationId": "1076757994081728",
+  "pageId": "142561165607953",
+  "snapshot": {
+   "brandedContent": null,
+   "pageId": "142561165607953",
+   "pageIsDeleted": false,
+   "pageProfileUri": "https://www.facebook.com/dr.hanh.official/",
+   "rootResharedPost": null,
+   "byline": null,
+   "disclaimerLabel": null,
+   "pageName": "Dr Hạnh",
+   "pageProfilePictureUrl": "https://scontent-ord5-2.xx.fbcdn.net/v/t39.35426-6/465907073_1677726503070586_4634329435481938927_n.jpg?stp=dst-jpg_s60x60_tt6&_nc_cat=110&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=c53f8f&_nc_ohc=q2FDVBeRjeQQ7kNvwFgstfE&_nc_oc=Adpq5hidf3eB8gPXRtIAWOx-R8YkeTOMJSgICrr6PouEJ06K3Z-ZQNI3jkucq3RIjQM&_nc_zt=14&_nc_ht=scontent-ord5-2.xx&_nc_gid=hQMDdtN98Ozwrz8ArcTlqw&_nc_ss=70289&oh=00_AQROBGxiug_9HZk7iUCgaogAPbZAEZE0j0u72QlS9ijTXg&oe=6AFE05AD",
+   "event": null,
+   "caption": null,
+   "ctaText": "Send message",
+   "cards": [],
+   "body": {
+    "text": "Các kênh chính thống của Bác sĩ Hạnh:\n✅Facebook Dr Hạnh: https://www.facebook.com/dr.hanh.official\n✅Facebook Bác sĩ Hạnh Bác Sĩ Hạnh: https://www.facebook.com/bshonghanh\n✅Zalo: 0962868555\n✅Youtube Bác Sĩ Hạnh Official: https://www.youtube.com/@bacsihanh\n✅Phòng Khám 1: https://www.facebook.com/saigondalatclinic\n✅Phòng Khám 2: https://www.facebook.com/pksaigondalat\n✅Tiktok Bác sĩ Hạnh: https://www.tiktok.com/@dr.honghanh\n✅Zalo OA: Bác sĩ Hạnh clinic"
+   },
+   "ctaType": "MESSAGE_PAGE",
+   "displayFormat": "VIDEO",
+   "linkDescription": null,
+   "linkUrl": null,
+   "images": [],
+   "pageCategories": [
+    "Doctor"
+   ],
+   "pageLikeCount": 508004,
+   "title": "Liệu trình & SP từ Bác sĩ Hạnh",
+   "videos": [
+    {
+     "videoHdUrl": "https://video-ord5-2.xx.fbcdn.net/o1/v/t2/f2/m412/AQMrHwU8jSoU8d5DNYTQu4pLFm_nP3BcgWoGKqwsUyhEQllC-wEdCrnuuApeSCbD26cJBkiyQVPNj7exQ6zcPSY.mp4?_nc_cat=106&_nc_sid=ef5aa3&_nc_ht=video-ord5-2.xx.fbcdn.net&_nc_ohc=9s9C4hejo-oQ7kNvwED6Yqs&efg=eyJ2ZW5jb2RlX3RhZyI6Inhwdl9wcm9ncmVzc2l2ZS5WSV9VU0VDQVNFX1BST0RVQ1RfVFlQRS4uQzMuNzIwLmFzaWNfaHEyX2hkX3Byb2dyZXNzaXZlIiwieHB2X2Fzc2V0X2lkIjo3Nzk3MTc3NjQ4NjI1MDIsImFzc2V0X2FnZV9kYXlzIjoyNDAsInZpX3VzZWNhc2VfaWQiOjEwNjgwLCJkdXJhdGlvbl9zIjoxMTUsInVybGdlbl9zb3VyY2UiOiJ3d3cifQ%3D%3D&ccb=17-1&_nc_gid=hQMDdtN98Ozwrz8ArcTlqw&_nc_ss=70289&_nc_map=urlgen_bucketless&_nc_zt=28&oh=00_AQSCLiJpQ8_eeTSXJh2XhQbqVR0468KClYc3Yw4WYrZG4g&oe=6AFDEBD8",
+     "videoPreviewImageUrl": "https://scontent-ord5-1.xx.fbcdn.net/v/t39.35426-6/466117250_1221727939099996_3275937900668250617_n.jpg?_nc_cat=100&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=c53f8f&_nc_ohc=jeDW_yCmcyIQ7kNvwFz3-_L&_nc_oc=AdpPrYag7wi4n81bMpPFGGKOvfC2AeCN09pgaHYC9JXMf0fJxXoVySbr9-YHQPcpoXE&_nc_zt=14&_nc_ht=scontent-ord5-1.xx&_nc_gid=hQMDdtN98Ozwrz8ArcTlqw&_nc_ss=70289&oh=00_AQRXqD5cppRIYqjjvc90IMWdwXzdJgeSL-a6VwXtwuab9A&oe=6AFE18E7",
+     "videoSdUrl": "https://video-ord5-2.xx.fbcdn.net/o1/v/t2/f2/m412/AQMXQUcElEEfUiHMFtc4VK8GP4ur6u17in7DKpaxzDJ3ATnqaeF8DMV6G778dPGyohCLjL0YidmVv9JlRzA0PAzz.mp4?_nc_cat=107&_nc_sid=ef5aa3&_nc_ht=video-ord5-2.xx.fbcdn.net&_nc_ohc=MWTNJF0izYAQ7kNvwH08PtH&efg=eyJ2ZW5jb2RlX3RhZyI6Inhwdl9wcm9ncmVzc2l2ZS5WSV9VU0VDQVNFX1BST0RVQ1RfVFlQRS4uQzMuMzYwLmFzaWNfaHExX3NkX3Byb2dyZXNzaXZlIiwieHB2X2Fzc2V0X2lkIjo3Nzk3MTc3NjQ4NjI1MDIsImFzc2V0X2FnZV9kYXlzIjoyNDAsInZpX3VzZWNhc2VfaWQiOjEwNjgwLCJkdXJhdGlvbl9zIjoxMTUsInVybGdlbl9zb3VyY2UiOiJ3d3cifQ%3D%3D&ccb=17-1&_nc_gid=hQMDdtN98Ozwrz8ArcTlqw&_nc_ss=70289&_nc_map=urlgen_bucketless&_nc_zt=28&oh=00_AQSrwFQMeVljZqQkt-9vlU-gQhtJnnQ31xMpnx71oLTJBQ&oe=6AFE0FB0",
+     "watermarkedVideoHdUrl": "",
+     "watermarkedVideoSdUrl": ""
+    }
+   ],
+   "isReshared": false,
+   "extraLinks": [],
+   "extraTexts": [],
+   "extraImages": [],
+   "extraVideos": [],
+   "countryIsoCode": null,
+   "brazilTaxId": null,
+   "additionalInfo": null,
+   "ecCertificates": []
+  },
+  "isActive": true,
+  "hasUserReported": false,
+  "reportCount": null,
+  "menuItems": [],
+  "stateMediaRunLabel": null,
+  "pageIsDeleted": false,
+  "pageName": "Dr Hạnh",
+  "impressionsWithIndex": {
+   "impressionsText": null,
+   "impressionsIndex": -1
+  },
+  "gatedType": "ELIGIBLE",
+  "categories": [
+   "UNKNOWN"
+  ],
+  "isAaaEligible": false,
+  "containsDigitalCreatedMedia": false,
+  "reachEstimate": null,
+  "currency": "",
+  "spend": null,
+  "endDate": 1794643200,
+  "publisherPlatform": [
+   "FACEBOOK"
+  ],
+  "startDate": 1737619200,
+  "containsSensitiveContent": false,
+  "totalActiveTime": null,
+  "regionalRegulationData": {
+   "finserv": {
+    "isDeemedFinserv": false,
+    "isLimitedDelivery": false
+   },
+   "twAntiScam": {
+    "isLimitedDelivery": false
+   }
+  },
+  "hideDataStatus": "NONE",
+  "fevInfo": null,
+  "adId": null,
+  "targetedOrReachedCountries": []
+ }
+]
