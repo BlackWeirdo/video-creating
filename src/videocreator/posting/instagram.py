@@ -63,7 +63,10 @@ class InstagramReelsPoster:
             container_id = self._create_container(ig_id, token, video_url, caption, post_id=int(post["id"]))
         if self._wait_until_finished(container_id, token) == "PUBLISHED":
             # An earlier attempt published it but its reply was lost: find the post, never publish twice
-            found = find_recent_post(instagram_recent_media(ig_id, token), caption, post.get("scheduled_at"))
+            try:
+                found = find_recent_post(instagram_recent_media(ig_id, token), caption, post.get("scheduled_at"))
+            except Exception:  # the post IS published: whatever fails now, a person confirms it
+                found = None
             if found is None:
                 return unconfirmed_result(container_id)
             return PostResult(

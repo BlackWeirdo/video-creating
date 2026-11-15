@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -116,6 +117,10 @@ async def update_config(
     r2_public_base: str = Form(""),
 ) -> RedirectResponse:
     paths: AppPaths = request.app.state.paths
+    try:
+        ZoneInfo(timezone_name.strip() or "Asia/Ho_Chi_Minh")
+    except (ZoneInfoNotFoundError, ValueError):
+        return RedirectResponse(url="/settings?saved=bad_timezone", status_code=303)
     cfg = load_settings(paths.config_file)
     cfg.role = "client" if role == "client" else "server"
     cfg.host = host.strip() or "127.0.0.1"

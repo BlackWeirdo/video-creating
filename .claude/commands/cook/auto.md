@@ -1,6 +1,7 @@
 ---
 description: ⚡⚡ Implement a feature automatically ("trust me bro")
 argument-hint: [tasks]
+model: sonnet
 ---
 
 **Ultrathink** to plan & start working on these tasks follow the Orchestration Protocol, Core Responsibilities, Subagents Team and Development Rules: 

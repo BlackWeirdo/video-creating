@@ -27,12 +27,15 @@ def _has_active_job(paths: AppPaths, trend_item_id: int) -> bool:
 
 
 def other_analysis_jobs_pending(paths: AppPaths, trend_item_id: int) -> bool:
-    """True while another `analyse_trend` job (not the one for `trend_item_id`) is still to run."""
+    """True while another `analyse_trend` job (not the one for `trend_item_id`) is still to run.
+
+    A job waiting for AI quota does not count: it can wait for hours and must not hold back the
+    suggestions of the rest of the batch (it makes its own when it finally ends)."""
     row = query_one(
         paths.db_file,
         """
         SELECT 1 AS x FROM jobs
-        WHERE kind = ? AND status IN ('queued', 'running', 'waiting_quota')
+        WHERE kind = ? AND status IN ('queued', 'running')
           AND COALESCE(ref_id, -1) != ?
         LIMIT 1
         """,

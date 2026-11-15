@@ -11,6 +11,8 @@
   <div class="alert alert-success" data-toast="success">Đã lưu cấu hình vào <code>config.toml</code>.</div>
 {% elif saved == "secret" %}
   <div class="alert alert-success" data-toast="success">Đã cập nhật kho bí mật (<code>secrets.bin</code>).</div>
+{% elif saved == "bad_timezone" %}
+  <div class="alert alert-danger" data-toast="error">Múi giờ không hợp lệ (ví dụ đúng: <code>Asia/Ho_Chi_Minh</code>). Cấu hình chưa được lưu.</div>
 {% elif saved == "error" %}
   <div class="alert alert-danger" data-toast="error">Dữ liệu nhập không hợp lệ.</div>
 {% endif %}

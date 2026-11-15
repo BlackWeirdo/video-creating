@@ -253,3 +253,26 @@ def test_pasted_link_finishing_last_also_closes_the_scan_batch(tmp_path: Path) -
     assert len(made) == 2
     got = {r["trend_item_id"] for r in query_all(paths.db_file, "SELECT trend_item_id FROM suggestions")}
     assert got == {pasted, scanned}
+
+
+@pytest.mark.local
+def test_imported_footage_jobs_jump_the_trend_batch_and_quota_waiters_do_not_hold_suggestions(tmp_path: Path) -> None:
+    from videocreator.job_store import claim_next_queued_job
+    from videocreator.jobs import enqueue_job
+    from videocreator.trends.analyse_queue import other_analysis_jobs_pending
+
+    _app, paths = _make_app(tmp_path)
+    for i in range(3):
+        enqueue_job(paths.db_file, "analyse_trend", ref_id=300 + i)
+    analyse = enqueue_job(paths.db_file, "analyse", ref_id=1)
+    describe = enqueue_job(paths.db_file, "describe", ref_id=1)
+    assert [int(claim_next_queued_job(paths.db_file)["id"]) for _ in range(2)] == [analyse, describe]
+
+    # A batch job parked for AI quota (can be hours) is not "still to run" for the others
+    _a, paths2 = _make_app(tmp_path / "b")
+    parked = enqueue_job(paths2.db_file, "analyse_trend", ref_id=400)
+    with get_conn(paths2.db_file) as conn:
+        conn.execute("UPDATE jobs SET status = 'waiting_quota' WHERE id = ?", (parked,))
+    assert other_analysis_jobs_pending(paths2, 401) is False
+    enqueue_job(paths2.db_file, "analyse_trend", ref_id=402)
+    assert other_analysis_jobs_pending(paths2, 401) is True

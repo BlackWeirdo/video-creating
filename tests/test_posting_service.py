@@ -369,15 +369,15 @@ def test_in_flight_post_is_recovered_and_finished_not_marked_missed(tmp_path: Pa
         )
         conn.execute(
             "INSERT INTO posts (id, video_id, account_id, status, scheduled_at, remote_container_id) VALUES "
-            "(51, 5, ?, 'publishing', ?, 'reel_777'), (52, 5, ?, 'publishing', ?, NULL)",
+            "(51, 5, ?, 'publishing', ?, 'reel_777#finish_sent'), (52, 5, ?, 'publishing', ?, 'c_unfinished')",
             (acc_fb, sched.strftime("%Y-%m-%dT%H:%M:%SZ"), acc_ig, sched.strftime("%Y-%m-%dT%H:%M:%SZ")),
         )
 
     # App restart: both posts go back to scheduled, the reel id is kept
     recover_interrupted_jobs(paths.db_file)
     rows = {r["id"]: r for r in query_all(paths.db_file, "SELECT id, status, remote_container_id FROM posts")}
-    assert rows[51]["status"] == "scheduled" and rows[51]["remote_container_id"] == "reel_777"
-    assert rows[52]["status"] == "scheduled" and rows[52]["remote_container_id"] is None
+    assert rows[51]["status"] == "scheduled" and rows[51]["remote_container_id"] == "reel_777#finish_sent"
+    assert rows[52]["status"] == "scheduled" and rows[52]["remote_container_id"] == "c_unfinished"
 
     class ResumingPoster:
         """Poster object recording the container id it was asked to finish."""
@@ -391,14 +391,14 @@ def test_in_flight_post_is_recovered_and_finished_not_marked_missed(tmp_path: Pa
 
     fb = ResumingPoster()
     r2_calls: list[Path] = []
-    # 7 hours late (server was off): the started reel is finished, the IG post that never started is missed
+    # 7 hours late (server was off): the reel whose finish was sent is checked, the unfinished IG container is missed
     publish_due_posts(
         paths,
         poster_overrides={"facebook": fb, "instagram": ResumingPoster()},
         r2_uploader=lambda p: (r2_calls.append(p) or ("k", "https://r2.example.com/k")),
         now_dt=sched + timedelta(hours=7),
     )
-    assert fb.resumed == ["reel_777"]
+    assert fb.resumed == ["reel_777#finish_sent"]
     after = {r["id"]: r["status"] for r in query_all(paths.db_file, "SELECT id, status FROM posts")}
     assert after == {51: "posted", 52: "missed"}
     assert r2_calls == []  # Facebook uploads the file itself: no public R2 copy is made for it

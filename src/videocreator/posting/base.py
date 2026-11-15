@@ -20,6 +20,12 @@ class TransientPostError(RuntimeError):
     """Temporary network, 5xx, or rate-limit failure eligible for exponential backoff retry."""
 
 
+class PendingPostError(TransientPostError):
+    """The platform has accepted the post and is still processing it. Waiting is expected, so it
+    is retried on a slower schedule with a bigger allowance than a real failure, and running out
+    ends in "check and confirm" (`needs_user_action`), never in "failed" (it may well be live)."""
+
+
 class PermanentPostError(RuntimeError):
     """Unrecoverable auth (code 190), permission, preflight, or media rejection failure."""
 

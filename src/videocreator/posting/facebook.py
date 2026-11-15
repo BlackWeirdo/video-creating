@@ -15,6 +15,7 @@ from videocreator.db import get_conn
 from videocreator.paths import AppPaths
 from videocreator.posting.base import (
     MetricsFetchError,
+    PendingPostError,
     PermanentPostError,
     PostResult,
     TransientPostError,
@@ -28,10 +29,11 @@ from videocreator.secrets_store import SecretsStore
 
 RUPLOAD_BASE = "https://rupload.facebook.com/video-upload"
 UPLOAD_TIMEOUT_S = 300.0
-# Saved as `<video_id>#finish_sent` just before `finish`, so an early retry waits for Meta's status
-# instead of sending a second finish. After FINISH_RECHECKS failed attempts it is sent again.
+# Saved as `<video_id>#finish_sent` just before `finish`: from then on the reel may be live, so
+# retries only read its status (never send finish again) and the post is never marked missed.
 FINISH_SENT_MARK = "finish_sent"
-FINISH_RECHECKS = 2
+# An upload still "in progress" after this many attempts is treated as cut off and restarted.
+UPLOAD_STALL_ATTEMPTS = 3
 
 ReelStep = Literal["done", "finish", "upload", "restart", "wait"]
 _DONE = ("complete", "completed")
@@ -85,22 +87,29 @@ class FacebookPagePoster:
         video_id, _, marker = str(post.get("remote_container_id") or "").strip().partition("#")
         finish_sent = marker == FINISH_SENT_MARK
         if video_id:
-            step = reel_next_step(self._status(video_id, token))
+            try:
+                step = reel_next_step(self._status(video_id, token))
+            except PermanentPostError:
+                if finish_sent:
+                    raise  # it may be live: never start a second reel
+                step = "restart"  # the unfinished reel object is gone or unreadable
         else:
             video_id, step = self._start(page_id, token, post_id), "upload"
+        if step == "wait" and not finish_sent and int(post.get("attempts") or 0) >= UPLOAD_STALL_ATTEMPTS:
+            step = "restart"  # an upload that never completes (cut connection) cannot be resumed here
         if step == "restart":
             video_id, step, finish_sent = self._start(page_id, token, post_id), "upload", False
         if step == "upload":
             self._upload(video_id, token, video_path)
             step = "finish"
         if step == "finish":
-            if finish_sent and int(post.get("attempts") or 0) < FINISH_RECHECKS:
-                # A finish was sent and its reply lost; Meta may not show it as published yet.
-                raise TransientPostError(f"Facebook reel {video_id}: finish already sent, waiting for Meta to confirm")
+            if finish_sent:
+                # A finish was sent and its reply lost; Meta does not show it as published (yet).
+                raise PendingPostError(f"Facebook reel {video_id}: finish already sent, waiting for Meta to confirm")
             self._save_container(post_id, f"{video_id}#{FINISH_SENT_MARK}")
             self._finish(page_id, token, video_id, caption)
         elif step == "wait":
-            raise TransientPostError(f"Facebook reel {video_id} is still uploading or publishing; will check again")
+            raise PendingPostError(f"Facebook reel {video_id} is still uploading or publishing; will check again")
         return PostResult(status="posted", external_post_id=video_id, permalink=self._permalink(video_id, token))
 
     def _start(self, page_id: str, token: str, post_id: int) -> str:

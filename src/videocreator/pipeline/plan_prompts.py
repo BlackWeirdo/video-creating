@@ -65,6 +65,11 @@ ANALYSIS_LABELS: tuple[tuple[str, str], ...] = (
 )
 
 
+def _plain(value: Any) -> str:
+    """Text of an analysis field without the fence markers, so it cannot close the data block early."""
+    return str(value).replace("<<<", "").replace(">>>", "")
+
+
 def _analysis_block(analysis: dict[str, Any]) -> str:
     """The reference video's analysis as readable lines, fenced as data (`NFR-SEC-03`)."""
     lines = []
@@ -80,7 +85,7 @@ def _analysis_block(analysis: dict[str, Any]) -> str:
             value = "; ".join(beats)
         elif key == "cut_pace_s":
             value = f"khoảng {value} giây mỗi cảnh"
-        lines.append(f"- {label}: {value}")
+        lines.append(f"- {label}: {_plain(value)}")
     if not lines:
         return ""
     return (

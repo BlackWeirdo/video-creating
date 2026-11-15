@@ -78,9 +78,12 @@ class ThreadsPoster:
                 st = self._poll_container_status(client, container_id, token)
                 if st == "PUBLISHED":
                     # An earlier attempt published it but its reply was lost: find it, never publish twice
-                    found = find_recent_post(
-                        threads_recent_posts(client, user_id, token), caption[:500], post.get("scheduled_at")
-                    )
+                    try:
+                        found = find_recent_post(
+                            threads_recent_posts(client, user_id, token), caption[:500], post.get("scheduled_at")
+                        )
+                    except Exception:  # the post IS published: whatever fails now, a person confirms it
+                        found = None
                     if found is None:
                         return unconfirmed_result(container_id)
                     return PostResult(

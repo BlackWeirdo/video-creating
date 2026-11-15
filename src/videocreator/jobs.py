@@ -51,7 +51,8 @@ default_registry = JobRegistry()
 PRIORITY_USER = 10  # someone is waiting for the result
 PRIORITY_PINNED = 5  # a trend video the owner pasted by hand
 PRIORITY_BACKGROUND = 0
-USER_FACING_KINDS = frozenset({"plan", "render", "replan", "studio"})
+# `analyse`/`describe` are footage the owner has just imported, so they also jump the trend batch.
+USER_FACING_KINDS = frozenset({"plan", "render", "replan", "studio", "analyse", "describe"})
 
 
 def enqueue_job(

@@ -191,7 +191,11 @@ def _judge(
     plan = loads_or(row.get("plan_json"), {})
     work_dir = paths.work_dir / f"score_{video_id}"
     try:
-        frames = extract_score_frames(video_file, frame_times(plan, probe_video(video_file).duration_s), work_dir)
+        try:
+            frames = extract_score_frames(video_file, frame_times(plan, probe_video(video_file).duration_s), work_dir)
+        except Exception as exc:
+            logger.warning("Frames of video #%d could not be extracted: %s", video_id, exc)
+            return None, f"{UNJUDGED_PREFIX}: không đọc được khung hình ({str(exc)[:100]})", ""
         if len(frames) < MIN_FRAMES:
             return None, f"{UNJUDGED_PREFIX}: chỉ trích được {len(frames)} khung hình", ""
         vis = provider or get_provider(paths, "vision")

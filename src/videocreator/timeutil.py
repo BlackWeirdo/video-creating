@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, time, timezone
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 UTC_ISO_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 
@@ -16,14 +16,26 @@ def utc_now_iso(now_dt: datetime | None = None) -> str:
     return utc_now(now_dt).strftime(UTC_ISO_FORMAT)
 
 
+DEFAULT_TIMEZONE = "Asia/Ho_Chi_Minh"
+
+
+def zone_or_default(tz_name: str | None) -> ZoneInfo:
+    """`tz_name` as a zone; a mistyped name falls back to the default instead of breaking every
+    AI call and report that needs "today"."""
+    try:
+        return ZoneInfo((tz_name or "").strip())
+    except (ZoneInfoNotFoundError, ValueError):
+        return ZoneInfo(DEFAULT_TIMEZONE)
+
+
 def local_day(tz_name: str, now_dt: datetime | None = None) -> str:
     """Today's date (`YYYY-MM-DD`) in `tz_name`: daily caps and reports roll over at local midnight."""
-    return utc_now(now_dt).astimezone(ZoneInfo(tz_name)).strftime("%Y-%m-%d")
+    return utc_now(now_dt).astimezone(zone_or_default(tz_name)).strftime("%Y-%m-%d")
 
 
 def local_day_start_utc_iso(tz_name: str, now_dt: datetime | None = None) -> str:
     """Local midnight of today in `tz_name`, as a UTC ISO timestamp comparable with stored `*_at` columns."""
-    tz = ZoneInfo(tz_name)
+    tz = zone_or_default(tz_name)
     local_date = utc_now(now_dt).astimezone(tz).date()
     return datetime.combine(local_date, time(0, 0), tzinfo=tz).astimezone(timezone.utc).strftime(UTC_ISO_FORMAT)
 

@@ -143,3 +143,35 @@ def test_router_skips_an_unpriced_api_model_and_uses_the_next_provider(tmp_path:
     assert routed.generate_json("x", Answer).text == "ok"
     assert routed.last_used_provider == "next_provider"
     assert query_all(paths.db_file, "SELECT * FROM ai_usage") == []
+
+
+@pytest.mark.local
+def test_mistyped_timezone_falls_back_instead_of_breaking_every_ai_call(tmp_path: Path) -> None:
+    now = datetime(2026, 11, 15, 18, 30, tzinfo=timezone.utc)
+    assert local_day("Asia/Saigon-typo", now) == "2026-11-16"  # default zone (Vietnam), no exception
+    assert local_day_start_utc_iso("", now) == "2026-11-15T17:00:00Z"
+
+    paths = get_paths(tmp_path)
+    migrate(paths.db_file)
+    settings = Settings()
+    settings.schedule.timezone = "Nowhere/Land"
+    save_settings(paths.config_file, settings)
+    check_budget(paths.db_file, settings, kind="writer", model="claude-opus-5-5")
+    record_usage(paths.db_file, provider="claude_api", model="claude-opus-5-5", kind="writer", cost_usd=0.01)
+    assert query_all(paths.db_file, "SELECT cost_usd FROM ai_usage") == [{"cost_usd": 0.01}]
+
+
+@pytest.mark.local
+def test_settings_form_rejects_an_unknown_timezone(tmp_path: Path) -> None:
+    from fastapi.testclient import TestClient
+
+    from videocreator.app import create_app
+    from videocreator.config import load_settings
+
+    app = create_app(data_dir=tmp_path, start_worker=False)
+    with TestClient(app) as client:
+        bad = client.post("/settings/config", data={"timezone_name": "Asia/Saigon-typo"}, follow_redirects=False)
+        assert bad.headers["location"] == "/settings?saved=bad_timezone"
+        ok = client.post("/settings/config", data={"timezone_name": "Asia/Bangkok"}, follow_redirects=False)
+        assert ok.headers["location"] == "/settings?saved=config"
+    assert load_settings(app.state.paths.config_file).schedule.timezone == "Asia/Bangkok"

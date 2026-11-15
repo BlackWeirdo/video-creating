@@ -6,7 +6,7 @@ from typing import Any
 
 from videocreator.db import get_conn, query_one
 from videocreator.paths import AppPaths
-from videocreator.posting.base import PostResult
+from videocreator.posting.base import PendingPostError, PostResult
 from videocreator.posting.captions import format_platform_caption
 from videocreator.state_posts import recompute_video_status_from_posts, transition_post
 from videocreator.tg.messages import KeyboardRows
@@ -15,6 +15,9 @@ from videocreator.timeutil import UTC_ISO_FORMAT, utc_now
 
 BACKOFF_MINUTES: tuple[int, ...] = (1, 5, 30)
 MAX_POST_ATTEMPTS = 3
+# A platform that accepted the post but is still processing it is checked every 5 minutes for an hour.
+PENDING_RETRY_MINUTES = 5
+MAX_PENDING_ATTEMPTS = 12
 
 
 def _append_error_hint(err_msg: str) -> str:
@@ -86,6 +89,14 @@ def inbox_message_text(video_row: dict[str, Any] | None, post_row: dict[str, Any
     return text
 
 
+def unconfirmed_text(video_id: int, platform: str, account_name: str) -> str:
+    return (
+        f"❓ Video #{video_id} có thể đã đăng lên {platform} ({account_name}) nhưng app chưa xác nhận được. "
+        "Mở trang để kiểm tra; nếu đã có bài thì bấm 'Đã đăng', "
+        "nếu chưa có thì đăng tay rồi bấm 'Đã đăng'."
+    )
+
+
 def notify_published(paths: AppPaths, post_row: dict[str, Any], result: PostResult) -> None:
     post_id = int(post_row["id"])
     video_id = int(post_row["video_id"])
@@ -95,11 +106,7 @@ def notify_published(paths: AppPaths, post_row: dict[str, Any], result: PostResu
             video_row = query_one(paths.db_file, "SELECT * FROM videos WHERE id = ?", (video_id,))
             text = inbox_message_text(video_row, post_row)
         else:
-            text = (
-                f"❓ Video #{video_id} có thể đã đăng lên {platform} ({post_row['account_name']}) ở lần thử trước "
-                "nhưng app không tìm thấy bài. Mở trang để kiểm tra; nếu đã có bài thì bấm 'Đã đăng', "
-                "nếu chưa có thì đăng tay rồi bấm 'Đã đăng'."
-            )
+            text = unconfirmed_text(video_id, platform, str(post_row["account_name"]))
         _send_alert(paths, text, keyboard=[[("✅ Đã đăng", f"posted:{post_id}")]], topic="posted")
         return
     _send_alert(
@@ -122,8 +129,12 @@ def handle_transient_failure(
     video_id = int(post_row["video_id"])
     attempts = int(post_row.get("attempts") or 0) + 1
     err_msg = str(exc)[:500]
-    if attempts < MAX_POST_ATTEMPTS:
-        next_iso = compute_next_attempt_iso(attempts, now_dt=now_utc)
+    pending = isinstance(exc, PendingPostError)
+    if attempts < (MAX_PENDING_ATTEMPTS if pending else MAX_POST_ATTEMPTS):
+        if pending:
+            next_iso = (utc_now(now_utc) + timedelta(minutes=PENDING_RETRY_MINUTES)).strftime(UTC_ISO_FORMAT)
+        else:
+            next_iso = compute_next_attempt_iso(attempts, now_dt=now_utc)
         with get_conn(paths.db_file) as conn:
             conn.execute(
                 """
@@ -139,6 +150,18 @@ def handle_transient_failure(
             recompute_video_status_from_posts(conn, video_id)
         return
     _set_attempts(paths.db_file, post_id, attempts)
+    if pending:
+        # The platform accepted it and never confirmed: it may be live, so a person checks (not "failed")
+        transition_post(
+            paths.db_file, post_id, "needs_user_action", expected_from="publishing", error=f"Chưa xác nhận: {err_msg}"
+        )
+        _send_alert(
+            paths,
+            unconfirmed_text(video_id, str(post_row["platform"]), str(post_row["account_name"])),
+            keyboard=[[("✅ Đã đăng", f"posted:{post_id}")]],
+            topic="posted",
+        )
+        return
     fail_post(paths.db_file, post_id, f"Exhausted {attempts} attempts: {err_msg}")
     _send_alert(
         paths,

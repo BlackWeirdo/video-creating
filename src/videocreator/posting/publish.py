@@ -9,7 +9,7 @@ from videocreator.db import get_conn, query_all, query_one
 from videocreator.paths import AppPaths
 from videocreator.posting.base import Poster, TransientPostError
 from videocreator.posting.captions import format_platform_caption
-from videocreator.posting.facebook import FacebookPagePoster
+from videocreator.posting.facebook import FINISH_SENT_MARK, FacebookPagePoster
 from videocreator.posting.instagram import InstagramReelsPoster
 from videocreator.posting.oauth_refresh import refresh_token_if_needed
 from videocreator.posting.publish_outcomes import (
@@ -106,9 +106,10 @@ def _publish_one_post(
     video_id = int(post_row["video_id"])
     platform = str(post_row["platform"])
 
-    # A post with a platform container/reel id already started publishing on time; it is finished,
-    # never marked missed (otherwise it could be published while the app thinks it was not).
-    if _is_overdue(post_row, now_utc) and not str(post_row.get("remote_container_id") or "").strip():
+    # A reel whose finish was already sent may be live, so it is checked and finished, never marked
+    # missed. Everything else that is overdue is missed (FR-PST-09); a retry then reuses its container.
+    finish_sent = str(post_row.get("remote_container_id") or "").endswith(f"#{FINISH_SENT_MARK}")
+    if _is_overdue(post_row, now_utc) and not finish_sent:
         return mark_missed(paths, post_row)
 
     # Atomically claim the post by transitioning scheduled -> publishing

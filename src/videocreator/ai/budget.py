@@ -101,7 +101,7 @@ def check_budget(
     $0 and never count against the cap (`BR-COST-02`)."""
     if model is not None and model not in settings.prices:
         raise UnpricedModelError(unpriced_model_message(model))
-    target_day = day or budget_day(db_file)
+    target_day = day or local_day(settings.schedule.timezone)
     if kind == "videogen":
         bucket = "generative"
         limit_usd = float(settings.budget.generative_daily_usd)
