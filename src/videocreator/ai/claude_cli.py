@@ -10,22 +10,26 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from videocreator.ai.base import (
-    AIError,
-    ProviderAuthError,
-    ProviderQuotaExhausted,
-    RouteKind,
-    SchemaValidationError,
-    T,
-)
+from videocreator.ai.base import AIError, ProviderAuthError, RouteKind, SchemaValidationError, T
 from videocreator.ai.budget import record_usage
-from videocreator.ai.cli_base import (
-    classify_cli_error,
-    find_claude_binary,
-    pydantic_to_strict_json_schema,
-)
+from videocreator.ai.cli_base import classify_cli_error, find_claude_binary, pydantic_to_strict_json_schema
 from videocreator.pipeline.probe import probe_video
 from videocreator.pipeline.thumbs import extract_thumbnail
+
+
+def _stage_thumbnails(video: Path, thumbnails: list[Path] | None, workdir: Path) -> list[str]:
+    """Copies the shot thumbnails into `workdir` as `shot_NNN.jpg`; without any, extracts the video's middle frame."""
+    staged_names: list[str] = []
+    for idx, thumb in enumerate(thumbnails or [], start=1):
+        if thumb.exists():
+            dest_name = f"shot_{idx:03d}.jpg"
+            shutil.copy2(thumb, workdir / dest_name)
+            staged_names.append(dest_name)
+    if staged_names or not video.exists():
+        return staged_names
+    info = probe_video(video)
+    extract_thumbnail(video, max(0.0, info.duration_s / 2.0), workdir / "shot_001.jpg")
+    return ["shot_001.jpg"]
 
 
 class ClaudeCLIProvider:
@@ -157,19 +161,7 @@ class ClaudeCLIProvider:
     ) -> T:
         workdir = Path(tempfile.mkdtemp(prefix="vc-claude-vis-"))
         try:
-            staged_names: list[str] = []
-            if thumbnails:
-                for idx, thumb in enumerate(thumbnails, start=1):
-                    if thumb.exists():
-                        dest_name = f"shot_{idx:03d}.jpg"
-                        shutil.copy2(thumb, workdir / dest_name)
-                        staged_names.append(dest_name)
-            if not staged_names and video.exists():
-                info = probe_video(video)
-                mid_s = max(0.0, info.duration_s / 2.0)
-                dest_name = "shot_001.jpg"
-                extract_thumbnail(video, mid_s, workdir / dest_name)
-                staged_names.append(dest_name)
+            staged_names = _stage_thumbnails(video, thumbnails, workdir)
 
             file_list_str = ", ".join(staged_names)
             augmented_prompt = (

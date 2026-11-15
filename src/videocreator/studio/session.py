@@ -1,13 +1,12 @@
 """Studio session state management, version history, and single-active-session guard (Phase 17, FR-STD-08, FR-STD-13)."""
 from __future__ import annotations
-
 import json
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from videocreator.db import get_conn, query_all, query_one, record_audit
 from videocreator.jobs import enqueue_job
+from videocreator.jsonutil import loads_or
 from videocreator.paths import AppPaths
 
 STUDIO_JOB_KIND = "studio"
@@ -154,64 +153,10 @@ def create_studio_session(
     return session_id
 
 
-def append_studio_version(
-    db_file: Path,
-    session_id: int,
-    *,
-    prompt: str,
-    output_path: str | None,
-    cost_usd: float = 0.0,
-    session_ref: str | None = None,
-    status: str = "done",
-) -> dict[str, Any]:
-    """Appends a new version entry into `studio_sessions.versions_json` (`FR-STD-08`)."""
-    row = query_one(db_file, "SELECT * FROM studio_sessions WHERE id = ?", (session_id,))
-    if row is None:
-        raise LookupError(f"Studio session #{session_id} not found")
-
-    try:
-        versions = json.loads(str(row.get("versions_json") or "[]"))
-    except Exception:
-        versions = []
-
-    ver_entry = {
-        "version": len(versions) + 1,
-        "at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "prompt": prompt,
-        "output_path": output_path,
-        "cost_usd": round(float(cost_usd), 4),
-    }
-    versions.append(ver_entry)
-    total_cost = round(float(row.get("cost_usd") or 0.0) + float(cost_usd), 4)
-
-    with get_conn(db_file) as conn:
-        conn.execute(
-            """
-            UPDATE studio_sessions
-            SET status = ?,
-                cost_usd = ?,
-                session_ref = COALESCE(?, session_ref),
-                versions_json = ?
-            WHERE id = ?
-            """,
-            (
-                status,
-                total_cost,
-                session_ref,
-                json.dumps(versions, ensure_ascii=False),
-                session_id,
-            ),
-        )
-    return ver_entry
-
-
 def list_studio_sessions(db_file: Path) -> list[dict[str, Any]]:
     rows = query_all(db_file, "SELECT * FROM studio_sessions ORDER BY id DESC LIMIT 30")
     out: list[dict[str, Any]] = []
     for r in rows:
-        try:
-            vers = json.loads(str(r.get("versions_json") or "[]"))
-        except Exception:
-            vers = []
+        vers = loads_or(r.get("versions_json"), [])
         out.append({**r, "versions": vers})
     return out

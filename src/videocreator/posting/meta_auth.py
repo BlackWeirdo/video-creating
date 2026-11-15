@@ -1,7 +1,5 @@
 """Meta Graph API error classification, token inspection, and Page/IG discovery (Phase 07)."""
 from __future__ import annotations
-
-from datetime import datetime, timezone
 from typing import Any
 
 import httpx
@@ -86,9 +84,3 @@ def list_pages_and_instagram(user_or_system_token: str) -> list[dict[str, Any]]:
                 }
             )
     return discovered
-
-
-def parse_expires_at(expires_ts: int | None) -> str | None:
-    if not expires_ts or expires_ts <= 0:
-        return None
-    return datetime.fromtimestamp(int(expires_ts), tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")

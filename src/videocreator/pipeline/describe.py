@@ -119,7 +119,7 @@ def run_describe_footage(
         )
 
     try:
-        from videocreator.telegram_bot import notify_new_footage
+        from videocreator.tg.notify import notify_new_footage
 
         notify_new_footage(
             paths,

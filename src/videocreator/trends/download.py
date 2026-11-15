@@ -1,17 +1,17 @@
 """Reference video downloader (`yt-dlp` subprocess, top-N/day limit, 7-day auto-cleanup, `BR-REF-01..03`, Phase 13)."""
 from __future__ import annotations
-
 import logging
 import shutil
 import subprocess
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Callable
 
 from videocreator.config import load_settings
 from videocreator.db import get_conn, query_all, query_one
 from videocreator.paths import AppPaths, find_ffmpeg_binary
+from videocreator.timeutil import UTC_ISO_FORMAT, utc_now
 
 logger = logging.getLogger("videocreator.trends.download")
 
@@ -69,7 +69,7 @@ def _default_yt_dlp_download(url: str, dest_path: Path) -> bool:
 def count_today_reference_downloads(
     db_file: Path, now_dt: datetime | None = None
 ) -> int:
-    base_utc = (now_dt or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    base_utc = utc_now(now_dt)
     day_prefix = base_utc.strftime("%Y-%m-%d")
     row = query_one(
         db_file,
@@ -111,7 +111,7 @@ def fetch_reference_video(
             return p
 
     cfg = load_settings(paths.config_file)
-    base_utc = (now_dt or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    base_utc = utc_now(now_dt)
     if not ignore_daily_cap and count_today_reference_downloads(paths.db_file, now_dt=base_utc) >= max(1, cfg.trends.download_top_n):
         logger.info("Reached daily reference video download cap (%d/day)", cfg.trends.download_top_n)
         return None
@@ -125,7 +125,7 @@ def fetch_reference_video(
     if not ok or not dest_file.exists():
         return None
 
-    dl_iso = base_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+    dl_iso = base_utc.strftime(UTC_ISO_FORMAT)
     with get_conn(paths.db_file) as conn:
         conn.execute(
             """
@@ -148,9 +148,9 @@ def cleanup_expired_reference_videos(
     """Deletes reference `.mp4` files older than `trends.reference_keep_days` (default 7 days), while keeping `rea_dir` (`BR-REF-02`)."""
     cfg = load_settings(paths.config_file)
     keep_days = max(1, int(cfg.trends.reference_keep_days))
-    base_utc = (now_dt or datetime.now(timezone.utc)).astimezone(timezone.utc)
-    cutoff_iso = (base_utc - timedelta(days=keep_days)).strftime("%Y-%m-%dT%H:%M:%SZ")
-    now_iso = base_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+    base_utc = utc_now(now_dt)
+    cutoff_iso = (base_utc - timedelta(days=keep_days)).strftime(UTC_ISO_FORMAT)
+    now_iso = base_utc.strftime(UTC_ISO_FORMAT)
 
     rows = query_all(
         paths.db_file,

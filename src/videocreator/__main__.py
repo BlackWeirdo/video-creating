@@ -10,6 +10,7 @@ import time
 import urllib.request
 import webbrowser
 from pathlib import Path
+from typing import Any
 
 import uvicorn
 
@@ -112,6 +113,50 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def _show_window_or_browser(base_url: str, server_thread: threading.Thread) -> None:
+    """Opens the pywebview window; without it, the default browser, then waits for the server thread."""
+    try:
+        import webview
+
+        webview.create_window(
+            "Video Creator",
+            base_url,
+            width=1280,
+            height=840,
+            min_size=(960, 640),
+        )
+        webview.start()
+    except Exception as exc:
+        print(
+            f"Warning: Could not open pywebview window ({exc}). Falling back to default browser.",
+            file=sys.stderr,
+        )
+        webbrowser.open(base_url)
+        try:
+            while server_thread.is_alive():
+                time.sleep(0.5)
+        except KeyboardInterrupt:
+            pass
+
+
+def _run_desktop_window(app: Any, host: str, port: int, base_url: str) -> int:
+    """Runs the server on a background thread and the desktop window in the foreground."""
+    server_cfg = uvicorn.Config(app, host=host, port=port, log_level="warning")
+    server = uvicorn.Server(server_cfg)
+    thread = threading.Thread(target=server.run, daemon=True, name="uvicorn-thread")
+    thread.start()
+
+    if not wait_for_health(f"{base_url}/health"):
+        print("Error: Local server failed to start within timeout.", file=sys.stderr)
+        return 1
+    try:
+        _show_window_or_browser(base_url, thread)
+    finally:
+        server.should_exit = True
+        thread.join(timeout=5.0)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     paths = get_paths(args.data_dir)
@@ -139,46 +184,12 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     try:
-        app = create_app(paths.data_dir)
+        app = create_app(paths.data_dir, bind_host=host)
         if args.headless:
             uvicorn.run(app, host=host, port=port, log_level="info")
             return 0
 
-        server_cfg = uvicorn.Config(app, host=host, port=port, log_level="warning")
-        server = uvicorn.Server(server_cfg)
-        thread = threading.Thread(target=server.run, daemon=True, name="uvicorn-thread")
-        thread.start()
-
-        if not wait_for_health(f"{base_url}/health"):
-            print("Error: Local server failed to start within timeout.", file=sys.stderr)
-            return 1
-
-        try:
-            import webview
-
-            webview.create_window(
-                "Video Creator",
-                base_url,
-                width=1280,
-                height=840,
-                min_size=(960, 640),
-            )
-            webview.start()
-        except Exception as exc:
-            print(
-                f"Warning: Could not open pywebview window ({exc}). Falling back to default browser.",
-                file=sys.stderr,
-            )
-            webbrowser.open(base_url)
-            try:
-                while thread.is_alive():
-                    time.sleep(0.5)
-            except KeyboardInterrupt:
-                pass
-        finally:
-            server.should_exit = True
-            thread.join(timeout=5.0)
-        return 0
+        return _run_desktop_window(app, host, port, base_url)
     finally:
         lock.release()
 

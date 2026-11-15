@@ -1,6 +1,5 @@
 """Instagram Hashtag Search trend source with 30-hashtags/7-days rolling quota guard (Phase 12)."""
 from __future__ import annotations
-
 import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -12,6 +11,7 @@ from videocreator.db import get_conn, query_one
 from videocreator.paths import AppPaths
 from videocreator.posting.meta_auth import GRAPH_BASE_URL
 from videocreator.secrets_store import SecretsStore
+from videocreator.timeutil import UTC_ISO_FORMAT, utc_now
 from videocreator.trends.base import TrendItem, WatchItem
 
 MAX_HASHTAGS_PER_7_DAYS = 30
@@ -21,7 +21,7 @@ def check_and_record_hashtag_quota(
     db_file: Path, hashtag: str, now_dt: datetime | None = None
 ) -> tuple[bool, int]:
     """Tracks unique hashtag queries in a rolling 7-day window (max 30 unique hashtags / 7 days)."""
-    base_utc = (now_dt or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    base_utc = utc_now(now_dt)
     cutoff = base_utc - timedelta(days=7)
     clean_tag = hashtag.strip().lstrip("#").lower()
 
@@ -47,7 +47,7 @@ def check_and_record_hashtag_quota(
         return False, len(active)
 
     if clean_tag not in active:
-        active[clean_tag] = base_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+        active[clean_tag] = base_utc.strftime(UTC_ISO_FORMAT)
         with get_conn(db_file) as conn:
             conn.execute(
                 """

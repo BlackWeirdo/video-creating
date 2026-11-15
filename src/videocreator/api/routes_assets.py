@@ -1,6 +1,5 @@
 """Audio asset management routes (music and SFX, Phase 05, FR-RND-03)."""
 from __future__ import annotations
-
 import hashlib
 import json
 import shutil
@@ -10,12 +9,13 @@ from typing import Any, Literal
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 
 from videocreator import __version__
 from videocreator.config import load_settings
 from videocreator.db import get_conn, query_all, query_one, record_audit
+from videocreator.jsonutil import loads_or
 from videocreator.paths import AppPaths, find_ffmpeg_binary
+from videocreator.templating import get_templates
 
 router = APIRouter()
 
@@ -101,7 +101,7 @@ async def assets_page(
 ) -> HTMLResponse:
     paths: AppPaths = request.app.state.paths
     cfg = load_settings(paths.config_file)
-    templates = Jinja2Templates(directory=str(paths.templates_dir))
+    templates = get_templates(paths)
 
     raw = query_all(
         paths.db_file,
@@ -109,10 +109,7 @@ async def assets_page(
     )
     assets: list[dict[str, Any]] = []
     for r in raw:
-        try:
-            meta = json.loads(r.get("meta_json") or "{}")
-        except Exception:
-            meta = {}
+        meta = loads_or(r.get("meta_json"), {})
         assets.append({**r, "title": meta.get("title") or r["path"]})
 
     return templates.TemplateResponse(

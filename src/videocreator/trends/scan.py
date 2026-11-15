@@ -1,16 +1,17 @@
 """Trend scanning service: iterates watch_items, fetches from adapters, scores, and upserts (Phase 12)."""
 from __future__ import annotations
-
 import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from videocreator.db import get_conn, query_all, query_one
+from videocreator.db import get_conn, query_all
 from videocreator.paths import AppPaths
 from videocreator.secrets_store import SecretsStore
+from videocreator.timeutil import UTC_ISO_FORMAT, utc_now
 from videocreator.trends.ad_library import MetaAdLibrarySource
+from videocreator.trends.apify import APIFY_SOURCE_CLASSES, APIFY_TOKEN_KEY
 from videocreator.trends.base import TrendItem, TrendSource, WatchItem
 from videocreator.trends.facebook import FacebookSource
 from videocreator.trends.ig_discovery import IGBusinessDiscoverySource
@@ -25,13 +26,19 @@ def build_trend_sources(
     paths: AppPaths, secrets_store: SecretsStore | None = None
 ) -> dict[str, TrendSource]:
     sec = secrets_store or SecretsStore(paths.secrets_file)
-    return {
+    sources: dict[str, TrendSource] = {
         "youtube": YouTubeTrendSource(paths, sec),
         "ig_discovery": IGBusinessDiscoverySource(paths, sec),
         "ad_library": MetaAdLibrarySource(paths, sec),
         "ig_hashtag": IGHashtagSource(paths, sec),
         "facebook": FacebookSource(paths, sec),
     }
+    # With an Apify token, the same source names are served by Apify scrapers (owner decision
+    # 2026-11-14); TikTok exists only there. Without it, the official adapters above stay.
+    if sec.has(APIFY_TOKEN_KEY):
+        for cls in APIFY_SOURCE_CLASSES:
+            sources[cls.name] = cls(paths, sec)
+    return sources
 
 
 def upsert_trend_item(
@@ -41,15 +48,15 @@ def upsert_trend_item(
     now_dt: datetime | None = None,
 ) -> int:
     """Computes `score` for `item` and upserts into `trend_items` (`UNIQUE(source, external_id)`)."""
-    base_utc = (now_dt or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    base_utc = utc_now(now_dt)
     pub_utc = (
         item.published_at.astimezone(timezone.utc)
         if item.published_at.tzinfo is not None
         else item.published_at.replace(tzinfo=timezone.utc)
     )
     score = score_trend_item(item, now_dt=base_utc)
-    pub_iso = pub_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
-    fetched_iso = base_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+    pub_iso = pub_utc.strftime(UTC_ISO_FORMAT)
+    fetched_iso = base_utc.strftime(UTC_ISO_FORMAT)
     metrics_str = json.dumps(item.metrics or {}, ensure_ascii=False)
 
     with get_conn(db_file) as conn:
@@ -85,6 +92,23 @@ def upsert_trend_item(
             (item.source, item.external_id),
         ).fetchone()
         return int(row["id"]) if row else 0
+
+
+def _store_fetched_items(paths: AppPaths, items: list[TrendItem], now_dt: datetime | None) -> int:
+    """Upserts fetched items; an Ad Library item that scores zero is not kept. Returns how many were stored."""
+    stored = 0
+    for item in items:
+        if item.source == "ad_library" and score_trend_item(item, now_dt=now_dt) <= 0.0:
+            continue
+        upsert_trend_item(paths.db_file, item, now_dt=now_dt)
+        stored += 1
+    return stored
+
+
+def _is_rate_limit_error(error_text: str) -> bool:
+    """Rate limits (429 / 613) or quota exhaustion stop that source for the rest of the scan."""
+    lower = error_text.lower()
+    return "429" in error_text or "613" in error_text or "quota" in lower or "giới hạn" in lower
 
 
 def scan_all(
@@ -129,18 +153,12 @@ def scan_all(
             enabled=bool(wr["enabled"]),
         )
         try:
-            items = adapter.fetch(watch)
-            for it in items:
-                if it.source == "ad_library" and score_trend_item(it, now_dt=now_dt) <= 0.0:
-                    continue
-                upsert_trend_item(paths.db_file, it, now_dt=now_dt)
-                upserted_count += 1
+            upserted_count += _store_fetched_items(paths, adapter.fetch(watch), now_dt)
         except Exception as exc:
             err_str = str(exc)
             logger.warning("Trend scan error on %s (%s): %s", src_name, watch.value, err_str)
             errors_by_source[src_name] = err_str
-            # Rate limits (429 / 613) or quota exhaustion stop that source for the rest of the scan
-            if "429" in err_str or "613" in err_str or "quota" in err_str.lower() or "giới hạn" in err_str.lower():
+            if _is_rate_limit_error(err_str):
                 stopped_sources.add(src_name)
 
     return {

@@ -5,6 +5,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
+from videocreator.config import Settings, load_settings
+from videocreator.pipeline.preflight import check_platform
+
 
 @dataclass(frozen=True)
 class PostResult:
@@ -43,4 +46,30 @@ class MetricsReader(Protocol):
         self, account: dict[str, Any], external_post_id: str
     ) -> dict[str, int | None]:
         ...
+
+
+def empty_metrics() -> dict[str, int | None]:
+    """Metrics of a post that could not be read."""
+    return {"views": None, "likes": None, "comments": None, "shares": None}
+
+
+def check_preflight_or_raise(config_file: Path, video_path: Path, platform: str) -> Settings:
+    """Raises `PermanentPostError` when the video breaks the platform's format limits; returns the settings."""
+    settings = load_settings(config_file)
+    limit = settings.platform_limits.get(platform)
+    if limit is not None:
+        errors = check_platform(video_path, platform, limit)
+        if errors:
+            raise PermanentPostError("; ".join(errors))
+    return settings
+
+
+def insight_values(items: list[dict[str, Any]]) -> dict[str, int]:
+    """`{metric_name: value}` from a Graph API insights `data` list (first integer value of each metric)."""
+    by_name: dict[str, int] = {}
+    for item in items:
+        values = item.get("values") or []
+        if values and isinstance(values[0].get("value"), int):
+            by_name[str(item.get("name") or "")] = int(values[0]["value"])
+    return by_name
 

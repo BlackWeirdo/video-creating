@@ -1,22 +1,20 @@
 """Routes for the Manual Subscription Workstation (`/manual`) (Phase 14 & 18)."""
 from __future__ import annotations
 
+import asyncio
 import shutil
 from pathlib import Path
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 
 from videocreator import __version__
 from videocreator.config import load_settings
 from videocreator.db import get_conn, query_all
-from videocreator.manual.tickets import (
-    create_manual_ticket,
-    fulfill_manual_ticket,
-    scan_inbox_for_tickets,
-)
+from videocreator.manual.fulfill import fulfill_manual_ticket
+from videocreator.manual.tickets import create_manual_ticket, scan_inbox_for_tickets
 from videocreator.paths import AppPaths
+from videocreator.templating import get_templates
 
 router = APIRouter()
 
@@ -28,7 +26,7 @@ async def manual_page(
 ) -> HTMLResponse:
     paths: AppPaths = request.app.state.paths
     cfg = load_settings(paths.config_file)
-    templates = Jinja2Templates(directory=str(paths.templates_dir))
+    templates = get_templates(paths)
     scan_inbox_for_tickets(paths)
     tickets = query_all(
         paths.db_file,
@@ -69,9 +67,9 @@ async def upload_ticket_video_route(
     tmp_file = paths.work_dir / f"manual_upload_{ticket_id}{suffix}"
     tmp_file.parent.mkdir(parents=True, exist_ok=True)
     with tmp_file.open("wb") as out:
-        shutil.copyfileobj(file.file, out)
+        await asyncio.to_thread(shutil.copyfileobj, file.file, out)
     try:
-        _aid, sid = fulfill_manual_ticket(paths, ticket_id, tmp_file, actor="ui")
+        _aid, sid = await asyncio.to_thread(fulfill_manual_ticket, paths, ticket_id, tmp_file, actor="ui")
     except Exception as exc:
         tmp_file.unlink(missing_ok=True)
         raise HTTPException(status_code=400, detail=str(exc)) from exc

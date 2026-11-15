@@ -63,62 +63,56 @@ class MetaAdLibrarySource:
             resp.raise_for_status()
             ads = (resp.json() or {}).get("data") or []
             now_utc = datetime.now(timezone.utc)
-            results: list[TrendItem] = []
-
-            for ad in ads:
-                ad_id = str(ad.get("id") or "")
-                start_str = str(ad.get("ad_delivery_start_time") or "")
-                stop_str = str(ad.get("ad_delivery_stop_time") or "")
-                if not ad_id or not start_str:
-                    continue
-                try:
-                    start_dt = datetime.fromisoformat(start_str.replace("Z", "+00:00"))
-                    if start_dt.tzinfo is None:
-                        start_dt = start_dt.replace(tzinfo=timezone.utc)
-                except Exception:
-                    continue
-
-                if stop_str:
-                    try:
-                        end_dt = datetime.fromisoformat(stop_str.replace("Z", "+00:00"))
-                        if end_dt.tzinfo is None:
-                            end_dt = end_dt.replace(tzinfo=timezone.utc)
-                        is_active = False
-                    except Exception:
-                        end_dt = now_utc
-                        is_active = True
-                else:
-                    end_dt = now_utc
-                    is_active = True
-
-                days_running = max(0.0, (end_dt - start_dt).total_seconds() / 86400.0)
-                if days_running < 30.0:
-                    continue
-
-                bodies = ad.get("ad_creative_bodies") or []
-                caption = "\n".join(str(b) for b in bodies)[:1000]
-                snap_url = str(
-                    ad.get("ad_snapshot_url")
-                    or f"https://www.facebook.com/ads/library/?id={ad_id}"
-                )
-                eu_reach = int(ad.get("eu_total_reach") or 1)
-                results.append(
-                    TrendItem(
-                        source="ad_library",
-                        external_id=ad_id,
-                        url=snap_url,
-                        author=str(ad.get("page_name") or ""),
-                        caption=caption,
-                        published_at=start_dt,
-                        metrics={
-                            "days_running": round(days_running, 1),
-                            "is_active": is_active,
-                            "eu_reach": eu_reach,
-                        },
-                        video_url=snap_url,
-                    )
-                )
-            return results
+            items = (_ad_to_trend_item(ad, now_utc) for ad in ads)
+            return [item for item in items if item is not None]
         finally:
             if own_client:
                 client.close()
+
+
+MIN_DAYS_RUNNING = 30.0
+
+
+def _parse_utc(raw: str) -> datetime | None:
+    try:
+        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except Exception:
+        return None
+    return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt
+
+
+def _ad_to_trend_item(ad: dict[str, Any], now_utc: datetime) -> TrendItem | None:
+    """A video ad that ran for at least 30 days; None for anything else."""
+    ad_id = str(ad.get("id") or "")
+    start_str = str(ad.get("ad_delivery_start_time") or "")
+    if not ad_id or not start_str:
+        return None
+    start_dt = _parse_utc(start_str)
+    if start_dt is None:
+        return None
+
+    stop_str = str(ad.get("ad_delivery_stop_time") or "")
+    stop_dt = _parse_utc(stop_str) if stop_str else None
+    is_active = stop_dt is None
+    end_dt = stop_dt or now_utc
+
+    days_running = max(0.0, (end_dt - start_dt).total_seconds() / 86400.0)
+    if days_running < MIN_DAYS_RUNNING:
+        return None
+
+    bodies = ad.get("ad_creative_bodies") or []
+    snap_url = str(ad.get("ad_snapshot_url") or f"https://www.facebook.com/ads/library/?id={ad_id}")
+    return TrendItem(
+        source="ad_library",
+        external_id=ad_id,
+        url=snap_url,
+        author=str(ad.get("page_name") or ""),
+        caption="\n".join(str(b) for b in bodies)[:1000],
+        published_at=start_dt,
+        metrics={
+            "days_running": round(days_running, 1),
+            "is_active": is_active,
+            "eu_reach": int(ad.get("eu_total_reach") or 1),
+        },
+        video_url=snap_url,
+    )

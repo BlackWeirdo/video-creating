@@ -1,1 +1,1 @@
-"""Telegram Control Center package (`tg/messages.py`, `tg/callbacks.py`, `tg/handlers.py`, `tg/progress.py`, Phase 16)."""
+"""Telegram Control Center package: bot service, commands, button callbacks, messages and notifications (Phase 16)."""

@@ -18,17 +18,25 @@ LOCALHOST_HOSTS: frozenset[str] = frozenset({"127.0.0.1", "localhost", "::1"})
 class NonLocalhostBasicAuthMiddleware(BaseHTTPMiddleware):
     """Requires HTTP Basic Auth (`UI_PASSWORD`) whenever `settings.host` is non-localhost."""
 
-    def __init__(self, app, config_file: Path, secrets_store: SecretsStore) -> None:  # type: ignore[no-untyped-def]
+    def __init__(  # type: ignore[no-untyped-def]
+        self,
+        app,
+        config_file: Path,
+        secrets_store: SecretsStore,
+        bind_host: str | None = None,
+    ) -> None:
         super().__init__(app)
         self.config_file = config_file
         self.secrets_store = secrets_store
+        self.bind_host = bind_host
 
     async def dispatch(self, request: Request, call_next) -> Response:  # type: ignore[no-untyped-def]
         if request.url.path == "/health":
             return await call_next(request)
 
-        cfg = load_settings(self.config_file)
-        if cfg.host.strip().lower() in LOCALHOST_HOSTS:
+        # The actual bind host (e.g. from --host) wins over config.toml.
+        host = self.bind_host or load_settings(self.config_file).host
+        if host.strip().lower() in LOCALHOST_HOSTS:
             return await call_next(request)
 
         expected_pw = self.secrets_store.get("UI_PASSWORD")

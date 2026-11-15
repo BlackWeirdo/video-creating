@@ -1,7 +1,6 @@
 """Safe FFmpeg subprocess runner and product-accuracy filter whitelist (Phase 05)."""
 from __future__ import annotations
 
-from dataclasses import dataclass
 import re
 import subprocess
 from pathlib import Path
@@ -120,6 +119,5 @@ def run_ffmpeg(
     return (proc.stderr or "").strip()[-1000:]
 
 
-from videocreator.pipeline.probe import VideoProbeInfo, probe_video  # noqa: E402, F401
 
 

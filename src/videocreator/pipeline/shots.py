@@ -35,6 +35,24 @@ class ShotSpan:
         return round((self.start_s + self.end_s) / 2.0, 3)
 
 
+def _split_long_span(span: ShotSpan, target_split_s: float, min_duration_s: float) -> list[ShotSpan]:
+    """Splits a span into equal parts of about `target_split_s`; the last part ends exactly at the span end."""
+    dur = span.end_s - span.start_s
+    num_parts = max(2, math.ceil(dur / target_split_s))
+    step = dur / num_parts
+    parts: list[ShotSpan] = []
+    for i in range(num_parts):
+        seg_start = round(span.start_s + i * step, 3)
+        seg_end = (
+            round(span.end_s, 3)
+            if i == num_parts - 1
+            else round(span.start_s + (i + 1) * step, 3)
+        )
+        if seg_end - seg_start >= min_duration_s:
+            parts.append(ShotSpan(start_s=seg_start, end_s=seg_end))
+    return parts
+
+
 def postprocess_shot_spans(
     raw_spans: list[ShotSpan],
     total_duration_s: float,
@@ -72,19 +90,8 @@ def postprocess_shot_spans(
 
     result: list[ShotSpan] = []
     for span in non_overlapping:
-        dur = span.end_s - span.start_s
-        if dur > max_duration_s:
-            num_parts = max(2, math.ceil(dur / target_split_s))
-            step = dur / num_parts
-            for i in range(num_parts):
-                seg_start = round(span.start_s + i * step, 3)
-                seg_end = (
-                    round(span.end_s, 3)
-                    if i == num_parts - 1
-                    else round(span.start_s + (i + 1) * step, 3)
-                )
-                if seg_end - seg_start >= min_duration_s:
-                    result.append(ShotSpan(start_s=seg_start, end_s=seg_end))
+        if span.end_s - span.start_s > max_duration_s:
+            result.extend(_split_long_span(span, target_split_s, min_duration_s))
         else:
             result.append(span)
 

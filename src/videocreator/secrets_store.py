@@ -1,102 +1,15 @@
 """Encrypted secrets store using Windows DPAPI (CryptProtectData) or chmod 600 on Linux."""
 from __future__ import annotations
 
-import ctypes
-import ctypes.wintypes
 import json
 import os
 import threading
 from pathlib import Path
 
-CRYPTPROTECT_UI_FORBIDDEN = 0x01
+from videocreator.dpapi import dpapi_decrypt, dpapi_encrypt
 
 _ACTIVE_SECRET_VALUES: set[str] = set()
 _LOCK = threading.RLock()
-
-
-class _DataBlob(ctypes.Structure):
-    _fields_ = [
-        ("cbData", ctypes.wintypes.DWORD),
-        ("pbData", ctypes.POINTER(ctypes.c_char)),
-    ]
-
-
-def _dpapi_encrypt(raw: bytes) -> bytes:
-    crypt32 = ctypes.windll.crypt32
-    kernel32 = ctypes.windll.kernel32
-    crypt32.CryptProtectData.argtypes = [
-        ctypes.POINTER(_DataBlob),
-        ctypes.c_wchar_p,
-        ctypes.POINTER(_DataBlob),
-        ctypes.c_void_p,
-        ctypes.c_void_p,
-        ctypes.wintypes.DWORD,
-        ctypes.POINTER(_DataBlob),
-    ]
-    crypt32.CryptProtectData.restype = ctypes.wintypes.BOOL
-    kernel32.LocalFree.argtypes = [ctypes.c_void_p]
-    kernel32.LocalFree.restype = ctypes.c_void_p
-
-    buf = ctypes.create_string_buffer(raw, len(raw))
-    in_blob = _DataBlob(
-        len(raw), ctypes.cast(buf, ctypes.POINTER(ctypes.c_char))
-    )
-    out_blob = _DataBlob()
-    ok = crypt32.CryptProtectData(
-        ctypes.byref(in_blob),
-        "VideoCreatorSecrets",
-        None,
-        None,
-        None,
-        CRYPTPROTECT_UI_FORBIDDEN,
-        ctypes.byref(out_blob),
-    )
-    if not ok:
-        err = ctypes.GetLastError()
-        raise OSError(f"CryptProtectData failed with error code {err}")
-    try:
-        return ctypes.string_at(out_blob.pbData, out_blob.cbData)
-    finally:
-        kernel32.LocalFree(ctypes.cast(out_blob.pbData, ctypes.c_void_p))
-
-
-def _dpapi_decrypt(cipher: bytes) -> bytes:
-    crypt32 = ctypes.windll.crypt32
-    kernel32 = ctypes.windll.kernel32
-    crypt32.CryptUnprotectData.argtypes = [
-        ctypes.POINTER(_DataBlob),
-        ctypes.POINTER(ctypes.c_wchar_p),
-        ctypes.POINTER(_DataBlob),
-        ctypes.c_void_p,
-        ctypes.c_void_p,
-        ctypes.wintypes.DWORD,
-        ctypes.POINTER(_DataBlob),
-    ]
-    crypt32.CryptUnprotectData.restype = ctypes.wintypes.BOOL
-    kernel32.LocalFree.argtypes = [ctypes.c_void_p]
-    kernel32.LocalFree.restype = ctypes.c_void_p
-
-    buf = ctypes.create_string_buffer(cipher, len(cipher))
-    in_blob = _DataBlob(
-        len(cipher), ctypes.cast(buf, ctypes.POINTER(ctypes.c_char))
-    )
-    out_blob = _DataBlob()
-    ok = crypt32.CryptUnprotectData(
-        ctypes.byref(in_blob),
-        None,
-        None,
-        None,
-        None,
-        CRYPTPROTECT_UI_FORBIDDEN,
-        ctypes.byref(out_blob),
-    )
-    if not ok:
-        err = ctypes.GetLastError()
-        raise OSError(f"CryptUnprotectData failed with error code {err}")
-    try:
-        return ctypes.string_at(out_blob.pbData, out_blob.cbData)
-    finally:
-        kernel32.LocalFree(ctypes.cast(out_blob.pbData, ctypes.c_void_p))
 
 
 def register_secret_for_redaction(value: str) -> None:
@@ -111,6 +24,9 @@ def get_registered_secret_values() -> list[str]:
         return sorted(_ACTIVE_SECRET_VALUES, key=len, reverse=True)
 
 
+# Decrypted secrets per file, valid while the file's (mtime, size) signature is unchanged.
+_DECRYPTED_CACHE: dict[Path, tuple[tuple[int, int], dict[str, str]]] = {}
+
 class SecretsStore:
     """Stores key-value secrets in DPAPI-encrypted file on Windows or 0600 file on POSIX."""
 
@@ -120,13 +36,27 @@ class SecretsStore:
         self._sync_redaction_cache()
 
     def _read_all(self) -> dict[str, str]:
-        if not self.secrets_file.exists():
+        """All secrets; the file is read and decrypted again only when it changed on disk."""
+        try:
+            stat = self.secrets_file.stat()
+        except FileNotFoundError:
             return {}
+        signature = (stat.st_mtime_ns, stat.st_size)
+        with _LOCK:
+            cached = _DECRYPTED_CACHE.get(self.secrets_file)
+        if cached is not None and cached[0] == signature:
+            return dict(cached[1])
+        data = self._read_file()
+        with _LOCK:
+            _DECRYPTED_CACHE[self.secrets_file] = (signature, data)
+        return dict(data)
+
+    def _read_file(self) -> dict[str, str]:
         raw_bytes = self.secrets_file.read_bytes()
         if not raw_bytes:
             return {}
         if os.name == "nt":
-            plain_bytes = _dpapi_decrypt(raw_bytes)
+            plain_bytes = dpapi_decrypt(raw_bytes)
         else:
             plain_bytes = raw_bytes
         data = json.loads(plain_bytes.decode("utf-8"))
@@ -138,7 +68,7 @@ class SecretsStore:
         self.secrets_file.parent.mkdir(parents=True, exist_ok=True)
         plain_bytes = json.dumps(data, ensure_ascii=False, sort_keys=True).encode("utf-8")
         if os.name == "nt":
-            out_bytes = _dpapi_encrypt(plain_bytes)
+            out_bytes = dpapi_encrypt(plain_bytes)
         else:
             out_bytes = plain_bytes
         tmp_path = self.secrets_file.with_suffix(".bin.tmp")
@@ -148,6 +78,8 @@ class SecretsStore:
         tmp_path.replace(self.secrets_file)
         if os.name != "nt":
             os.chmod(self.secrets_file, 0o600)
+        with _LOCK:
+            _DECRYPTED_CACHE.pop(self.secrets_file, None)
 
     def _sync_redaction_cache(self) -> None:
         try:

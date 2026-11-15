@@ -1,6 +1,7 @@
 """Application configuration loaded from and saved to config.toml."""
 from __future__ import annotations
 
+import threading
 import tomllib
 from pathlib import Path
 from typing import Literal
@@ -8,53 +9,14 @@ from typing import Literal
 import tomli_w
 from pydantic import BaseModel, Field
 
-
-class AIRoutesConfig(BaseModel):
-    vision: list[str] = Field(
-        default_factory=lambda: ["claude_cli", "gemini_api"]
-    )
-    writer: list[str] = Field(
-        default_factory=lambda: ["claude_cli", "muse_api", "claude_api"]
-    )
-    checker: list[str] = Field(
-        default_factory=lambda: ["claude_cli", "claude_api", "gemini_api"]
-    )
-    studio: list[str] = Field(
-        default_factory=lambda: ["claude_cli", "claude_api"]
-    )
-    videogen: list[str] = Field(
-        default_factory=lambda: [
-            "manual",
-            "gateway_api:kling",
-            "gateway_api:seedance",
-            "veo_api",
-        ]
-    )
-
-
-class AIPolicyConfig(BaseModel):
-    api_fallback: Literal["auto", "ask", "never"] = "ask"
-    offpeak_hours: str = "23:00-06:00"
-
-
-class AIConfig(BaseModel):
-    routes: AIRoutesConfig = Field(default_factory=AIRoutesConfig)
-    policy: AIPolicyConfig = Field(default_factory=AIPolicyConfig)
-    gemini_model: str = "gemini-3.8-flash"
-    claude_writer_model: str = "claude-opus-5-5"
-    claude_checker_model: str = "claude-haiku-5-5"
-
-
-class BudgetConfig(BaseModel):
-    daily_usd: float = 5.0
-    generative_daily_usd: float = 15.0
-    studio_daily_usd: float = 10.0
-
-
-class ModelPriceConfig(BaseModel):
-    input_per_million_usd: float = 0.0
-    output_per_million_usd: float = 0.0
-    per_second_usd: float = 0.0
+from videocreator.config_ai import (
+    AIConfig,
+    BudgetConfig,
+    ModelPriceConfig,
+    StudioConfig,
+    VideoGenConfig,
+    _default_prices,
+)
 
 
 class QualityConfig(BaseModel):
@@ -102,16 +64,6 @@ def _default_platform_limits() -> dict[str, PlatformLimitConfig]:
     }
 
 
-def _default_prices() -> dict[str, ModelPriceConfig]:
-    return {
-        "claude-opus-5-5": ModelPriceConfig(input_per_million_usd=4.0, output_per_million_usd=20.0),
-        "claude-sonnet-5-5": ModelPriceConfig(input_per_million_usd=2.0, output_per_million_usd=10.0),
-        "claude-haiku-5-5": ModelPriceConfig(input_per_million_usd=0.10, output_per_million_usd=0.50),
-        "gemini-2.5-flash": ModelPriceConfig(input_per_million_usd=0.15, output_per_million_usd=0.60),
-        "gemini-3.8-flash": ModelPriceConfig(input_per_million_usd=0.15, output_per_million_usd=0.60),
-    }
-
-
 class SafeZoneConfig(BaseModel):
     top: float = 0.15
     bottom: float = 0.25
@@ -139,50 +91,16 @@ class TrendsConfig(BaseModel):
     lookback_days: int = 30
     download_top_n: int = 5
     reference_keep_days: int = 7
+    # Apify (third-party scrapers) for TikTok / Instagram / Facebook Reels / Meta Ad Library,
+    # used when APIFY_API_TOKEN is in the secrets store. Owner decision 2026-11-14: free $5 first,
+    # raise to at most $20/month if it proves useful.
+    apify_monthly_usd: float = 5.0
+    apify_results_per_item: int = 10
+    ads_country: str = "VN"
 
 
 class TikTokConfig(BaseModel):
     mode: Literal["inbox", "direct"] = "inbox"
-
-
-class StudioConfig(BaseModel):
-    model: str = "claude-opus-5-5"
-    max_turns: int = 30
-    max_session_usd: float = 5.0
-
-
-class VideoGenModelConfig(BaseModel):
-    endpoint: str
-    per_second_usd: float = 0.15
-    supports_image: bool = True
-
-
-def _default_videogen_models() -> dict[str, VideoGenModelConfig]:
-    return {
-        "kling": VideoGenModelConfig(
-            endpoint="fal-ai/kling-video/v1.6/pro/image-to-video",
-            per_second_usd=0.14,
-            supports_image=True,
-        ),
-        "seedance": VideoGenModelConfig(
-            endpoint="fal-ai/bytedance/seedance/v1/pro/text-to-video",
-            per_second_usd=0.12,
-            supports_image=True,
-        ),
-        "veo": VideoGenModelConfig(
-            endpoint="veo-3.0-generate-preview",
-            per_second_usd=0.35,
-            supports_image=True,
-        ),
-    }
-
-
-class VideoGenConfig(BaseModel):
-    gateway_base_url: str = "https://queue.fal.run"
-    models: dict[str, VideoGenModelConfig] = Field(
-        default_factory=_default_videogen_models
-    )
-
 
 
 class RetentionConfig(BaseModel):
@@ -220,14 +138,37 @@ class Settings(BaseModel):
     r2: R2Config = Field(default_factory=R2Config)
 
 
+# Parsed settings per config file, valid while the file's (mtime, size) signature is unchanged.
+_settings_cache: dict[Path, tuple[tuple[int, int], Settings]] = {}
+_settings_cache_lock = threading.Lock()
+
+
+def _file_signature(path: Path) -> tuple[int, int]:
+    stat = path.stat()
+    return stat.st_mtime_ns, stat.st_size
+
+
 def load_settings(config_file: Path) -> Settings:
-    if not config_file.exists():
+    """Settings of `config.toml` (created with defaults when missing).
+
+    The file is parsed once and re-read only when it changes on disk; every caller gets its own
+    copy, so changing the returned object never leaks into other callers."""
+    try:
+        signature = _file_signature(config_file)
+    except FileNotFoundError:
         settings = Settings()
         save_settings(config_file, settings)
         return settings
+    with _settings_cache_lock:
+        cached = _settings_cache.get(config_file)
+    if cached is not None and cached[0] == signature:
+        return cached[1].model_copy(deep=True)
     with config_file.open("rb") as f:
         raw = tomllib.load(f)
-    return Settings.model_validate(raw)
+    settings = Settings.model_validate(raw)
+    with _settings_cache_lock:
+        _settings_cache[config_file] = (signature, settings)
+    return settings.model_copy(deep=True)
 
 
 def save_settings(config_file: Path, settings: Settings) -> None:
@@ -237,3 +178,5 @@ def save_settings(config_file: Path, settings: Settings) -> None:
     with tmp_path.open("wb") as f:
         tomli_w.dump(payload, f)
     tmp_path.replace(config_file)
+    with _settings_cache_lock:
+        _settings_cache.pop(config_file, None)

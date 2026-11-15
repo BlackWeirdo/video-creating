@@ -6,10 +6,14 @@ from typing import Any
 
 import httpx
 
-from videocreator.config import load_settings
 from videocreator.paths import AppPaths
-from videocreator.pipeline.preflight import check_platform
-from videocreator.posting.base import PermanentPostError, PostResult, TransientPostError
+from videocreator.posting.base import (
+    PermanentPostError,
+    PostResult,
+    TransientPostError,
+    check_preflight_or_raise,
+    empty_metrics,
+)
 from videocreator.posting.meta_auth import GRAPH_BASE_URL, classify_meta_error
 from videocreator.secrets_store import SecretsStore
 
@@ -29,12 +33,7 @@ class FacebookPagePoster:
         caption: str,
         post: dict[str, Any],
     ) -> PostResult:
-        settings = load_settings(self.paths.config_file)
-        limit = settings.platform_limits.get("facebook")
-        if limit is not None:
-            pf_errs = check_platform(video_path, "facebook", limit)
-            if pf_errs:
-                raise PermanentPostError("; ".join(pf_errs))
+        check_preflight_or_raise(self.paths.config_file, video_path, "facebook")
 
         token = self.secrets.get(str(account["secret_key"]))
         if not token:
@@ -80,7 +79,7 @@ class FacebookPagePoster:
     ) -> dict[str, int | None]:
         token = self.secrets.get(str(account["secret_key"]))
         if not token or not external_post_id:
-            return {"views": None, "likes": None, "comments": None, "shares": None}
+            return empty_metrics()
         try:
             resp = httpx.get(
                 f"{GRAPH_BASE_URL}/{external_post_id}",
@@ -89,7 +88,7 @@ class FacebookPagePoster:
                 timeout=20.0,
             )
             if resp.status_code != 200:
-                return {"views": None, "likes": None, "comments": None, "shares": None}
+                return empty_metrics()
             data = resp.json()
             views = data.get("views")
             likes = ((data.get("likes") or {}).get("summary") or {}).get("total_count")
@@ -101,4 +100,4 @@ class FacebookPagePoster:
                 "shares": None,
             }
         except Exception:
-            return {"views": None, "likes": None, "comments": None, "shares": None}
+            return empty_metrics()

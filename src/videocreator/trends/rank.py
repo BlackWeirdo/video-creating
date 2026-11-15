@@ -1,9 +1,9 @@
 """Transparent within-source trend scoring functions (`FR-TRD-04`, Phase 12)."""
 from __future__ import annotations
-
 import math
 from datetime import datetime, timezone
 
+from videocreator.timeutil import utc_now
 from videocreator.trends.base import TrendItem
 
 
@@ -19,7 +19,7 @@ def score_trend_item(
       `days_running * (1.5 if is_active else 1.0) + log10(max(eu_reach, 1))`
       (returns 0.0 if `days_running < 30`)
     """
-    base_utc = (now_dt or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    base_utc = utc_now(now_dt)
     pub_utc = (
         item.published_at.astimezone(timezone.utc)
         if item.published_at.tzinfo is not None

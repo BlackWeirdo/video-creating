@@ -20,107 +20,14 @@ from typing import Any
 
 from videocreator.paths import REPO_ROOT
 from videocreator.pipeline.subtitles import FONTS_DIR
-
-REMOTION_VERSION = "4.0.484"
-WORKSPACE_PACKAGE: dict[str, Any] = {
-    "name": "videocreator-studio",
-    "private": True,
-    "dependencies": {
-        "@remotion/cli": REMOTION_VERSION,
-        "remotion": REMOTION_VERSION,
-        "react": "19.2.7",
-        "react-dom": "19.2.7",
-    },
-    "devDependencies": {"@types/react": "19.2.17", "typescript": "6.0.3"},
-}
-
-INDEX_TS = """import { registerRoot } from 'remotion';
-import { Root } from './Root';
-
-registerRoot(Root);
-"""
-
-ROOT_TSX = """import React from 'react';
-import { Composition } from 'remotion';
-import { FPS, HEIGHT, WIDTH } from './lib';
-import { TOTAL_FRAMES } from './plan';
-import { Scene } from './Scene';
-
-export const Root: React.FC = () => (
-  <Composition id="Main" component={Scene} width={WIDTH} height={HEIGHT} fps={FPS} durationInFrames={TOTAL_FRAMES} />
-);
-"""
-
-# Product footage is shown untouched: no filter, no opacity, no playbackRate, no cover-crop (BR-PRD-02, BR-PRD-03).
-LIB_TSX = """import React from 'react';
-import { OffthreadVideo, staticFile } from 'remotion';
-
-export const WIDTH = 1080;
-export const HEIGHT = 1920;
-export const FPS = 30;
-export const SAFE = { top: __SAFE_TOP__, bottom: __SAFE_BOTTOM__, right: __SAFE_RIGHT__ };
-export const FONT_FAMILY = 'Be Vietnam Pro';
-
-export const sec = (seconds: number): number => Math.round(seconds * FPS);
-
-export const FontFace: React.FC = () => (
-  <style>{`@font-face { font-family: '${FONT_FAMILY}'; font-weight: 700; src: url('${staticFile('BeVietnamPro-Bold.ttf')}') format('truetype'); }`}</style>
-);
-
-export const ProductShot: React.FC<{ file: string; startS: number }> = ({ file, startS }) => (
-  <OffthreadVideo
-    src={staticFile(file)}
-    startFrom={sec(startS)}
-    muted
-    style={{ position: 'absolute', left: 0, top: 0, width: WIDTH, height: HEIGHT, objectFit: 'contain' }}
-  />
-);
-
-export const Subtitle: React.FC<{ text: string; style?: React.CSSProperties }> = ({ text, style }) => (
-  <div
-    style={{
-      position: 'absolute',
-      left: 60,
-      right: Math.round(WIDTH * SAFE.right),
-      bottom: Math.round(HEIGHT * SAFE.bottom),
-      textAlign: 'center',
-      fontFamily: `'${FONT_FAMILY}'`,
-      fontWeight: 700,
-      fontSize: 56,
-      lineHeight: 1.25,
-      color: '#fff',
-      textShadow: '0 0 6px #000, 0 2px 4px #000, 0 0 2px #000',
-      ...style,
-    }}
-  >
-    {text}
-  </div>
-);
-"""
-
-REMOTION_CONFIG_TS = """import { Config } from '@remotion/cli/config';
-
-Config.setVideoImageFormat('jpeg');
-Config.setOverwriteOutput(true);
-Config.setChromiumOpenGlRenderer('angle');
-Config.setConcurrency(2);
-"""
-
-TSCONFIG_JSON = """{
-  "compilerOptions": {
-    "target": "ES2022",
-    "module": "ESNext",
-    "moduleResolution": "Bundler",
-    "jsx": "react-jsx",
-    "strict": true,
-    "skipLibCheck": true,
-    "esModuleInterop": true,
-    "noEmit": true,
-    "lib": ["DOM", "ES2022"]
-  },
-  "include": ["src"]
-}
-"""
+from videocreator.studio.remotion_files import (
+    INDEX_TS,
+    LIB_TSX,
+    REMOTION_CONFIG_TS,
+    ROOT_TSX,
+    TSCONFIG_JSON,
+    WORKSPACE_PACKAGE,
+)
 
 
 class StudioEnvError(RuntimeError):
@@ -131,7 +38,7 @@ class StudioRenderError(RuntimeError):
     """`remotion render` failed; the message carries the tail of its output."""
 
 
-def _node() -> str:
+def _node_binary() -> str:
     node = shutil.which("node")
     if not node:
         raise StudioEnvError("Chưa cài Node.js; chế độ Studio cần Node.js LTS.")
@@ -142,18 +49,18 @@ def workspace_dir() -> Path:
     return REPO_ROOT / "tools" / "studio"
 
 
-def _cli() -> Path:
+def _remotion_cli_path() -> Path:
     return workspace_dir() / "node_modules" / "@remotion" / "cli" / "remotion-cli.js"
 
 
-def _browser() -> Path | None:
+def _headless_browser_path() -> Path | None:
     """The headless browser Remotion downloaded into the shared workspace (one copy for all sessions)."""
     found = sorted((workspace_dir() / "node_modules" / ".remotion").glob("chrome-headless-shell/*/*/chrome-headless-shell*"))
     return next((p for p in found if p.is_file()), None)
 
 
 def workspace_ready() -> bool:
-    return _cli().exists() and _browser() is not None
+    return _remotion_cli_path().exists() and _headless_browser_path() is not None
 
 
 def _link_node_modules(session_dir: Path) -> None:
@@ -171,7 +78,7 @@ def _link_node_modules(session_dir: Path) -> None:
 
 def ensure_workspace(*, timeout_s: int = 900) -> None:
     """Installs the pinned Remotion workspace on first use (FR-STD-13)."""
-    _node()
+    _node_binary()
     if workspace_ready():
         return
     studio_root = workspace_dir()
@@ -185,9 +92,9 @@ def ensure_workspace(*, timeout_s: int = 900) -> None:
         cwd=studio_root, capture_output=True, text=True, encoding="utf-8", errors="replace",
         timeout=timeout_s, stdin=subprocess.DEVNULL, shell=False,
     )
-    if proc.returncode == 0 and _cli().exists():
+    if proc.returncode == 0 and _remotion_cli_path().exists():
         proc = subprocess.run(
-            [_node(), str(_cli()), "browser", "ensure"],
+            [_node_binary(), str(_remotion_cli_path()), "browser", "ensure"],
             cwd=studio_root, capture_output=True, text=True, encoding="utf-8", errors="replace",
             timeout=timeout_s, stdin=subprocess.DEVNULL,
         )
@@ -228,7 +135,7 @@ def render_session(session_dir: Path, out_path: Path, *, timeout_s: int = 1800) 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     try:
         proc = subprocess.run(
-            [_node(), str(_cli()), "render", "src/index.ts", "Main", str(out_path), "--log=error", f"--browser-executable={_browser()}"],
+            [_node_binary(), str(_remotion_cli_path()), "render", "src/index.ts", "Main", str(out_path), "--log=error", f"--browser-executable={_headless_browser_path()}"],
             cwd=session_dir, capture_output=True, text=True, encoding="utf-8", errors="replace",
             timeout=timeout_s, stdin=subprocess.DEVNULL, env={**os.environ, "CI": "1"},
         )

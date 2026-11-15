@@ -7,7 +7,6 @@ from typing import Any
 
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 
 from videocreator import __version__
 from videocreator.ai.budget import get_daily_api_spend
@@ -27,6 +26,7 @@ from videocreator.studio.templates import (
     save_studio_template,
     start_render_from_template,
 )
+from videocreator.templating import get_templates
 
 router = APIRouter()
 
@@ -66,7 +66,7 @@ async def studio_page(
 ) -> HTMLResponse:
     paths: AppPaths = request.app.state.paths
     cfg = load_settings(paths.config_file)
-    templates = Jinja2Templates(directory=str(paths.templates_dir))
+    templates = get_templates(paths)
 
     sessions = list_studio_sessions(paths.db_file)
     for s in sessions:

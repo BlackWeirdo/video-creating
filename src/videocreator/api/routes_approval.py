@@ -1,20 +1,22 @@
 """Approval queue UI routes (`GET /approval`, `POST /videos/{id}/approve`, `POST /videos/{id}/reject`, Phase 06)."""
 from __future__ import annotations
-
 import json
 from typing import Any
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 
 from videocreator import __version__
-from videocreator.approvals import approve, list_pending_approval_videos, redo_video, reject
+from videocreator.approval_queue import list_pending_approval_videos
+from videocreator.approvals import approve, reject
 from videocreator.config import load_settings
-from videocreator.db import get_conn, query_all, query_one, record_audit
+from videocreator.db import get_conn, query_all, query_one
+from videocreator.jsonutil import loads_or
 from videocreator.paths import AppPaths
-from videocreator.pipeline.planner import PLATFORM_CHAR_LIMITS, PLATFORM_HASHTAG_LIMITS
+from videocreator.pipeline.caption_limits import apply_caption_form
+from videocreator.redo import redo_video
 from videocreator.state import InvalidTransitionError
+from videocreator.templating import get_templates
 
 router = APIRouter()
 
@@ -26,7 +28,7 @@ async def approval_page(
 ) -> HTMLResponse:
     paths: AppPaths = request.app.state.paths
     cfg = load_settings(paths.config_file)
-    templates = Jinja2Templates(directory=str(paths.templates_dir))
+    templates = get_templates(paths)
 
     pending = list_pending_approval_videos(paths.db_file)
     recent_decided = query_all(
@@ -67,47 +69,21 @@ def _update_captions_from_form(
     row = query_one(paths.db_file, "SELECT plan_json FROM videos WHERE id = ?", (video_id,))
     if row is None:
         return
-    try:
-        plan = json.loads(row.get("plan_json") or "{}")
-    except Exception:
-        plan = {}
+    plan = loads_or(row.get("plan_json"), {})
 
     captions = plan.get("captions") or {}
-    changed = False
-    for platform in ("facebook", "instagram", "threads", "tiktok"):
-        cap_text = form.get(f"caption_{platform}_text")
-        cap_tags = form.get(f"caption_{platform}_hashtags")
-        if cap_text is not None or cap_tags is not None:
-            max_chars = PLATFORM_CHAR_LIMITS[platform]
-            max_tags = PLATFORM_HASHTAG_LIMITS[platform]
-            raw_tags = str(cap_tags or "").replace(",", " ").split()
-            clean_tags = []
-            for t in raw_tags:
-                tag = t.strip()
-                if not tag:
-                    continue
-                if not tag.startswith("#"):
-                    tag = f"#{tag}"
-                clean_tags.append(tag)
-                if len(clean_tags) >= max_tags:
-                    break
-            captions[platform] = {
-                "text": str(cap_text or "").strip()[:max_chars],
-                "hashtags": clean_tags,
-            }
-            changed = True
-
-    if changed:
-        plan["captions"] = captions
-        with get_conn(paths.db_file) as conn:
-            conn.execute(
-                "UPDATE videos SET plan_json = ?, captions_json = ? WHERE id = ?",
-                (
-                    json.dumps(plan, ensure_ascii=False),
-                    json.dumps(captions, ensure_ascii=False),
-                    video_id,
-                ),
-            )
+    if not apply_caption_form(form, captions):
+        return
+    plan["captions"] = captions
+    with get_conn(paths.db_file) as conn:
+        conn.execute(
+            "UPDATE videos SET plan_json = ?, captions_json = ? WHERE id = ?",
+            (
+                json.dumps(plan, ensure_ascii=False),
+                json.dumps(captions, ensure_ascii=False),
+                video_id,
+            ),
+        )
 
 
 @router.post("/videos/{video_id}/approve")

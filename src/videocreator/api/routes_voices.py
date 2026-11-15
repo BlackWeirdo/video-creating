@@ -3,14 +3,14 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 
 from videocreator import __version__
 from videocreator.config import load_settings, save_settings
 from videocreator.db import get_conn, record_audit
 from videocreator.engines.mpt_service import MPTServiceManager
 from videocreator.paths import AppPaths
-from videocreator.pipeline.render import enqueue_batch_render
+from videocreator.pipeline.render_batch import enqueue_batch_render
+from videocreator.templating import get_templates
 
 router = APIRouter()
 
@@ -29,7 +29,7 @@ async def voices_page(
 ) -> HTMLResponse:
     paths: AppPaths = request.app.state.paths
     cfg = load_settings(paths.config_file)
-    templates = Jinja2Templates(directory=str(paths.templates_dir))
+    templates = get_templates(paths)
     mpt_mgr = MPTServiceManager(paths)
 
     return templates.TemplateResponse(

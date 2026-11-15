@@ -1,22 +1,15 @@
-"""Telegram single-message progress tracker and automatic video quality scoring (Phase 16)."""
+"""Automatic quality score of a rendered video and the redo it may trigger (`FR-APR-05`)."""
 from __future__ import annotations
-
-import json
-import logging
-from pathlib import Path
-from typing import Any
 
 from pydantic import BaseModel, Field
 
-from videocreator.ai import AIProvider, get_provider
-from videocreator.approvals import redo_video
+from videocreator.ai import get_provider
+from videocreator.ai.base import AIProvider
 from videocreator.config import load_settings
 from videocreator.db import get_conn, query_one, record_audit
 from videocreator.paths import AppPaths
-from videocreator.secrets_store import SecretsStore
+from videocreator.redo import redo_video
 from videocreator.state import transition
-
-logger = logging.getLogger("videocreator.tg.progress")
 
 
 class VideoQualityScore(BaseModel):
@@ -26,10 +19,6 @@ class VideoQualityScore(BaseModel):
     audio_sync_score: float = Field(ge=1.0, le=10.0, description="Độ khớp nhịp hình và chữ/lời (1-10)")
     overall_score: float = Field(ge=1.0, le=10.0, description="Điểm tổng kết (1-10)")
     notes: str = Field(description="Nhận xét ngắn gọn tiếng Việt (1-2 câu)")
-
-
-def format_progress_text(task_label: str, step_label: str) -> str:
-    return f"⚙️ {task_label}: {step_label}"
 
 
 def score_rendered_video(
@@ -124,66 +113,3 @@ def score_rendered_video(
             actor="auto_quality",
         )
     return "pending_approval", video_id, score
-
-
-class ProgressMessageTracker:
-    """Edits a single progress message in Telegram (`⚙️ <việc>: <bước>`) and removes it when done."""
-
-    def __init__(self, paths: AppPaths, task_label: str) -> None:
-        self.paths = paths
-        self.task_label = task_label
-        self.sent_messages: list[tuple[int, int]] = []  # (chat_id, message_id)
-
-    async def start(self, step_label: str) -> None:
-        secrets = SecretsStore(self.paths.secrets_file)
-        token = secrets.get("TELEGRAM_BOT_TOKEN")
-        settings = load_settings(self.paths.config_file)
-        if not token or not settings.telegram.allowed_chat_ids:
-            return
-        from telegram import Bot
-
-        text = format_progress_text(self.task_label, step_label)
-        async with Bot(token=token) as bot:
-            for cid in settings.telegram.allowed_chat_ids:
-                try:
-                    msg = await bot.send_message(chat_id=cid, text=text)
-                    self.sent_messages.append((int(cid), int(msg.message_id)))
-                except Exception as exc:
-                    logger.debug("Progress start send skipped for chat %s: %s", cid, exc)
-
-    async def update(self, step_label: str) -> None:
-        if not self.sent_messages:
-            return
-        secrets = SecretsStore(self.paths.secrets_file)
-        token = secrets.get("TELEGRAM_BOT_TOKEN")
-        if not token:
-            return
-        from telegram import Bot
-
-        text = format_progress_text(self.task_label, step_label)
-        async with Bot(token=token) as bot:
-            for cid, mid in self.sent_messages:
-                try:
-                    await bot.edit_message_text(chat_id=cid, message_id=mid, text=text)
-                except Exception as exc:
-                    logger.debug("Progress edit skipped for (%s,%s): %s", cid, mid, exc)
-
-    async def finish(self, delete: bool = True, final_text: str | None = None) -> None:
-        if not self.sent_messages:
-            return
-        secrets = SecretsStore(self.paths.secrets_file)
-        token = secrets.get("TELEGRAM_BOT_TOKEN")
-        if not token:
-            return
-        from telegram import Bot
-
-        async with Bot(token=token) as bot:
-            for cid, mid in self.sent_messages:
-                try:
-                    if delete:
-                        await bot.delete_message(chat_id=cid, message_id=mid)
-                    elif final_text:
-                        await bot.edit_message_text(chat_id=cid, message_id=mid, text=final_text)
-                except Exception as exc:
-                    logger.debug("Progress finish skipped for (%s,%s): %s", cid, mid, exc)
-        self.sent_messages.clear()

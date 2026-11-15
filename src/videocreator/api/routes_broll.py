@@ -1,9 +1,10 @@
 """Routes for Generative B-Roll creation (`manual`, `kling`, `seedance`, `veo`) and library management (Phase 14)."""
 from __future__ import annotations
 
+import asyncio
+
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 
 from videocreator import __version__
 from videocreator.ai.budget import get_daily_api_spend
@@ -12,12 +13,10 @@ from videocreator.config import load_settings
 from videocreator.db import get_conn, query_all, query_one, record_audit
 from videocreator.jobs import enqueue_job
 from videocreator.paths import AppPaths
-from videocreator.pipeline.broll import (
-    BROLL_PRESET_PROMPTS,
-    generate_broll,
-    list_broll_shots,
-)
+from videocreator.pipeline.broll import list_broll_shots
+from videocreator.pipeline.broll_generate import BROLL_PRESET_PROMPTS, generate_broll
 from videocreator.pipeline.broll_suggest import BROLL_SUGGEST_JOB_KIND, load_broll_ideas
+from videocreator.templating import get_templates
 
 router = APIRouter()
 
@@ -36,7 +35,7 @@ async def broll_page(
 ) -> HTMLResponse:
     paths: AppPaths = request.app.state.paths
     cfg = load_settings(paths.config_file)
-    templates = Jinja2Templates(directory=str(paths.templates_dir))
+    templates = get_templates(paths)
 
     broll_shots = list_broll_shots(paths.db_file)
     open_tickets = query_all(
@@ -144,7 +143,8 @@ async def create_broll_route(
 ) -> RedirectResponse:
     paths: AppPaths = request.app.state.paths
     try:
-        res = generate_broll(
+        res = await asyncio.to_thread(
+            generate_broll,
             paths,
             prompt=prompt.strip(),
             source=source.strip(),

@@ -2,21 +2,14 @@
 from __future__ import annotations
 
 import base64
-import time
 from pathlib import Path
 from typing import Any
 
 from pydantic import ValidationError
 
-from videocreator.ai.base import (
-    AIError,
-    ProviderAuthError,
-    ProviderQuotaExhausted,
-    RouteKind,
-    SchemaValidationError,
-    T,
-)
+from videocreator.ai.base import AIError, ProviderAuthError, RouteKind, SchemaValidationError, T
 from videocreator.ai.budget import check_budget, estimate_token_cost, record_usage
+from videocreator.ai.retry import call_api_with_retry
 from videocreator.config import load_settings
 from videocreator.pipeline.probe import probe_video
 from videocreator.pipeline.thumbs import extract_thumbnail
@@ -55,6 +48,20 @@ class ClaudeAPIProvider:
 
         return anthropic.Anthropic(api_key=api_key)
 
+    def _send_messages(self, client: Any, content_blocks: list[dict[str, Any]], schema: type[T]) -> Any:
+        if hasattr(client.messages, "parse"):
+            return client.messages.parse(
+                model=self.model,
+                max_tokens=4096,
+                messages=[{"role": "user", "content": content_blocks}],
+                output_format=schema,
+            )
+        return client.messages.create(
+            model=self.model,
+            max_tokens=4096,
+            messages=[{"role": "user", "content": content_blocks}],
+        )
+
     def _call_messages(self, content_blocks: list[dict[str, Any]], schema: type[T]) -> T:
         settings = load_settings(self.config_file)
         check_budget(self.db_file, settings, kind=self.role)
@@ -62,40 +69,15 @@ class ClaudeAPIProvider:
 
         last_val_err: Exception | None = None
         for val_attempt in range(2):
-            resp = None
-            for net_attempt in range(3):
-                try:
-                    if hasattr(client.messages, "parse"):
-                        resp = client.messages.parse(
-                            model=self.model,
-                            max_tokens=4096,
-                            messages=[{"role": "user", "content": content_blocks}],
-                            output_format=schema,
-                        )
-                    else:
-                        resp = client.messages.create(
-                            model=self.model,
-                            max_tokens=4096,
-                            messages=[{"role": "user", "content": content_blocks}],
-                        )
-                    break
-                except Exception as exc:
-                    msg = str(exc)
-                    lower = msg.lower()
-                    if "401" in lower or "403" in lower or "authentication" in lower:
-                        raise ProviderAuthError(self.name, f"Claude API auth error: {msg}") from exc
-                    if "429" in lower or "rate_limit" in lower or "overloaded" in lower:
-                        if net_attempt < 2:
-                            time.sleep(2 ** net_attempt)
-                            continue
-                        raise ProviderQuotaExhausted(
-                            self.name, f"Claude API rate limit: {msg}", retry_after_s=1800
-                        ) from exc
-                    if any(code in lower for code in ("500", "502", "503", "529")) and net_attempt < 2:
-                        time.sleep(2 ** net_attempt)
-                        continue
-                    raise AIError(f"Claude API call failed: {msg}") from exc
-
+            resp = call_api_with_retry(
+                lambda: self._send_messages(client, content_blocks, schema),
+                provider=self.name,
+                label="Claude API",
+                auth_markers=("401", "403", "authentication"),
+                quota_markers=("429", "rate_limit", "overloaded"),
+                quota_label="rate limit",
+                server_codes=("500", "502", "503", "529"),
+            )
             if resp is None:
                 raise AIError("Claude API returned no response")
 

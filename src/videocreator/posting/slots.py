@@ -1,6 +1,5 @@
 """Automatic posting slot calculation per account and timezone (Phase 10)."""
 from __future__ import annotations
-
 import json
 from datetime import datetime, time, timedelta, timezone
 from pathlib import Path
@@ -8,7 +7,9 @@ from zoneinfo import ZoneInfo
 
 from videocreator.config import ScheduleConfig, load_settings
 from videocreator.db import get_conn, query_all, query_one, record_audit
+from videocreator.jsonutil import loads_or
 from videocreator.state import transition
+from videocreator.timeutil import UTC_ISO_FORMAT, utc_now
 
 
 def _parse_hhmm(slot_str: str) -> time | None:
@@ -25,6 +26,19 @@ def _parse_hhmm(slot_str: str) -> time | None:
     return None
 
 
+def _account_slot_override(account_row: dict | None) -> list[str]:
+    """Valid `HH:MM` slots of the account's own `slots_json`; empty when it has none."""
+    if not account_row or not account_row.get("slots_json"):
+        return []
+    try:
+        parsed = json.loads(str(account_row["slots_json"]))
+    except Exception:
+        return []
+    if not isinstance(parsed, list):
+        return []
+    return [str(s).strip() for s in parsed if _parse_hhmm(str(s)) is not None]
+
+
 def get_account_slots(
     db_file: Path,
     account_id: int,
@@ -35,16 +49,7 @@ def get_account_slots(
     acc_row = query_one(
         db_file, "SELECT slots_json FROM accounts WHERE id = ?", (account_id,)
     )
-    raw_slots: list[str] = list(cfg.slots)
-    if acc_row and acc_row.get("slots_json"):
-        try:
-            parsed = json.loads(str(acc_row["slots_json"]))
-            if isinstance(parsed, list) and parsed:
-                valid = [str(s).strip() for s in parsed if _parse_hhmm(str(s)) is not None]
-                if valid:
-                    raw_slots = valid
-        except Exception:
-            pass
+    raw_slots = _account_slot_override(acc_row) or list(cfg.slots)
     valid_times = sorted(
         {s.strip() for s in raw_slots if _parse_hhmm(s) is not None},
         key=lambda x: _parse_hhmm(x) or time(0, 0),
@@ -66,7 +71,7 @@ def next_free_slot(
         else ScheduleConfig()
     )
     tz = ZoneInfo(sched_cfg.timezone)
-    base_utc = (now_dt or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    base_utc = utc_now(now_dt)
     base_local = base_utc.astimezone(tz)
 
     slots_hhmm = get_account_slots(db_file, account_id, sched_cfg)
@@ -74,7 +79,7 @@ def next_free_slot(
     clean_times = [t for t in slot_times if t is not None]
 
     # Query existing occupied slots for this account from base_utc - 1 day onwards
-    window_start_iso = (base_utc - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    window_start_iso = (base_utc - timedelta(days=1)).strftime(UTC_ISO_FORMAT)
     existing_rows = query_all(
         db_file,
         """
@@ -95,7 +100,7 @@ def next_free_slot(
             cand_utc = cand_local.astimezone(timezone.utc)
             if cand_utc <= base_utc:
                 continue
-            cand_iso = cand_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+            cand_iso = cand_utc.strftime(UTC_ISO_FORMAT)
             if cand_iso not in occupied_isos:
                 return cand_utc
 
@@ -116,10 +121,7 @@ def default_target_account_ids(db_file: Path, video_id: int) -> list[int]:
         chosen = []
     if chosen:
         return chosen
-    try:
-        preflight = json.loads(str(v_row.get("preflight_json") or "{}"))
-    except ValueError:
-        preflight = {}
+    preflight = loads_or(v_row.get("preflight_json"), {})
     rows = query_all(db_file, "SELECT id, platform, lang FROM accounts WHERE enabled = 1 ORDER BY id ASC")
     lang = str(v_row.get("caption_lang") or "vi")
     return [
@@ -166,7 +168,7 @@ def assign_auto_slots_for_video(
             slot_utc = next_free_slot(
                 db_file, acc_id, now_dt=now_dt, config_file=config_file
             )
-            slot_iso = slot_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+            slot_iso = slot_utc.strftime(UTC_ISO_FORMAT)
             cur = conn.execute(
                 """
                 INSERT INTO posts (video_id, account_id, status, scheduled_at)

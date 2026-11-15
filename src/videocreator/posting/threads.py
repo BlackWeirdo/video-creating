@@ -7,19 +7,19 @@ from typing import Any
 
 import httpx
 
-from videocreator.config import load_settings
 from videocreator.db import get_conn
 from videocreator.paths import AppPaths
-from videocreator.pipeline.preflight import check_platform
 from videocreator.posting.base import (
     PermanentPostError,
     PostResult,
     TransientPostError,
+    check_preflight_or_raise,
+    empty_metrics,
 )
 from videocreator.posting.meta_auth import classify_meta_error
+from videocreator.posting.threads_metrics import THREADS_API_BASE, fetch_threads_metrics
 from videocreator.secrets_store import SecretsStore
 
-THREADS_API_BASE = "https://graph.threads.net/v1.0"
 MAX_POLLS = 24
 POLL_SLEEP_S = 5.0
 
@@ -39,12 +39,7 @@ class ThreadsPoster:
         caption: str,
         post: dict[str, Any],
     ) -> PostResult:
-        settings = load_settings(self.paths.config_file)
-        limit = settings.platform_limits.get("threads")
-        if limit is not None:
-            pf_errs = check_platform(video_path, "threads", limit)
-            if pf_errs:
-                raise PermanentPostError("; ".join(pf_errs))
+        check_preflight_or_raise(self.paths.config_file, video_path, "threads")
         if not video_url:
             raise PermanentPostError("Threads requires a public R2 video_url")
 
@@ -186,30 +181,5 @@ class ThreadsPoster:
     ) -> dict[str, int | None]:
         token = self.secrets.get(str(account["secret_key"]))
         if not token or not external_post_id:
-            return {"views": None, "likes": None, "comments": None, "shares": None}
-        try:
-            with httpx.Client(timeout=20.0) as client:
-                resp = client.get(
-                    f"{THREADS_API_BASE}/{external_post_id}/insights",
-                    params={
-                        "metric": "views,likes,replies,reposts",
-                        "access_token": token,
-                    },
-                )
-                if resp.status_code != 200:
-                    return {"views": None, "likes": None, "comments": None, "shares": None}
-                items = resp.json().get("data") or []
-                by_name: dict[str, int | None] = {}
-                for it in items:
-                    name = str(it.get("name") or "")
-                    vals = it.get("values") or []
-                    if vals and isinstance(vals[0].get("value"), int):
-                        by_name[name] = int(vals[0]["value"])
-                return {
-                    "views": by_name.get("views"),
-                    "likes": by_name.get("likes"),
-                    "comments": by_name.get("replies"),
-                    "shares": by_name.get("reposts"),
-                }
-        except Exception:
-            return {"views": None, "likes": None, "comments": None, "shares": None}
+            return empty_metrics()
+        return fetch_threads_metrics(token, external_post_id)

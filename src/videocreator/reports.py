@@ -1,38 +1,16 @@
 """Daily and weekly operational reports, token expiry checks, nightly DB backup, and disk retention (Phase 10 & Phase 15)."""
 from __future__ import annotations
-
 import json
 import logging
-import shutil
-import sqlite3
 from datetime import datetime, time, timedelta, timezone
-from pathlib import Path
-from typing import Any
 from zoneinfo import ZoneInfo
 
 from videocreator.config import load_settings
-from videocreator.db import get_conn, query_all, query_one
+from videocreator.db import query_all, query_one
 from videocreator.paths import AppPaths
-from videocreator.telegram_bot import send_text
+from videocreator.timeutil import UTC_ISO_FORMAT, utc_now
 
 logger = logging.getLogger("videocreator.reports")
-
-LOW_DISK_THRESHOLD_BYTES = 10 * 1024 * 1024 * 1024  # 10 GB
-
-
-def _parse_iso_utc(iso_str: str | None) -> datetime | None:
-    if not iso_str:
-        return None
-    try:
-        clean = str(iso_str).strip()
-        if clean.endswith("Z"):
-            clean = clean[:-1] + "+00:00"
-        dt = datetime.fromisoformat(clean)
-        if dt.tzinfo is None:
-            return dt.replace(tzinfo=timezone.utc)
-        return dt.astimezone(timezone.utc)
-    except Exception:
-        return None
 
 
 def daily_summary(
@@ -42,17 +20,17 @@ def daily_summary(
     """Builds the Vietnamese daily report string (`FR-RPT-01`) for Telegram and `/report`."""
     cfg = load_settings(paths.config_file)
     tz = ZoneInfo(cfg.schedule.timezone)
-    base_utc = (now_dt or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    base_utc = utc_now(now_dt)
     base_local = base_utc.astimezone(tz)
 
     today_start_local = datetime.combine(base_local.date(), time(0, 0, 0), tzinfo=tz)
     tomorrow_start_local = today_start_local + timedelta(days=1)
     day_after_tomorrow_local = tomorrow_start_local + timedelta(days=1)
 
-    today_start_iso = today_start_local.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    tomorrow_start_iso = tomorrow_start_local.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    day_after_iso = day_after_tomorrow_local.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    two_days_later_iso = (base_utc + timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    today_start_iso = today_start_local.astimezone(timezone.utc).strftime(UTC_ISO_FORMAT)
+    tomorrow_start_iso = tomorrow_start_local.astimezone(timezone.utc).strftime(UTC_ISO_FORMAT)
+    day_after_iso = day_after_tomorrow_local.astimezone(timezone.utc).strftime(UTC_ISO_FORMAT)
+    two_days_later_iso = (base_utc + timedelta(days=2)).strftime(UTC_ISO_FORMAT)
 
     posted_today = query_one(
         paths.db_file,
@@ -124,175 +102,13 @@ def daily_summary(
     return "\n".join(lines)
 
 
-def check_expiring_tokens(
-    paths: AppPaths,
-    now_dt: datetime | None = None,
-    *,
-    warn_within_days: int = 7,
-) -> list[dict[str, Any]]:
-    """Checks `accounts.token_expires_at` and alerts Telegram for tokens expiring within `warn_within_days` (`FR-PST-11`)."""
-    base_utc = (now_dt or datetime.now(timezone.utc)).astimezone(timezone.utc)
-    cutoff_utc = base_utc + timedelta(days=warn_within_days)
-    rows = query_all(
-        paths.db_file,
-        """
-        SELECT id, platform, name, token_expires_at
-        FROM accounts
-        WHERE enabled = 1 AND token_expires_at IS NOT NULL AND token_expires_at != ''
-        ORDER BY id ASC
-        """,
-    )
-    expiring: list[dict[str, Any]] = []
-    for r in rows:
-        exp_dt = _parse_iso_utc(r.get("token_expires_at"))
-        if exp_dt is None:
-            continue
-        if exp_dt <= cutoff_utc:
-            days_left = (exp_dt - base_utc).total_seconds() / 86400.0
-            item = {
-                "id": int(r["id"]),
-                "platform": str(r["platform"]),
-                "name": str(r["name"]),
-                "token_expires_at": str(r["token_expires_at"]),
-                "days_left": round(days_left, 1),
-            }
-            expiring.append(item)
-
-    if expiring:
-        msg_lines = ["⚠️ Cảnh báo token sắp hết hạn (< 7 ngày):"]
-        for item in expiring:
-            msg_lines.append(
-                f"• {item['platform']} ({item['name']}): còn {item['days_left']} ngày ({item['token_expires_at']})"
-            )
-        msg_lines.append("Vào trang Tài khoản để làm mới hoặc kết nối lại.")
-        try:
-            send_text(paths, "\n".join(msg_lines), topic="alerts")
-        except Exception:
-            pass
-
-    return expiring
-
-
-def run_nightly_backup_and_cleanup(
-    paths: AppPaths,
-    now_dt: datetime | None = None,
-    *,
-    free_bytes_override: int | None = None,
-) -> dict[str, Any]:
-    """Runs nightly SQLite backup (`app.db` + `config.toml`, never `secrets.bin`), prunes old backups & old outputs, and checks disk space."""
-    cfg = load_settings(paths.config_file)
-    base_utc = (now_dt or datetime.now(timezone.utc)).astimezone(timezone.utc)
-    stamp = base_utc.strftime("%Y%m%d_%H%M%S")
-
-    paths.backups_dir.mkdir(parents=True, exist_ok=True)
-    db_backup_path = paths.backups_dir / f"backup_{stamp}_app.db"
-    cfg_backup_path = paths.backups_dir / f"backup_{stamp}_config.toml"
-
-    try:
-        src_conn = sqlite3.connect(str(paths.db_file))
-        dst_conn = sqlite3.connect(str(db_backup_path))
-        with dst_conn:
-            src_conn.backup(dst_conn)
-        dst_conn.close()
-        src_conn.close()
-        if paths.config_file.exists():
-            shutil.copy2(paths.config_file, cfg_backup_path)
-    except Exception as exc:
-        logger.error("Nightly backup failed: %s", exc)
-        try:
-            send_text(paths, f"❌ Lỗi sao lưu tự động ban đêm: {exc}")
-        except Exception:
-            pass
-        raise
-
-    # Prune old backups beyond retention.backup_keep
-    keep_n = max(1, int(cfg.retention.backup_keep))
-    db_backups = sorted(paths.backups_dir.glob("backup_*_app.db"))
-    pruned_backups = 0
-    if len(db_backups) > keep_n:
-        for old_db in db_backups[: len(db_backups) - keep_n]:
-            prefix = old_db.name.replace("_app.db", "")
-            old_cfg = paths.backups_dir / f"{prefix}_config.toml"
-            old_db.unlink(missing_ok=True)
-            old_cfg.unlink(missing_ok=True)
-            pruned_backups += 1
-
-    # Clean work/ subdirectories for finished videos
-    cleaned_work_dirs = 0
-    if paths.work_dir.exists():
-        finished_rows = query_all(
-            paths.db_file,
-            "SELECT id FROM videos WHERE status IN ('posted', 'rejected', 'failed', 'superseded')",
-        )
-        finished_ids = {int(r["id"]) for r in finished_rows}
-        for child in paths.work_dir.iterdir():
-            if child.is_dir() and child.name.startswith("video_"):
-                suffix = child.name.removeprefix("video_")
-                if suffix.isdigit() and int(suffix) in finished_ids:
-                    shutil.rmtree(child, ignore_errors=True)
-                    cleaned_work_dirs += 1
-
-    # Prune rendered master MP4s of posted videos older than retention.output_days (keep DB row & footage!)
-    cutoff_iso = (
-        base_utc - timedelta(days=max(1, int(cfg.retention.output_days)))
-    ).strftime("%Y-%m-%dT%H:%M:%SZ")
-    old_posted = query_all(
-        paths.db_file,
-        """
-        SELECT id, output_path
-        FROM videos
-        WHERE status = 'posted'
-          AND output_path IS NOT NULL
-          AND created_at < ?
-        """,
-        (cutoff_iso,),
-    )
-    pruned_outputs = 0
-    for vr in old_posted:
-        rel = str(vr["output_path"])
-        # Safety check: never touch anything inside footage/
-        if rel.startswith("footage"):
-            continue
-        f_path = paths.media_dir / rel
-        if f_path.exists():
-            f_path.unlink(missing_ok=True)
-            pruned_outputs += 1
-
-    # Check free disk space (< 10 GB -> alert Telegram)
-    if free_bytes_override is not None:
-        free_bytes = free_bytes_override
-    else:
-        usage = shutil.disk_usage(str(paths.data_dir))
-        free_bytes = usage.free
-
-    low_disk = free_bytes < LOW_DISK_THRESHOLD_BYTES
-    if low_disk:
-        free_gb = free_bytes / (1024**3)
-        try:
-            send_text(
-                paths,
-                f"⚠️ Cảnh báo ổ đĩa sắp đầy: chỉ còn {free_gb:.1f} GB trống (< 10 GB).",
-                topic="alerts",
-            )
-        except Exception:
-            pass
-
-    return {
-        "db_backup": str(db_backup_path),
-        "pruned_backups": pruned_backups,
-        "cleaned_work_dirs": cleaned_work_dirs,
-        "pruned_outputs": pruned_outputs,
-        "low_disk": low_disk,
-    }
-
-
 def weekly_summary(
     paths: AppPaths,
     now_dt: datetime | None = None,
 ) -> str:
     """Builds the Vietnamese weekly performance report (`FR-RPT-03`) for Telegram and `/report week`."""
-    base_utc = (now_dt or datetime.now(timezone.utc)).astimezone(timezone.utc)
-    week_ago_iso = (base_utc - timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    base_utc = utc_now(now_dt)
+    week_ago_iso = (base_utc - timedelta(days=7)).strftime(UTC_ISO_FORMAT)
 
     plat_counts = query_all(
         paths.db_file,

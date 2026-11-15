@@ -9,36 +9,19 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from videocreator.config import load_settings
 from videocreator.jobs import enqueue_job
+from videocreator.maintenance import check_expiring_tokens, run_nightly_backup_and_cleanup
 from videocreator.manual.tickets import expire_stale_tickets, scan_inbox_for_tickets
 from videocreator.paths import AppPaths
 from videocreator.posting.metrics import collect_due_metrics
-from videocreator.posting.service import cleanup_staged_r2_objects, publish_due_posts
-from videocreator.reports import (
-    check_expiring_tokens,
-    daily_summary,
-    run_nightly_backup_and_cleanup,
-    weekly_summary,
-)
-from videocreator.telegram_bot import flush_deferred_notifications, send_text
+from videocreator.posting.publish import publish_due_posts
+from videocreator.posting.service import cleanup_staged_r2_objects
+from videocreator.reports import daily_summary, weekly_summary
+from videocreator.tg.notify import flush_deferred_notifications
+from videocreator.tg.sender import send_text
+from videocreator.timeutil import parse_dow_hhmm, parse_hhmm
 from videocreator.trends.download import cleanup_expired_reference_videos
 
 logger = logging.getLogger("videocreator.scheduler")
-
-
-def _parse_hhmm(val: str, default: tuple[int, int] = (21, 30)) -> tuple[int, int]:
-    parts = val.strip().split(":")
-    if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
-        return int(parts[0]), int(parts[1])
-    return default
-
-
-def _parse_dow_hhmm(val: str, default: tuple[str, int, int] = ("mon", 9, 0)) -> tuple[str, int, int]:
-    tokens = val.strip().split()
-    if len(tokens) == 2:
-        dow = tokens[0].lower()[:3]
-        h, m = _parse_hhmm(tokens[1], (default[1], default[2]))
-        return dow, h, m
-    return default
 
 
 class AppScheduler:
@@ -89,7 +72,7 @@ class AppScheduler:
         )
 
         # 4. Daily report at schedule.daily_report_at (default 21:30)
-        rep_h, rep_m = _parse_hhmm(settings.schedule.daily_report_at, (21, 30))
+        rep_h, rep_m = parse_hhmm(settings.schedule.daily_report_at, (21, 30))
         self._scheduler.add_job(
             self._tick_daily_report,
             "cron",
@@ -100,7 +83,7 @@ class AppScheduler:
         )
 
         # 5. Weekly report at schedule.weekly_report_at (default "MON 09:00")
-        wk_dow, wk_h, wk_m = _parse_dow_hhmm(settings.schedule.weekly_report_at, ("mon", 9, 0))
+        wk_dow, wk_h, wk_m = parse_dow_hhmm(settings.schedule.weekly_report_at, ("mon", 9, 0))
         self._scheduler.add_job(
             self._tick_weekly_report,
             "cron",
@@ -122,7 +105,7 @@ class AppScheduler:
         )
 
         # 7. Daily trend scan at trends.scan_at (default 07:00, Phase 12 & 13)
-        scan_h, scan_m = _parse_hhmm(settings.trends.scan_at, (7, 0))
+        scan_h, scan_m = parse_hhmm(settings.trends.scan_at, (7, 0))
         self._scheduler.add_job(
             self._tick_trend_scan,
             "cron",

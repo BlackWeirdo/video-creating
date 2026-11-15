@@ -1,6 +1,7 @@
 """OAuth 2.0 routes for Threads and TikTok (`GET /oauth/{platform}/start`, `/callback`, `POST /code`, Phase 11)."""
 from __future__ import annotations
 
+import asyncio
 from typing import Literal
 from urllib.parse import quote
 
@@ -8,7 +9,8 @@ from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 
 from videocreator.paths import AppPaths
-from videocreator.posting.oauth import build_authorize_url, exchange_code_for_account
+from videocreator.posting.oauth import build_authorize_url
+from videocreator.posting.oauth_exchange import exchange_code_for_account
 from videocreator.secrets_store import SecretsStore
 
 router = APIRouter()
@@ -70,7 +72,8 @@ async def oauth_callback_route(
     paths: AppPaths = request.app.state.paths
     secrets: SecretsStore = request.app.state.secrets
     try:
-        exchange_code_for_account(
+        await asyncio.to_thread(
+            exchange_code_for_account,
             paths,
             plat,
             code=code,
@@ -96,7 +99,8 @@ async def oauth_paste_code_route(
     paths: AppPaths = request.app.state.paths
     secrets: SecretsStore = request.app.state.secrets
     try:
-        exchange_code_for_account(
+        await asyncio.to_thread(
+            exchange_code_for_account,
             paths,
             plat,
             code=code,

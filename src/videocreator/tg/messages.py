@@ -1,38 +1,13 @@
 """Pure message and inline-keyboard builders for the Telegram Control Center (Phase 16)."""
 from __future__ import annotations
-
 import json
-from datetime import datetime, time, timedelta, timezone
-from pathlib import Path
 from typing import Any
-from zoneinfo import ZoneInfo
 
-from videocreator.config import Settings, load_settings
-from videocreator.db import query_all
+from videocreator.jsonutil import loads_or
+
 
 ButtonSpec = tuple[str, str]  # (label, callback_data <= 64 bytes)
 KeyboardRows = list[list[ButtonSpec]]
-
-
-def is_quiet_hours(settings: Settings, now_dt: datetime | None = None) -> bool:
-    """Returns True if `now_dt` falls inside `settings.telegram.quiet_hours` (default `22:00-07:00` in `schedule.timezone`)."""
-    raw = (settings.telegram.quiet_hours or "").strip()
-    if "-" not in raw:
-        return False
-    start_s, end_s = raw.split("-", 1)
-    try:
-        sh, sm = [int(x) for x in start_s.strip().split(":")]
-        eh, em = [int(x) for x in end_s.strip().split(":")]
-        t_start = time(sh, sm)
-        t_end = time(eh, em)
-    except Exception:
-        return False
-
-    tz = ZoneInfo(settings.schedule.timezone)
-    local_t = (now_dt or datetime.now(timezone.utc)).astimezone(tz).time()
-    if t_start <= t_end:
-        return t_start <= local_t < t_end
-    return local_t >= t_start or local_t < t_end
 
 
 def build_trend_suggestion_message(
@@ -45,10 +20,7 @@ def build_trend_suggestion_message(
     """
     sid = int(suggestion["id"])
     text = str(str(suggestion.get("text") or ""))
-    try:
-        formula = json.loads(str(suggestion.get("formula_json") or "{}"))
-    except Exception:
-        formula = {}
+    formula = loads_or(suggestion.get("formula_json"), {})
 
     formula_name = str(str(formula.get("formula") or "hook-first"))
     missing = str(formula.get("missing_shots") or "").strip()
@@ -218,69 +190,3 @@ def build_post_now_confirm_keyboard(video_id: int) -> KeyboardRows:
             ("Huỷ", f"now_cancel:{video_id}"),
         ]
     ]
-
-
-def build_schedule_message(
-    db_file: Path,
-    config_file: Path,
-    now_dt: datetime | None = None,
-) -> tuple[str, KeyboardRows]:
-    """Builds `/schedule` text + action buttons for today and tomorrow's scheduled posts."""
-    settings = load_settings(config_file)
-    tz = ZoneInfo(settings.schedule.timezone)
-    base_utc = (now_dt or datetime.now(timezone.utc)).astimezone(timezone.utc)
-    end_utc = base_utc + timedelta(days=2)
-
-    rows = query_all(
-        db_file,
-        """
-        SELECT p.id, p.video_id, p.scheduled_at, p.status, a.platform, a.name AS account_name
-        FROM posts p
-        JOIN accounts a ON p.account_id = a.id
-        WHERE p.status = 'scheduled' AND p.scheduled_at <= ?
-        ORDER BY p.scheduled_at ASC, p.id ASC
-        LIMIT 12
-        """,
-        (end_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),),
-    )
-    if not rows:
-        return "📅 Hiện không có bài đăng nào trong lịch hôm nay & ngày mai.", []
-
-    lines = [f"📅 Lịch đăng ({settings.schedule.timezone}):"]
-    keyboard: KeyboardRows = []
-    for r in rows:
-        pid = int(r["id"])
-        vid = int(r["video_id"])
-        iso_str = str(r["scheduled_at"]).replace("Z", "+00:00")
-        try:
-            local_str = datetime.fromisoformat(iso_str).astimezone(tz).strftime("%d/%m %H:%M")
-        except Exception:
-            local_str = str(r["scheduled_at"])
-        lines.append(f"• Post #{pid}: Video #{vid} -> {r['platform']} ({r['account_name']}) lúc {local_str}")
-        keyboard.append(
-            [
-                (f"🚀 Đăng ngay #{pid}", f"pst_now:{pid}"),
-                (f"🗑 Huỷ #{pid}", f"pst_del:{pid}"),
-            ]
-        )
-    return "\n".join(lines), keyboard
-
-
-def build_menu_message() -> tuple[str, KeyboardRows]:
-    text = (
-        "🎛 BẢNG ĐIỀU KHIỂN TELEGRAM — VIDEO CREATOR\n"
-        "• /status — Trạng thái hệ thống & ngân sách AI\n"
-        "• /pending — Gửi lại các video đang chờ duyệt\n"
-        "• /schedule — Xem lịch đăng hôm nay & ngày mai\n"
-        "• /trends — Gửi lại các đề xuất xu hướng chưa xử lý\n"
-        "• /scan — Quét xu hướng ngay\n"
-        "• /create — Chọn footage mới nhất để tạo video\n"
-        "• /pause | /resume — Tạm dừng / Chạy lại đăng tự động\n"
-        "• /report | /report week — Báo cáo ngày / Báo cáo tuần"
-    )
-    keyboard: KeyboardRows = [
-        [("📊 Trạng thái", "cmd:status"), ("⏳ Chờ duyệt", "cmd:pending")],
-        [("📅 Lịch đăng", "cmd:schedule"), ("🔥 Đề xuất", "cmd:trends")],
-        [("🔍 Quét ngay", "cmd:scan"), ("📈 Báo cáo ngày", "cmd:report")],
-    ]
-    return text, keyboard

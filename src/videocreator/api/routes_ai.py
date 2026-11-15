@@ -5,16 +5,16 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 
 from videocreator import __version__
 from videocreator.ai.cli_base import find_claude_binary
 from videocreator.ai.quota import clear_provider_rest, mark_provider_error
 from videocreator.config import load_settings
-from videocreator.db import get_conn, query_all, query_one, record_audit
+from videocreator.db import get_conn, query_all, record_audit
 from videocreator.paths import AppPaths
+from videocreator.templating import get_templates
 
 router = APIRouter()
 
@@ -63,7 +63,7 @@ async def ai_routes_page(
 ) -> HTMLResponse:
     paths: AppPaths = request.app.state.paths
     cfg = load_settings(paths.config_file)
-    templates = Jinja2Templates(directory=str(paths.templates_dir))
+    templates = get_templates(paths)
 
     provider_states = query_all(
         paths.db_file,

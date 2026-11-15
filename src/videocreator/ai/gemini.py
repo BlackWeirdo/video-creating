@@ -6,15 +6,9 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from videocreator.ai.base import (
-    AIError,
-    ProviderAuthError,
-    ProviderQuotaExhausted,
-    RouteKind,
-    SchemaValidationError,
-    T,
-)
+from videocreator.ai.base import AIError, ProviderAuthError, RouteKind, SchemaValidationError, T
 from videocreator.ai.budget import check_budget, estimate_token_cost, record_usage
+from videocreator.ai.retry import call_api_with_retry
 from videocreator.config import load_settings
 from videocreator.secrets_store import SecretsStore
 
@@ -60,35 +54,22 @@ class GeminiAPIProvider:
 
         last_val_err: Exception | None = None
         for val_attempt in range(2):
-            resp = None
-            for net_attempt in range(3):
-                try:
-                    resp = client.models.generate_content(
-                        model=self.model,
-                        contents=contents,
-                        config=types.GenerateContentConfig(
-                            response_mime_type="application/json",
-                            response_schema=schema,
-                        ),
-                    )
-                    break
-                except Exception as exc:
-                    msg = str(exc)
-                    lower = msg.lower()
-                    if "401" in lower or "403" in lower or "api_key_invalid" in lower:
-                        raise ProviderAuthError(self.name, f"Gemini API auth error: {msg}") from exc
-                    if "429" in lower or "quota" in lower or "resource_exhausted" in lower:
-                        if net_attempt < 2:
-                            time.sleep(2 ** net_attempt)
-                            continue
-                        raise ProviderQuotaExhausted(
-                            self.name, f"Gemini API rate/quota limit: {msg}", retry_after_s=1800
-                        ) from exc
-                    if any(code in lower for code in ("500", "502", "503", "504")) and net_attempt < 2:
-                        time.sleep(2 ** net_attempt)
-                        continue
-                    raise AIError(f"Gemini API call failed: {msg}") from exc
-
+            resp = call_api_with_retry(
+                lambda: client.models.generate_content(
+                    model=self.model,
+                    contents=contents,
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        response_schema=schema,
+                    ),
+                ),
+                provider=self.name,
+                label="Gemini API",
+                auth_markers=("401", "403", "api_key_invalid"),
+                quota_markers=("429", "quota", "resource_exhausted"),
+                quota_label="rate/quota limit",
+                server_codes=("500", "502", "503", "504"),
+            )
             if resp is None:
                 raise AIError("Gemini API returned no response")
 

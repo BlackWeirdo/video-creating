@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import re
-import shlex
 from pathlib import Path
 
 # BR-PRD-02 patterns forbidden on product footage components in Remotion (.tsx / .ts)
@@ -33,35 +32,6 @@ FORBIDDEN_AI_CALL_RE = re.compile(
 VIDEO_SRC_RE = re.compile(
     r"""staticFile\(\s*['"`]([^'"`]+\.(?:mp4|mov|webm))['"`]\s*\)""",
     re.IGNORECASE,
-)
-
-ALLOWED_COMMAND_PREFIXES: tuple[tuple[str, ...], ...] = (
-    ("rea-video", "decompose"),
-    ("rea-video", "apply-review"),
-    ("rea-video", "assemble"),
-    ("ffmpeg",),
-    ("ffprobe",),
-    ("node",),
-    ("npx", "remotion"),
-    ("npm", "ci"),
-    ("uv", "run"),
-)
-
-FORBIDDEN_COMMAND_TOKENS: frozenset[str] = frozenset(
-    {
-        "remake-run",
-        "capsule-cinema",
-        "curl",
-        "wget",
-        "invoke-webrequest",
-        "iwr",
-        "powershell",
-        "pwsh",
-        "cmd.exe",
-        "rm",
-        "del",
-        "rmdir",
-    }
 )
 
 
@@ -134,6 +104,18 @@ def scan_scene_contract(scene_source: str) -> list[str]:
     return problems
 
 
+def _unapproved_video_refs(src: str, rel_name: str, allowed_video_filenames: set[str]) -> list[str]:
+    """Video files referenced by the source that are not in the approved shot library."""
+    violations: list[str] = []
+    for match in VIDEO_SRC_RE.finditer(src):
+        ref_file = Path(match.group(1)).name
+        if ref_file not in allowed_video_filenames:
+            violations.append(
+                f"{rel_name}: Video file '{ref_file}' is not in the approved shot library ({sorted(allowed_video_filenames)})"
+            )
+    return violations
+
+
 def check_studio_project_dir(
     project_dir: Path,
     *,
@@ -158,42 +140,6 @@ def check_studio_project_dir(
         all_violations.extend(scan_tsx_for_product_violations(src, filename=rel_name))
 
         if allowed_video_filenames is not None:
-            for match in VIDEO_SRC_RE.finditer(src):
-                ref_file = Path(match.group(1)).name
-                if ref_file not in allowed_video_filenames:
-                    all_violations.append(
-                        f"{rel_name}: Video file '{ref_file}' is not in the approved shot library ({sorted(allowed_video_filenames)})"
-                    )
+            all_violations.extend(_unapproved_video_refs(src, rel_name, allowed_video_filenames))
 
     return all_violations
-
-
-def validate_shell_command_allowed(command_line: str) -> bool:
-    """Enforces the strict Studio shell command allowlist (`FR-STD-10`)."""
-    raw = (command_line or "").strip()
-    if not raw:
-        return False
-    # Reject shell chaining / redirection operators
-    if any(op in raw for op in ("&&", "||", ";", "|", ">", "<", "`", "$(")):
-        return False
-
-    try:
-        tokens = shlex.split(raw, posix=False)
-    except ValueError:
-        return False
-    if not tokens:
-        return False
-
-    lower_tokens = [t.strip("\"'").lower() for t in tokens]
-    for tok in lower_tokens:
-        if tok in FORBIDDEN_COMMAND_TOKENS:
-            return False
-        if ".." in tok:
-            return False
-
-    prog = Path(lower_tokens[0]).stem
-    normalized = (prog, *lower_tokens[1:])
-    for allowed_prefix in ALLOWED_COMMAND_PREFIXES:
-        if normalized[: len(allowed_prefix)] == allowed_prefix:
-            return True
-    return False

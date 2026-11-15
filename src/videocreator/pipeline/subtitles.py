@@ -4,8 +4,6 @@ from __future__ import annotations
 import re
 import textwrap
 from dataclasses import dataclass
-
-
 from pathlib import Path
 
 # Bundled OFL font (FR-REN-02). libass loads it through `fontsdir`, no system install needed.

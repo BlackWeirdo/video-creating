@@ -1,6 +1,5 @@
 """YouTube Data API v3 Shorts trend source with daily quota guard (Phase 12)."""
 from __future__ import annotations
-
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -11,6 +10,7 @@ from videocreator.config import load_settings
 from videocreator.db import get_conn, query_one
 from videocreator.paths import AppPaths
 from videocreator.secrets_store import SecretsStore
+from videocreator.timeutil import UTC_ISO_FORMAT
 from videocreator.trends.base import TrendItem, WatchItem
 
 YOUTUBE_API_BASE = "https://www.googleapis.com/youtube/v3"
@@ -78,7 +78,7 @@ class YouTubeTrendSource:
         cfg = load_settings(self.paths.config_file)
         published_after = (
             datetime.now(timezone.utc) - timedelta(days=max(1, cfg.trends.lookback_days))
-        ).strftime("%Y-%m-%dT%H:%M:%SZ")
+        ).strftime(UTC_ISO_FORMAT)
 
         params: dict[str, Any] = {
             "part": "snippet",
