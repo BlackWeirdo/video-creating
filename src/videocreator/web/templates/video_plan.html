@@ -92,7 +92,7 @@
             </td>
             <td>
               {% if db_s and db_s.thumb_path %}
-                <img class="media-frame" src="/media/{{ db_s.thumb_path }}" alt="Shot #{{ s.shot_id }}" style="width:72px;height:110px;object-fit:cover;">
+                <img class="media-frame" loading="lazy" decoding="async" src="/media/{{ db_s.thumb_path }}" alt="Shot #{{ s.shot_id }}" style="width:72px;height:110px;object-fit:cover;">
               {% endif %}
             </td>
             <td>

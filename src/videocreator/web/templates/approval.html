@@ -67,12 +67,12 @@
       <div class="grid-2" style="margin-top:0.75rem;">
         <div>
           {% if v.output_path %}
-            <video class="media-frame" controls preload="metadata" src="/media/{{ v.output_path }}" style="width:100%;max-width:270px;"></video>
+            <video class="media-frame" controls preload="none"{% if v.cover_path %} poster="/media/{{ v.cover_path }}"{% endif %} src="/media/{{ v.output_path }}" style="width:100%;max-width:270px;"></video>
           {% endif %}
           {% if v.cover_path %}
             <div style="margin-top:0.5rem;">
               <div class="small muted">Ảnh bìa (Cover 1080×1920):</div>
-              <img class="media-frame" src="/media/{{ v.cover_path }}" alt="Cover #{{ v.id }}" style="width:90px;height:160px;object-fit:cover;margin-top:0.25rem;">
+              <img class="media-frame" loading="lazy" decoding="async" src="/media/{{ v.cover_path }}" alt="Cover #{{ v.id }}" style="width:90px;height:160px;object-fit:cover;margin-top:0.25rem;">
             </div>
           {% endif %}
           <form method="post" action="/videos/{{ v.id }}/cover" enctype="multipart/form-data" class="inline-secret-form" style="margin-top:0.4rem;">
