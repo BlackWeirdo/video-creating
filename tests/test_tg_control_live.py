@@ -6,8 +6,8 @@ import pytest
 from videocreator.config import load_settings
 from videocreator.paths import get_paths
 from videocreator.secrets_store import SecretsStore
-from videocreator.telegram_bot import send_text
-from videocreator.tg.messages import build_menu_message
+from videocreator.tg.sender import send_text
+from videocreator.tg.status_messages import build_menu_message
 
 
 @pytest.mark.live

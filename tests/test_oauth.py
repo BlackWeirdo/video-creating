@@ -9,16 +9,13 @@ from urllib.parse import parse_qs, urlparse
 import pytest
 from fastapi.testclient import TestClient
 
-from videocreator.api.routes_posting import upsert_account
 from videocreator.app import create_app
 from videocreator.db import get_conn, query_one
-from videocreator.posting.oauth import (
-    build_authorize_url,
-    consume_oauth_state,
-    exchange_code_for_account,
-    refresh_token_if_needed,
-)
-from videocreator.posting.service import confirm_user_action_post
+from videocreator.posting.accounts import upsert_account
+from videocreator.posting.oauth import build_authorize_url, consume_oauth_state
+from videocreator.posting.oauth_exchange import exchange_code_for_account
+from videocreator.posting.oauth_refresh import refresh_token_if_needed
+from videocreator.posting.post_actions import confirm_user_action_post
 from videocreator.secrets_store import SecretsStore
 
 

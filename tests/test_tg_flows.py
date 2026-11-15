@@ -10,17 +10,12 @@ import pytest
 from videocreator.config import load_settings, save_settings
 from videocreator.db import get_conn, migrate, query_all, query_one
 from videocreator.paths import AppPaths, get_paths
-from videocreator.posting.service import publish_due_posts
+from videocreator.pipeline.quality_score import score_rendered_video
+from videocreator.posting.publish import publish_due_posts
+from videocreator.presets import create_preset, export_presets_json, import_presets_json, list_presets
 from videocreator.tg.callbacks import route_callback
-from videocreator.tg.handlers import (
-    create_preset,
-    execute_command,
-    export_presets_json,
-    handle_pending_reply_input,
-    import_presets_json,
-    list_presets,
-)
-from videocreator.tg.progress import score_rendered_video
+from videocreator.tg.commands import execute_command
+from videocreator.tg.pending_input import handle_pending_reply_input
 
 
 def _make_tg_paths(tmp_path: Path) -> AppPaths:

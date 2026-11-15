@@ -9,11 +9,11 @@ from pathlib import Path
 import pytest
 
 from videocreator.config import load_settings, save_settings
-
 from videocreator.db import get_conn, migrate, query_all, query_one
 from videocreator.paths import get_paths
-from videocreator.pipeline.ffmpeg import probe_video
-from videocreator.pipeline.render import enqueue_batch_render, render_video
+from videocreator.pipeline.probe import probe_video
+from videocreator.pipeline.render import render_video
+from videocreator.pipeline.render_batch import enqueue_batch_render
 
 SAMPLE_CLIP_1 = Path(__file__).parent / "samples" / "clip1_6s.mp4"
 

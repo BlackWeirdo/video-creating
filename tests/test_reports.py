@@ -7,16 +7,16 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from videocreator.api.routes_posting import upsert_account
 from videocreator.app import create_app
 from videocreator.config import load_settings, save_settings
 from videocreator.db import get_conn, query_one
-from videocreator.reports import (
+from videocreator.maintenance import (
     LOW_DISK_THRESHOLD_BYTES,
     check_expiring_tokens,
-    daily_summary,
     run_nightly_backup_and_cleanup,
 )
+from videocreator.posting.accounts import upsert_account
+from videocreator.reports import daily_summary
 
 
 @pytest.mark.local

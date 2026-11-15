@@ -1,7 +1,6 @@
 """Real SQLite tests for 7-day reference video cleanup, reference isolation from shots, and atomic suggestion accept/dismiss (Phase 13)."""
 from __future__ import annotations
 
-import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -10,11 +9,8 @@ from fastapi.testclient import TestClient
 
 from videocreator.app import create_app
 from videocreator.db import get_conn, query_all, query_one
-from videocreator.trends.download import (
-    cleanup_expired_reference_videos,
-    fetch_reference_video,
-)
-from videocreator.trends.suggest import accept_suggestion, dismiss_suggestion
+from videocreator.trends.download import cleanup_expired_reference_videos, fetch_reference_video
+from videocreator.trends.suggestion_actions import accept_suggestion, dismiss_suggestion
 
 SAMPLE_CLIP = Path(__file__).parent / "samples" / "clip1_6s.mp4"
 

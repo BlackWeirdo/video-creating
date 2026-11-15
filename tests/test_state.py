@@ -7,12 +7,8 @@ from pathlib import Path
 import pytest
 
 from videocreator.db import execute, migrate, query_one
-from videocreator.state import (
-    InvalidTransitionError,
-    transition,
-    transition_footage,
-    transition_post,
-)
+from videocreator.state import InvalidTransitionError, transition, transition_footage
+from videocreator.state_posts import transition_post
 
 pytestmark = pytest.mark.local
 

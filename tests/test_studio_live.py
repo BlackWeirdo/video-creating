@@ -15,7 +15,7 @@ from videocreator.config import load_settings, save_settings
 from videocreator.db import get_conn, migrate, query_one
 from videocreator.engines.mpt_service import MPTServiceManager
 from videocreator.paths import get_paths
-from videocreator.pipeline.ffmpeg import probe_video
+from videocreator.pipeline.probe import probe_video
 from videocreator.studio.agent import run_studio_job
 from videocreator.studio.session import confirm_studio_plan, create_studio_session, request_studio_revision
 

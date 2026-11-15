@@ -10,12 +10,12 @@ from videocreator.config import Settings
 from videocreator.tg.messages import (
     build_account_toggle_keyboard,
     build_approval_message,
-    build_menu_message,
     build_new_footage_message,
     build_post_now_confirm_keyboard,
     build_trend_suggestion_message,
-    is_quiet_hours,
 )
+from videocreator.tg.quiet_hours import is_quiet_hours
+from videocreator.tg.status_messages import build_menu_message
 
 
 def _assert_all_callbacks_under_64_bytes(kb: list[list[tuple[str, str]]]) -> None:

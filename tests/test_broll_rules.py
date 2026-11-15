@@ -10,21 +10,13 @@ import pytest
 from videocreator.ai.base import BudgetExceeded
 from videocreator.config import load_settings, save_settings
 from videocreator.db import get_conn, migrate, query_one
-from videocreator.manual.tickets import (
-    create_manual_ticket,
-    expire_stale_tickets,
-    fulfill_manual_ticket,
-)
+from videocreator.manual.fulfill import fulfill_manual_ticket
+from videocreator.manual.tickets import create_manual_ticket, expire_stale_tickets
 from videocreator.paths import get_paths
-from videocreator.pipeline.broll import generate_broll
-from videocreator.pipeline.ffmpeg import probe_video
-from videocreator.pipeline.planner import (
-    PlannedShot,
-    PlatformCaption,
-    PlatformCaptions,
-    VideoPlanItem,
-    validate_and_normalize_plan,
-)
+from videocreator.pipeline.broll_generate import generate_broll
+from videocreator.pipeline.plan_schema import PlannedShot, PlatformCaption, PlatformCaptions, VideoPlanItem
+from videocreator.pipeline.plan_validate import validate_and_normalize_plan
+from videocreator.pipeline.probe import probe_video
 from videocreator.pipeline.render import render_video
 
 SAMPLE_CLIP_1 = Path(__file__).parent / "samples" / "clip1_6s.mp4"

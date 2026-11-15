@@ -1,7 +1,6 @@
 """Real SQLite tests for auto-slot calculation, 7-video multi-day overflow, and 7h missed-slot protection (Phase 10)."""
 from __future__ import annotations
 
-import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -9,16 +8,12 @@ from zoneinfo import ZoneInfo
 import pytest
 from fastapi.testclient import TestClient
 
-from videocreator.api.routes_posting import upsert_account
 from videocreator.app import create_app
 from videocreator.approvals import approve
 from videocreator.db import get_conn, query_all, query_one
-from videocreator.posting.service import (
-    cancel_scheduled_post,
-    publish_due_posts,
-    reschedule_post,
-    retry_failed_post,
-)
+from videocreator.posting.accounts import upsert_account
+from videocreator.posting.post_actions import retry_failed_post
+from videocreator.posting.publish import publish_due_posts
 
 
 @pytest.mark.local

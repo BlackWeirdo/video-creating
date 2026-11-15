@@ -11,8 +11,8 @@ import pytest
 
 from videocreator.db import migrate
 from videocreator.paths import get_paths
-from videocreator.pipeline.broll import generate_broll
-from videocreator.pipeline.ffmpeg import probe_video
+from videocreator.pipeline.broll_generate import generate_broll
+from videocreator.pipeline.probe import probe_video
 from videocreator.secrets_store import SecretsStore
 
 

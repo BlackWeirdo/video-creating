@@ -8,17 +8,13 @@ import pytest
 
 from videocreator.ai.quota import mark_provider_resting
 from videocreator.db import execute, migrate, query_one
-from videocreator.jobs import (
-    JobRegistry,
-    JobWorker,
-    QuotaWaitRequested,
-    enqueue_job,
-    recover_interrupted_jobs,
-    wake_expired_quota_jobs,
+from videocreator.job_store import (
     claim_next_queued_job,
+    recover_interrupted_jobs,
     requeue_waiting_quota_jobs,
-    run_one_job,
+    wake_expired_quota_jobs,
 )
+from videocreator.jobs import JobRegistry, JobWorker, QuotaWaitRequested, enqueue_job, run_one_job
 
 pytestmark = pytest.mark.local
 

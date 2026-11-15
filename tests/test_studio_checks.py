@@ -11,14 +11,12 @@ import pytest
 from videocreator.db import get_conn, migrate, query_one
 from videocreator.jobs import JobRegistry, JobWorker
 from videocreator.paths import get_paths
-from videocreator.pipeline.ffmpeg import probe_video, run_ffmpeg
-from videocreator.pipeline.planner import FactCheckResult
+from videocreator.pipeline.ffmpeg import run_ffmpeg
+from videocreator.pipeline.plan_schema import FactCheckResult
+from videocreator.pipeline.probe import probe_video
 from videocreator.studio.agent import run_studio_job
-from videocreator.studio.checks import (
-    scan_scene_contract,
-    scan_tsx_for_product_violations,
-    validate_shell_command_allowed,
-)
+from videocreator.studio.checks import scan_scene_contract, scan_tsx_for_product_violations
+from videocreator.studio.command_check import validate_shell_command_allowed
 from videocreator.studio.plan import validate_plan
 from videocreator.studio.session import (
     STUDIO_JOB_KIND,

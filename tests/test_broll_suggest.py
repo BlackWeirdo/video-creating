@@ -20,18 +20,19 @@ from fastapi.testclient import TestClient
 from videocreator.app import create_app
 from videocreator.db import get_conn, query_all, set_setting
 from videocreator.paths import AppPaths
-from videocreator.pipeline.broll_suggest import (
-    BROLL_IDEAS_SETTING_KEY,
+from videocreator.pipeline.broll_context import build_broll_context, read_reference_look
+from videocreator.pipeline.broll_ideas import (
     BROLL_PROMPT_GUARD,
     BROLL_PROMPT_GUARD_EN,
-    BROLL_SUGGEST_JOB_KIND,
-    BrollIdeasBatchSchema,
     BrollIdeaSchema,
-    _build_prompt,
-    build_broll_context,
-    load_broll_ideas,
+    BrollIdeasBatchSchema,
     normalize_broll_ideas,
-    read_reference_look,
+)
+from videocreator.pipeline.broll_suggest import (
+    BROLL_IDEAS_SETTING_KEY,
+    BROLL_SUGGEST_JOB_KIND,
+    _build_prompt,
+    load_broll_ideas,
     suggest_broll_ideas,
 )
 

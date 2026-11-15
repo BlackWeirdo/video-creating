@@ -6,12 +6,7 @@ from pathlib import Path
 import pytest
 
 from videocreator.ai.base import BudgetExceeded
-from videocreator.ai.budget import (
-    check_budget,
-    estimate_token_cost,
-    get_daily_api_spend,
-    record_usage,
-)
+from videocreator.ai.budget import check_budget, estimate_token_cost, get_daily_api_spend, record_usage
 from videocreator.config import Settings
 from videocreator.db import migrate
 

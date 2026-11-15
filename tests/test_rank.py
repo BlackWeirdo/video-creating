@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 
 from videocreator.app import create_app
 from videocreator.db import query_all
-from videocreator.trends.base import TrendItem, WatchItem
+from videocreator.trends.base import TrendItem
 from videocreator.trends.ig_hashtag import check_and_record_hashtag_quota
 from videocreator.trends.rank import score_trend_item
 from videocreator.trends.scan import scan_all, upsert_trend_item

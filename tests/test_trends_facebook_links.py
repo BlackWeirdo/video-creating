@@ -27,16 +27,18 @@ from videocreator.db import (
     set_setting,
 )
 from videocreator.paths import AppPaths, get_paths
-from videocreator.tg.handlers import handle_link_command
+from videocreator.tg.link_command import handle_link_command
 from videocreator.trends.facebook import FACEBOOK_MANUAL_REASON, normalize_facebook_source
-from videocreator.trends.links import (
-    ANALYSE_TREND_JOB_KIND,
-    MAX_PASTED_LINKS_PER_DAY,
-    add_pasted_link,
+from videocreator.trends.link_parse import (
     classify_video_url,
     counts_from_title,
     extract_first_url,
     parse_single_video,
+)
+from videocreator.trends.links import (
+    ANALYSE_TREND_JOB_KIND,
+    MAX_PASTED_LINKS_PER_DAY,
+    add_pasted_link,
     run_analyse_trend_job,
 )
 from videocreator.trends.rank import score_trend_item

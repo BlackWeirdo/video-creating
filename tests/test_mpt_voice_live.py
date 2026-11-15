@@ -17,7 +17,7 @@ import pytest
 from videocreator.db import get_conn, migrate, query_one
 from videocreator.engines.mpt_service import MPTServiceManager
 from videocreator.paths import find_ffmpeg_binary, get_paths
-from videocreator.pipeline.ffmpeg import probe_video
+from videocreator.pipeline.probe import probe_video
 from videocreator.pipeline.render import render_video
 
 SAMPLE_CLIP_1 = Path(__file__).parent / "samples" / "clip1_6s.mp4"

@@ -11,22 +11,11 @@ from videocreator.ai.quota import clear_provider_rest, is_provider_resting, mark
 from videocreator.ai.router import RoutedProvider
 from videocreator.config import load_settings, save_settings
 from videocreator.db import migrate
-from videocreator.jobs import (
-    JobRegistry,
-    JobWorker,
-    enqueue_job,
-    get_job,
-    wake_expired_quota_jobs,
-)
+from videocreator.job_store import wake_expired_quota_jobs
+from videocreator.jobs import JobRegistry, JobWorker, enqueue_job, get_job
 from videocreator.paths import get_paths
-from videocreator.pipeline.planner import (
-    PlannedShot,
-    PlatformCaption,
-    PlatformCaptions,
-    VideoPlanItem,
-    jaccard_similarity,
-    validate_and_normalize_plan,
-)
+from videocreator.pipeline.plan_schema import PlannedShot, PlatformCaption, PlatformCaptions, VideoPlanItem
+from videocreator.pipeline.plan_validate import jaccard_similarity, validate_and_normalize_plan
 
 
 class SimpleReply(BaseModel):
@@ -237,11 +226,12 @@ def test_planner_validation_product_rules_and_jaccard() -> None:
 def test_describe_planner_and_video_routes_end_to_end(tmp_path: Path) -> None:
     from fastapi.testclient import TestClient
 
-    from videocreator.api.routes_products import create_product
+    from videocreator.products import create_product
     from videocreator.app import create_app
     from videocreator.db import get_conn
     from videocreator.pipeline.describe import ShotDescriptionItem, ShotDescriptionsResponse, run_describe_footage
-    from videocreator.pipeline.planner import FactCheckResult, RemixPlansBatch, create_remix_plans
+    from videocreator.pipeline.plan_schema import FactCheckResult, RemixPlansBatch
+    from videocreator.pipeline.planner import create_remix_plans
 
     app = create_app(data_dir=tmp_path, start_worker=False)
     paths = app.state.paths

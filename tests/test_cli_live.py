@@ -7,12 +7,13 @@ from pathlib import Path
 import pytest
 
 from videocreator.ai.cli_base import find_claude_binary
-from videocreator.api.routes_footage import import_footage_file, run_analyse_footage
-from videocreator.api.routes_products import create_product
 from videocreator.db import migrate, query_all
 from videocreator.paths import get_paths
 from videocreator.pipeline.describe import run_describe_footage
+from videocreator.pipeline.footage_analyse import run_analyse_footage
+from videocreator.pipeline.footage_import import import_footage_file
 from videocreator.pipeline.planner import create_remix_plans
+from videocreator.products import create_product
 
 SAMPLES_DIR = Path(__file__).resolve().parent / "samples"
 CLIP_PORTRAIT = SAMPLES_DIR / "clip1_6s.mp4"

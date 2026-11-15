@@ -7,14 +7,15 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from videocreator.api.routes_products import create_product
 from videocreator.app import create_app
 from videocreator.approvals import approve, reject
 from videocreator.config import load_settings, save_settings
 from videocreator.db import get_conn, migrate, query_one
 from videocreator.paths import get_paths
+from videocreator.products import create_product
 from videocreator.state import InvalidTransitionError
-from videocreator.telegram_bot import build_status_text, process_approval_callback
+from videocreator.tg.callbacks import route_callback
+from videocreator.tg.status_messages import build_status_text
 
 
 @pytest.mark.local
@@ -74,9 +75,8 @@ def test_telegram_two_layer_allowlist_and_concurrent_callback(tmp_path: Path) ->
         )
 
     # 1. Unauthorized chat -> blocked
-    allowed1, msg1, won1 = process_approval_callback(
-        paths.db_file,
-        paths.config_file,
+    allowed1, msg1, won1, _ = route_callback(
+        paths,
         chat_id=-999999,
         user_id=1001,
         user_name="Minh",
@@ -86,9 +86,8 @@ def test_telegram_two_layer_allowlist_and_concurrent_callback(tmp_path: Path) ->
     assert won1 is False
 
     # 2. Authorized chat, but user_id not in approver_user_ids -> blocked
-    allowed2, msg2, won2 = process_approval_callback(
-        paths.db_file,
-        paths.config_file,
+    allowed2, msg2, won2, _ = route_callback(
+        paths,
         chat_id=-100123456,
         user_id=7777,
         user_name="Stranger",
@@ -98,9 +97,8 @@ def test_telegram_two_layer_allowlist_and_concurrent_callback(tmp_path: Path) ->
     assert won2 is False
 
     # 3. Authorized chat + authorized approver 1001 -> wins approval
-    allowed3, msg3, won3 = process_approval_callback(
-        paths.db_file,
-        paths.config_file,
+    allowed3, msg3, won3, _ = route_callback(
+        paths,
         chat_id=-100123456,
         user_id=1001,
         user_name="Minh",
@@ -111,9 +109,8 @@ def test_telegram_two_layer_allowlist_and_concurrent_callback(tmp_path: Path) ->
     assert "Đã duyệt bởi Minh" in msg3
 
     # 4. Second approver 1002 clicks Reject a moment later -> receives "đã được xử lý rồi"
-    allowed4, msg4, won4 = process_approval_callback(
-        paths.db_file,
-        paths.config_file,
+    allowed4, msg4, won4, _ = route_callback(
+        paths,
         chat_id=-100123456,
         user_id=1002,
         user_name="Lan",

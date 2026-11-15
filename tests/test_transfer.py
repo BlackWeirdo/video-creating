@@ -7,17 +7,13 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from videocreator.api.routes_products import create_product, list_products
 from videocreator.app import create_app
 from videocreator.config import load_settings, save_settings
 from videocreator.db import migrate
 from videocreator.paths import get_paths
+from videocreator.products import create_product, list_products
 from videocreator.secrets_store import SecretsStore
-from videocreator.transfer import (
-    ExportPasswordError,
-    export_config_bundle,
-    import_config_bundle,
-)
+from videocreator.transfer import ExportPasswordError, export_config_bundle, import_config_bundle
 
 
 @pytest.mark.local
@@ -104,3 +100,12 @@ def test_non_localhost_basic_auth_middleware(tmp_path: Path) -> None:
         r_ok = client.get("/", headers={"Authorization": f"Basic {ok_token}"})
         assert r_ok.status_code == 200
         assert "Video Creator" in r_ok.text
+
+
+@pytest.mark.local
+def test_bind_host_override_enforces_auth(tmp_path: Path) -> None:
+    # config.toml says localhost, but the process actually binds 0.0.0.0 (--host flag).
+    app = create_app(data_dir=tmp_path, start_worker=False, bind_host="0.0.0.0")
+    with TestClient(app) as client:
+        assert client.get("/health").status_code == 200
+        assert client.get("/").status_code == 401

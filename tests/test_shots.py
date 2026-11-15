@@ -7,17 +7,14 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from videocreator.api.routes_footage import (
-    DuplicateFootageError,
-    import_footage_file,
-    run_analyse_footage,
-)
-from videocreator.api.routes_products import create_product
 from videocreator.app import create_app
 from videocreator.db import migrate, query_all, query_one
 from videocreator.paths import get_paths
+from videocreator.pipeline.footage_analyse import run_analyse_footage
+from videocreator.pipeline.footage_import import DuplicateFootageError, import_footage_file
 from videocreator.pipeline.probe import probe_video
 from videocreator.pipeline.shots import ShotSpan, postprocess_shot_spans
+from videocreator.products import create_product
 
 SAMPLES_DIR = Path(__file__).resolve().parent / "samples"
 CLIP_PORTRAIT = SAMPLES_DIR / "clip1_6s.mp4"

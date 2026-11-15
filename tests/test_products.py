@@ -6,15 +6,15 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from videocreator.api.routes_products import (
+from videocreator.app import create_app
+from videocreator.db import get_conn, migrate
+from videocreator.products import (
     create_product,
     delete_or_hide_product,
     get_product,
     list_products,
     update_product,
 )
-from videocreator.app import create_app
-from videocreator.db import get_conn, migrate
 
 
 @pytest.mark.local

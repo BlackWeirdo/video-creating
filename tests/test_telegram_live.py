@@ -11,7 +11,8 @@ from videocreator.config import load_settings, save_settings
 from videocreator.db import get_conn, migrate
 from videocreator.paths import get_paths
 from videocreator.secrets_store import SecretsStore
-from videocreator.telegram_bot import notify_pending_async, send_text_async
+from videocreator.tg.approval_notify import notify_pending_async
+from videocreator.tg.sender import send_text_async
 
 SAMPLES_DIR = Path(__file__).resolve().parent / "samples"
 CLIP_PORTRAIT = SAMPLES_DIR / "clip1_6s.mp4"

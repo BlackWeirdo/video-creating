@@ -7,8 +7,6 @@ from pathlib import Path
 import pytest
 
 from videocreator.api.routes_assets import import_audio_asset
-from videocreator.api.routes_footage import import_footage_file
-from videocreator.api.routes_products import create_product
 from videocreator.config import PlatformLimitConfig, load_settings
 from videocreator.db import get_conn, migrate, query_one
 from videocreator.paths import get_paths
@@ -18,8 +16,11 @@ from videocreator.pipeline.ffmpeg import (
     run_ffmpeg,
     validate_filtergraph_allowed,
 )
+from videocreator.pipeline.footage_import import import_footage_file
 from videocreator.pipeline.preflight import check_all_platforms, check_platform, inspect_master_streams
-from videocreator.pipeline.render import build_segment_filter_args, render_video
+from videocreator.pipeline.render import render_video
+from videocreator.pipeline.render_inputs import build_segment_filter_args
+from videocreator.products import create_product
 
 SAMPLES_DIR = Path(__file__).resolve().parent / "samples"
 CLIP_PORTRAIT = SAMPLES_DIR / "clip1_6s.mp4"

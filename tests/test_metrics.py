@@ -9,12 +9,8 @@ import pytest
 from videocreator.db import get_conn, migrate, query_all
 from videocreator.paths import get_paths
 from videocreator.posting.base import Account
-from videocreator.posting.metrics import (
-    _default_metrics_reader,
-    collect_due_metrics,
-    due_checkpoints,
-    list_performance_rows,
-)
+from videocreator.posting.metrics import _default_metrics_reader, collect_due_metrics, due_checkpoints
+from videocreator.posting.performance import list_performance_rows
 from videocreator.reports import weekly_summary
 from videocreator.secrets_store import SecretsStore
 

@@ -11,19 +11,16 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from videocreator.api.routes_posting import upsert_account
 from videocreator.app import create_app
 from videocreator.db import get_conn, migrate, query_all, query_one
 from videocreator.paths import get_paths
+from videocreator.posting.accounts import upsert_account
 from videocreator.posting.base import PermanentPostError, PostResult, TransientPostError
+from videocreator.posting.captions import build_manual_bundle_zip
 from videocreator.posting.meta_auth import classify_meta_error
-from videocreator.posting.service import (
-    build_manual_bundle_zip,
-    cleanup_staged_r2_objects,
-    compute_next_attempt_iso,
-    publish_due_posts,
-    schedule_approved_video,
-)
+from videocreator.posting.publish import publish_due_posts
+from videocreator.posting.publish_outcomes import compute_next_attempt_iso
+from videocreator.posting.service import cleanup_staged_r2_objects, schedule_approved_video
 
 SAMPLES_DIR = Path(__file__).resolve().parent / "samples"
 CLIP_PORTRAIT = SAMPLES_DIR / "clip1_6s.mp4"
@@ -275,7 +272,7 @@ def test_transient_retry_backoff_and_manual_bundle_zip(tmp_path: Path) -> None:
 
 @pytest.mark.local
 def test_tiktok_chunk_plan_follows_media_transfer_rules() -> None:
-    from videocreator.posting.tiktok import plan_chunks
+    from videocreator.posting.tiktok_upload import plan_chunks
 
     mb = 1024 * 1024
     assert plan_chunks(4 * mb) == (4 * mb, 1)  # under 5 MB: whole file
