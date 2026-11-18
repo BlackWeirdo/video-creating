@@ -169,8 +169,16 @@ def _run_desktop_window(app: Any, host: str, port: int, base_url: str) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    if sys.stdout is None:
+        sys.stdout = open(os.devnull, "w", encoding="utf-8")
+    if sys.stderr is None:
+        sys.stderr = open(os.devnull, "w", encoding="utf-8")
     args = parse_args(argv)
     paths = get_paths(args.data_dir)
+    if getattr(sys.stderr, "name", "") == os.devnull:
+        boot_log = open(paths.logs_dir / "desktop_boot.log", "a", encoding="utf-8", buffering=1)
+        sys.stdout = boot_log
+        sys.stderr = boot_log
     settings = load_settings(paths.config_file)
 
     host = (args.host or settings.host).strip()
