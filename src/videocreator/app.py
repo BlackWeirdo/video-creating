@@ -81,14 +81,23 @@ def create_app(
             current_settings.role,
             paths.data_dir,
         )
+        tg_task = None
         if current_settings.role == "server" and start_worker:
+            import asyncio
+
             worker.start()
             scheduler.start()
-            await tg_service.start()
+            tg_task = asyncio.create_task(tg_service.start())
             mpt_service.start()
         try:
             yield
         finally:
+            if tg_task is not None and not tg_task.done():
+                tg_task.cancel()
+                try:
+                    await tg_task
+                except BaseException:
+                    pass
             mpt_service.stop()
             scheduler.stop()
             await tg_service.stop()

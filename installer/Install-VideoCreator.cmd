@@ -4,6 +4,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$s = (Get-Content -L
 if %ERRORLEVEL% NEQ 0 pause
 exit /b %ERRORLEVEL%
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+$env:UV_SYSTEM_CERTS = "true"
+$env:UV_NATIVE_TLS = "true"
 $InstallDir = "$env:LOCALAPPDATA\Programs\VideoCreator"
 $RepoUrl = "https://github.com/BlackWeirdo/video-creating.git"
 $ZipUrl = "https://github.com/BlackWeirdo/video-creating/archive/refs/heads/main.zip"

@@ -84,16 +84,28 @@ class SingleInstanceLock:
             self._fd = None
 
 
-def wait_for_health(url: str, timeout_s: float = 15.0) -> bool:
+def wait_for_health(url: str, timeout_s: float = 30.0, server_thread: threading.Thread | None = None) -> bool:
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
+        if server_thread is not None and not server_thread.is_alive():
+            return False
         try:
-            with urllib.request.urlopen(url, timeout=1.0) as resp:
+            with opener.open(url, timeout=1.0) as resp:
                 if resp.status == 200:
                     return True
         except Exception:
             time.sleep(0.15)
     return False
+
+
+def _notify_windows_error(message: str) -> None:
+    if os.name != "nt":
+        return
+    try:
+        ctypes.windll.user32.MessageBoxW(0, message, "Video Creator - Lỗi khởi động", 0x10)  # type: ignore[attr-defined]
+    except Exception:
+        pass
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -136,7 +148,7 @@ def _show_window_or_browser(base_url: str, server_thread: threading.Thread) -> N
             height=840,
             min_size=(960, 640),
         )
-        webview.start()
+        webview.start(gui="edgechromium" if os.name == "nt" else None)
     except Exception as exc:
         print(
             f"Warning: Could not open pywebview window ({exc}). Falling back to default browser.",
@@ -150,15 +162,17 @@ def _show_window_or_browser(base_url: str, server_thread: threading.Thread) -> N
             pass
 
 
-def _run_desktop_window(app: Any, host: str, port: int, base_url: str) -> int:
+def _run_desktop_window(app: Any, host: str, port: int, base_url: str, boot_log_path: Path) -> int:
     """Runs the server on a background thread and the desktop window in the foreground."""
     server_cfg = uvicorn.Config(app, host=host, port=port, log_level="warning")
     server = uvicorn.Server(server_cfg)
     thread = threading.Thread(target=server.run, daemon=True, name="uvicorn-thread")
     thread.start()
 
-    if not wait_for_health(f"{base_url}/health"):
-        print("Error: Local server failed to start within timeout.", file=sys.stderr)
+    if not wait_for_health(f"{base_url}/health", timeout_s=30.0, server_thread=thread):
+        msg = f"Không khởi động được máy chủ nội bộ tại {base_url}.\nXem chi tiết tại: {boot_log_path}"
+        print(f"Error: {msg}", file=sys.stderr)
+        _notify_windows_error(msg)
         return 1
     try:
         _show_window_or_browser(base_url, thread)
@@ -169,14 +183,16 @@ def _run_desktop_window(app: Any, host: str, port: int, base_url: str) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    windowless = sys.stdout is None or sys.stderr is None
     if sys.stdout is None:
         sys.stdout = open(os.devnull, "w", encoding="utf-8")
     if sys.stderr is None:
         sys.stderr = open(os.devnull, "w", encoding="utf-8")
     args = parse_args(argv)
     paths = get_paths(args.data_dir)
-    if getattr(sys.stderr, "name", "") == os.devnull:
-        boot_log = open(paths.logs_dir / "desktop_boot.log", "a", encoding="utf-8", buffering=1)
+    boot_log_path = paths.logs_dir / "desktop_boot.log"
+    if windowless:
+        boot_log = open(boot_log_path, "a", encoding="utf-8", buffering=1)
         sys.stdout = boot_log
         sys.stderr = boot_log
     settings = load_settings(paths.config_file)
@@ -209,7 +225,14 @@ def main(argv: list[str] | None = None) -> int:
             uvicorn.run(app, host=host, port=port, log_level="info")
             return 0
 
-        return _run_desktop_window(app, host, port, base_url)
+        return _run_desktop_window(app, host, port, base_url, boot_log_path)
+    except Exception as exc:
+        import traceback
+
+        traceback.print_exc()
+        if windowless and not args.headless:
+            _notify_windows_error(f"Lỗi khởi động Video Creator: {exc}\nLog: {boot_log_path}")
+        raise
     finally:
         lock.release()
 
