@@ -8,12 +8,13 @@ from pathlib import Path
 from typing import Any
 
 from videocreator.config import load_settings
-from videocreator.db import get_conn, query_one, record_audit
+from videocreator.db import get_conn, query_all, query_one, record_audit
 from videocreator.paths import AppPaths
+from videocreator.pipeline.audio_beats import snap_shots_to_beats
 from videocreator.pipeline.export import extract_cover_frame, normalize_to_master
 from videocreator.pipeline.ffmpeg import RenderError
 from videocreator.pipeline.preflight import check_all_platforms
-from videocreator.pipeline.render_inputs import pick_music_asset
+from videocreator.pipeline.render_inputs import pick_music_asset_record
 from videocreator.pipeline.render_status import claim_for_render, score_or_send_to_approval
 from videocreator.pipeline.render_steps import (
     SUBTITLE_FILENAME,
@@ -24,8 +25,32 @@ from videocreator.pipeline.render_steps import (
 )
 from videocreator.state import transition
 from videocreator.tg.approval_notify import notify_pending
+from videocreator.trends.suggestion_formula import load_suggestion_formula
 
 logger = logging.getLogger("videocreator.pipeline.render")
+
+
+def _load_trend_blueprint_for_render(paths: AppPaths, video_row: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
+    if isinstance(plan.get("trend_analysis"), dict) and plan["trend_analysis"]:
+        return dict(plan["trend_analysis"])
+    sug_id = video_row.get("suggestion_id")
+    if sug_id:
+        formula_obj = load_suggestion_formula(paths.db_file, int(sug_id)) or {}
+        if isinstance(formula_obj.get("trend_analysis"), dict):
+            return dict(formula_obj["trend_analysis"])
+    return {}
+
+
+def _load_shot_bounds(paths: AppPaths, planned_shots: list[dict[str, Any]]) -> dict[int, tuple[float, float]]:
+    ids = sorted({int(s.get("shot_id") or 0) for s in planned_shots if int(s.get("shot_id") or 0) > 0})
+    if not ids:
+        return {}
+    rows = query_all(
+        paths.db_file,
+        f"SELECT id, start_s, end_s FROM shots WHERE id IN ({','.join('?' * len(ids))})",
+        ids,
+    )
+    return {int(r["id"]): (float(r["start_s"]), float(r["end_s"])) for r in rows}
 
 
 def _render_to_master(
@@ -49,14 +74,39 @@ def _render_to_master(
     if not planned_shots:
         raise RenderError(f"Video #{video_id} plan has no shots")
 
-    keep_audio = settings.render.keep_original_audio
+    blueprint = _load_trend_blueprint_for_render(paths, video_row, plan)
+    music_mood = str(blueprint.get("music_mood") or plan.get("music_mood") or "").strip() or None
+    energy_level = str(blueprint.get("energy_level") or plan.get("energy_level") or "").strip() or None
+    audio_mode = str(blueprint.get("audio_mode") or plan.get("audio_mode") or "").strip()
+    hook_layout = str(blueprint.get("hook_layout") or plan.get("hook_layout") or "clean_bottom").strip()
+
+    music_rec = pick_music_asset_record(
+        paths,
+        music_asset_id=music_asset_id,
+        music_mood=music_mood,
+        energy_level=energy_level,
+    )
+    row_vlang = str(video_row.get("voice_lang") or "")
+    plan_vlang = str(plan.get("voice_lang") or "")
+    voice_lang = row_vlang if row_vlang in ("vi", "en") else (plan_vlang or row_vlang or "none")
+
+    want_beat_sync = bool(blueprint) or bool(plan.get("beat_sync"))
+    if voice_lang == "none" and want_beat_sync and music_rec is not None:
+        beat_times = (music_rec.get("meta") or {}).get("beat_times_s") or []
+        if beat_times:
+            planned_shots = snap_shots_to_beats(
+                planned_shots,
+                _load_shot_bounds(paths, planned_shots),
+                beat_times,
+            )
+
+    keep_audio = bool(settings.render.keep_original_audio or audio_mode == "asmr_original")
     seg_files, sub_events, cut_duration_s = cut_shot_segments(
         paths, planned_shots, work_dir, keep_audio=keep_audio
     )
     cut_mp4 = concat_segments(seg_files, work_dir)
 
     engine_mode = str(video_row.get("engine") or "ffmpeg")
-    voice_lang = str(video_row.get("voice_lang") or plan.get("voice_lang") or "none")
     voice_track = None
     if voice_lang in ("vi", "en") and (engine_mode == "mpt" or mpt_client is not None):
         voice_track, voice_sub_events = add_voice_over(
@@ -68,9 +118,9 @@ def _render_to_master(
             mpt_client=mpt_client,
             video_duration_s=cut_duration_s,
         )
-        if voice_sub_events is not None:
+        if voice_sub_events:
             sub_events = voice_sub_events
-    write_subtitle_file(sub_events, settings, work_dir)
+    write_subtitle_file(sub_events, settings, work_dir, layout_preset=hook_layout)
 
     # Step 4: Burn ASS subtitles, mix music/silent track, and normalize to Master MP4 + cover.jpg
     rel_out = f"output/video_{video_id}.mp4"
@@ -79,7 +129,7 @@ def _render_to_master(
     actual_duration_s = normalize_to_master(
         cut_mp4,
         abs_out,
-        music_path=pick_music_asset(paths, music_asset_id=music_asset_id),
+        music_path=music_rec["path"] if music_rec is not None else None,
         voice_path=voice_track.audio_path if voice_track is not None else None,
         ass_filename=SUBTITLE_FILENAME if sub_events else None,
         cwd=work_dir,
@@ -146,10 +196,12 @@ def render_video(
     work_dir.mkdir(parents=True, exist_ok=True)
 
     try:
-        rel_out, actual_duration_s = _render_to_master(
-            paths, video_row, work_dir, preset=preset, music_asset_id=music_asset_id, mpt_client=mpt_client
-        )
-        shutil.rmtree(work_dir, ignore_errors=True)
+        try:
+            rel_out, actual_duration_s = _render_to_master(
+                paths, video_row, work_dir, preset=preset, music_asset_id=music_asset_id, mpt_client=mpt_client
+            )
+        finally:
+            shutil.rmtree(work_dir, ignore_errors=True)
 
         should_score = (
             auto_score

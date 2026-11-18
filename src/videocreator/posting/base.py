@@ -65,12 +65,20 @@ def empty_metrics() -> dict[str, int | None]:
     return {"views": None, "likes": None, "comments": None, "shares": None}
 
 
-def metrics_http_outcome(status_code: int, label: str) -> None:
-    """Decides what a non-200 metrics reply means: network-like failures (429, 5xx) raise
-    `MetricsFetchError` so the checkpoint is tried again; any other 4xx (post deleted, no
-    permission, an id that is not a post) is final, and the caller records "no data"."""
-    if status_code == 429 or status_code >= 500:
+_RETRYABLE_META_METRIC_CODES = frozenset({4, 17, 32, 190, 613})
+
+
+def metrics_http_outcome(
+    status_code: int, label: str, payload: dict[str, Any] | None = None
+) -> None:
+    """Decides what a non-200 metrics reply means: network-like, rate-limit, or expired-token
+    failures raise `MetricsFetchError` so the checkpoint is tried again; any other 4xx (post
+    deleted, no permission, an id that is not a post) is final, and the caller records 'no data'."""
+    if status_code in (401, 429) or status_code >= 500:
         raise MetricsFetchError(f"{label} HTTP {status_code}")
+    err = (payload or {}).get("error")
+    if isinstance(err, dict) and err.get("code") in _RETRYABLE_META_METRIC_CODES:
+        raise MetricsFetchError(f"{label} error code {err.get('code')}")
 
 
 def check_preflight_or_raise(config_file: Path, video_path: Path, platform: str) -> Settings:

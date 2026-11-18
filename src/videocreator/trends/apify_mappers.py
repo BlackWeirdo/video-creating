@@ -27,6 +27,18 @@ def map_tiktok(item: dict[str, Any]) -> TrendItem | None:
     if published is None:
         return None
     author = item.get("authorMeta") or {}
+    metrics: dict[str, Any] = {
+        "views": int(item.get("playCount") or 0),
+        "likes": int(item.get("diggCount") or 0),
+        "comments": int(item.get("commentCount") or 0),
+        "shares": int(item.get("shareCount") or 0),
+        "saves": int(item.get("collectCount") or 0),
+        "duration_s": float((item.get("videoMeta") or {}).get("duration") or 0),
+        "is_ad": bool(item.get("isAd")),
+    }
+    fans = int(author.get("fans") or author.get("followers") or 0)
+    if fans > 0:
+        metrics["author_followers"] = fans
     return TrendItem(
         source="tiktok",
         external_id=str(item["id"]),
@@ -34,15 +46,7 @@ def map_tiktok(item: dict[str, Any]) -> TrendItem | None:
         author=str(author.get("name") or author.get("nickName") or ""),
         caption=str(item.get("text") or "")[:1000],
         published_at=published,
-        metrics={
-            "views": int(item.get("playCount") or 0),
-            "likes": int(item.get("diggCount") or 0),
-            "comments": int(item.get("commentCount") or 0),
-            "shares": int(item.get("shareCount") or 0),
-            "saves": int(item.get("collectCount") or 0),
-            "duration_s": float((item.get("videoMeta") or {}).get("duration") or 0),
-            "is_ad": bool(item.get("isAd")),
-        },
+        metrics=metrics,
         video_url=str(item["webVideoUrl"]),
     )
 
@@ -54,6 +58,17 @@ def map_instagram(item: dict[str, Any], *, source: str) -> TrendItem | None:
     if published is None:
         return None
     views = item.get("videoPlayCount") or item.get("igPlayCount") or item.get("videoViewCount") or 0
+    metrics: dict[str, Any] = {
+        "views": int(views),
+        "likes": int(item.get("likesCount") or 0),
+        "comments": int(item.get("commentsCount") or 0),
+        "shares": int(item.get("sharesCount") or 0),
+        "saves": int(item.get("savesCount") or item.get("savedCount") or 0),
+        "duration_s": round(float(item.get("videoDuration") or 0), 2),
+    }
+    followers = int(item.get("ownerFollowersCount") or item.get("followersCount") or 0)
+    if followers > 0:
+        metrics["author_followers"] = followers
     return TrendItem(
         source=source,
         external_id=str(item.get("shortCode") or item.get("id")),
@@ -61,13 +76,7 @@ def map_instagram(item: dict[str, Any], *, source: str) -> TrendItem | None:
         author=str(item.get("ownerUsername") or item.get("ownerFullName") or ""),
         caption=str(item.get("caption") or "")[:1000],
         published_at=published,
-        metrics={
-            "views": int(views),
-            "likes": int(item.get("likesCount") or 0),
-            "comments": int(item.get("commentsCount") or 0),
-            "shares": int(item.get("sharesCount") or 0),
-            "duration_s": round(float(item.get("videoDuration") or 0), 2),
-        },
+        metrics=metrics,
         video_url=str(item["url"]),
     )
 
@@ -80,6 +89,16 @@ def map_facebook_reel(item: dict[str, Any]) -> TrendItem | None:
         return None
     video = item.get("video") or {}
     owner = item.get("video_owner") or {}
+    metrics: dict[str, Any] = {
+        "views": int(item.get("playCountRounded") or item.get("playCount") or 0),
+        "likes": int(item.get("likesCount") or item.get("likes") or item.get("reactionCount") or 0),
+        "comments": int(item.get("commentsCount") or item.get("comments") or 0),
+        "shares": int(item.get("sharesCount") or item.get("shares") or 0),
+        "duration_s": round(float(video.get("playable_duration_in_ms") or 0) / 1000.0, 2),
+    }
+    followers = int(owner.get("followers_count") or owner.get("followersCount") or 0)
+    if followers > 0:
+        metrics["author_followers"] = followers
     return TrendItem(
         source="facebook",
         external_id=m.group(1),
@@ -87,10 +106,7 @@ def map_facebook_reel(item: dict[str, Any]) -> TrendItem | None:
         author=str(owner.get("name") or ""),
         caption=str(item.get("text") or "")[:1000],
         published_at=published,
-        metrics={
-            "views": int(item.get("playCountRounded") or 0),
-            "duration_s": round(float(video.get("playable_duration_in_ms") or 0) / 1000.0, 2),
-        },
+        metrics=metrics,
         video_url=f"https://www.facebook.com/reel/{m.group(1)}",
     )
 

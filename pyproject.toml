@@ -21,6 +21,7 @@ dependencies = [
     "apscheduler>=3.10,<4.0",
     "tzdata>=2024.2",
     "yt-dlp==2026.10.26",
+    "cryptography>=43.0.0",
 ]
 
 [project.optional-dependencies]

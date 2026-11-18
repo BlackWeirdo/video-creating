@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from typing import Any, Literal
 
 from fastapi import APIRouter, Form, HTTPException, Request
@@ -10,13 +11,51 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from videocreator import __version__
 from videocreator.config import load_settings
 from videocreator.db import get_conn, query_all, query_one
+from videocreator.logging_setup import redact_text
 from videocreator.paths import AppPaths
 from videocreator.posting.accounts import upsert_account
 from videocreator.posting.meta_auth import list_pages_and_instagram
+from videocreator.posting.slots import _account_slot_override, _parse_hhmm
 from videocreator.secrets_store import SecretsStore
 from videocreator.templating import get_templates
 
 router = APIRouter()
+
+
+def _parse_slots_input(raw_slots: str) -> list[str]:
+    clean = raw_slots.strip()
+    if not clean or clean == "[]":
+        return []
+    tokens: list[str]
+    if clean.startswith("["):
+        try:
+            loaded = json.loads(clean)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=400,
+                detail="Khung giờ không hợp lệ (định dạng HH:MM, ví dụ: 09:00, 18:30)",
+            ) from exc
+        if not isinstance(loaded, list):
+            raise HTTPException(
+                status_code=400,
+                detail="Khung giờ không hợp lệ (định dạng HH:MM, ví dụ: 09:00, 18:30)",
+            )
+        tokens = [str(item).strip() for item in loaded if str(item).strip()]
+    else:
+        tokens = [s.strip().strip("\"'") for s in clean.replace(",", " ").split() if s.strip()]
+
+    normalized: list[str] = []
+    for tok in tokens:
+        t = _parse_hhmm(tok)
+        if t is None:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Khung giờ '{tok}' không hợp lệ (định dạng HH:MM, ví dụ: 09:00, 18:30)",
+            )
+        hhmm = f"{t.hour:02d}:{t.minute:02d}"
+        if hhmm not in normalized:
+            normalized.append(hhmm)
+    return sorted(normalized)
 
 
 @router.get("/accounts", response_class=HTMLResponse)
@@ -37,6 +76,7 @@ async def accounts_page(
             {
                 **r,
                 "has_token": secrets.has(str(r["secret_key"])),
+                "slots_display": ", ".join(_account_slot_override(r)),
             }
         )
 
@@ -48,7 +88,7 @@ async def accounts_page(
             "settings": cfg,
             "accounts": accounts,
             "msg": msg,
-            "err": err,
+            "err": redact_text(err) if err else err,
             "version": __version__,
         },
     )
@@ -66,7 +106,8 @@ async def connect_meta_token(
     try:
         discovered = await asyncio.to_thread(list_pages_and_instagram, token)
     except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Lỗi kết nối Meta Graph API: {exc}") from exc
+        safe_err = redact_text(str(exc), extra_secrets=[token])
+        raise HTTPException(status_code=400, detail=f"Lỗi kết nối Meta Graph API: {safe_err}") from exc
 
     for item in discovered:
         upsert_account(
@@ -137,10 +178,8 @@ async def update_account_slots(
     account_id: int,
     slots: str = Form(""),
 ) -> RedirectResponse:
-    import json
-
     paths: AppPaths = request.app.state.paths
-    parts = [s.strip() for s in slots.replace(",", " ").split() if s.strip() and ":" in s]
+    parts = _parse_slots_input(slots)
     slots_val = json.dumps(parts) if parts else None
     with get_conn(paths.db_file) as conn:
         conn.execute(

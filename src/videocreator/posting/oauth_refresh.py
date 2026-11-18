@@ -53,12 +53,16 @@ def _refresh_tiktok(client: Any, sec: SecretsStore, secret_key: str) -> int | No
         },
     )
     resp.raise_for_status()
-    data = resp.json()
-    new_access = str(data["access_token"])
-    new_refresh = str(data.get("refresh_token") or refresh_tok)
+    data = resp.json() or {}
+    inner = data.get("data") if isinstance(data.get("data"), dict) else {}
+    new_access = str(data.get("access_token") or inner.get("access_token") or "").strip()
+    if not new_access:
+        err_desc = data.get("error_description") or data.get("error") or "unknown error"
+        raise ValueError(f"TikTok token refresh missing access_token: {err_desc}")
+    new_refresh = str(data.get("refresh_token") or inner.get("refresh_token") or refresh_tok)
     sec.set(secret_key, new_access)
     sec.set(f"{secret_key}_REFRESH", new_refresh)
-    return int(data.get("expires_in") or 86400)
+    return int(data.get("expires_in") or inner.get("expires_in") or 86400)
 
 
 def _refresh_threads(client: Any, sec: SecretsStore, secret_key: str) -> int | None:
@@ -74,8 +78,11 @@ def _refresh_threads(client: Any, sec: SecretsStore, secret_key: str) -> int | N
         },
     )
     resp.raise_for_status()
-    data = resp.json()
-    sec.set(secret_key, str(data["access_token"]))
+    data = resp.json() or {}
+    new_access = str(data.get("access_token") or "").strip()
+    if not new_access:
+        raise ValueError(f"Threads token refresh missing access_token: {data.get('error') or 'unknown error'}")
+    sec.set(secret_key, new_access)
     return int(data.get("expires_in") or 5184000)
 
 

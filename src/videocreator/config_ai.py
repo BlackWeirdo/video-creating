@@ -17,7 +17,7 @@ class AIRoutesConfig(BaseModel):
         default_factory=lambda: ["claude_cli", "claude_api", "gemini_api"]
     )
     studio: list[str] = Field(
-        default_factory=lambda: ["claude_cli", "claude_api"]
+        default_factory=lambda: ["claude_cli", "claude_api", "gemini_api"]
     )
     videogen: list[str] = Field(
         default_factory=lambda: [

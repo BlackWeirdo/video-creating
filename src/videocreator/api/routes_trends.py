@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import shutil
+import uuid
 from datetime import datetime, timezone
 from urllib.parse import quote
 
@@ -16,6 +17,7 @@ from videocreator.db import get_conn, query_all, query_one
 from videocreator.jobs import enqueue_job
 from videocreator.jsonutil import loads_or
 from videocreator.paths import AppPaths
+from videocreator.pipeline.probe import ProbeError, probe_video
 from videocreator.templating import get_templates
 from videocreator.timeutil import UTC_ISO_FORMAT
 from videocreator.trends.analyse_queue import enqueue_trend_analysis
@@ -25,6 +27,8 @@ from videocreator.trends.scan import build_trend_sources
 
 router = APIRouter()
 logger = logging.getLogger("videocreator.api.routes_trends")
+
+MAX_REFERENCE_UPLOAD_BYTES = 200 * 1024 * 1024  # 200 MB
 
 
 @router.get("/trends", response_class=HTMLResponse)
@@ -118,11 +122,30 @@ async def upload_reference_video_route(
     if row is None:
         raise HTTPException(status_code=404, detail="Trend item not found")
 
+    paths.work_dir.mkdir(parents=True, exist_ok=True)
     paths.reference_dir.mkdir(parents=True, exist_ok=True)
+    tmp_file = paths.work_dir / f"upload_ref_{item_id}_{uuid.uuid4().hex}.mp4"
     rel_path = f"reference/ref_{item_id}.mp4"
     dest_file = paths.media_dir / rel_path
-    with dest_file.open("wb") as out_f:
-        await asyncio.to_thread(shutil.copyfileobj, file.file, out_f)
+    try:
+        total_bytes = 0
+        with tmp_file.open("wb") as out_f:
+            while chunk := await file.read(1024 * 1024):
+                total_bytes += len(chunk)
+                if total_bytes > MAX_REFERENCE_UPLOAD_BYTES:
+                    raise HTTPException(status_code=413, detail="Video tham khảo vượt quá giới hạn 200 MB")
+                out_f.write(chunk)
+        if total_bytes == 0:
+            raise HTTPException(status_code=400, detail="File video tham khảo rỗng")
+        try:
+            info = await asyncio.to_thread(probe_video, tmp_file)
+        except (ProbeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=f"File video tham khảo không hợp lệ: {exc}") from exc
+        if info.duration_s <= 0.3 or info.width <= 0 or info.height <= 0:
+            raise HTTPException(status_code=400, detail="File video tham khảo không có thời lượng hoặc khung hình hợp lệ")
+        shutil.move(str(tmp_file), str(dest_file))
+    finally:
+        tmp_file.unlink(missing_ok=True)
 
     dl_iso = datetime.now(timezone.utc).strftime(UTC_ISO_FORMAT)
     with get_conn(paths.db_file) as conn:

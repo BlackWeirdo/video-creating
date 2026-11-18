@@ -35,26 +35,79 @@ def get_conn(db_file: Path) -> Iterator[sqlite3.Connection]:
         conn.close()
 
 
+@contextmanager
+def get_write_conn(db_file: Path) -> Iterator[sqlite3.Connection]:
+    """Opens a write transaction with `BEGIN IMMEDIATE` so read-then-write updates
+    wait on `busy_timeout` instead of failing with `SQLITE_BUSY_SNAPSHOT` under WAL."""
+    db_file.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(
+        str(db_file), timeout=5.0, isolation_level=None, check_same_thread=False
+    )
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode = WAL;")
+    conn.execute("PRAGMA foreign_keys = ON;")
+    conn.execute("PRAGMA busy_timeout = 5000;")
+    conn.execute("BEGIN IMMEDIATE;")
+    try:
+        yield conn
+        conn.execute("COMMIT;")
+    except Exception:
+        if conn.in_transaction:
+            conn.execute("ROLLBACK;")
+        raise
+    finally:
+        conn.close()
+
+
 def get_user_version(conn: sqlite3.Connection) -> int:
     row = conn.execute("PRAGMA user_version;").fetchone()
     return int(row[0]) if row else 0
 
 
+def _migration_version(sql_file: Path, fallback_idx: int) -> int:
+    prefix = sql_file.stem.split("_", 1)[0]
+    return int(prefix) if prefix.isdigit() else fallback_idx
+
+
+def _strip_explicit_tx(script: str) -> str:
+    """Removes top-level BEGIN;/COMMIT; lines so `migrate()` controls a single transaction."""
+    out: list[str] = []
+    for line in script.splitlines():
+        token = line.strip().rstrip(";").upper()
+        if token in ("BEGIN", "BEGIN TRANSACTION", "BEGIN IMMEDIATE", "COMMIT", "END"):
+            continue
+        out.append(line)
+    return "\n".join(out)
+
+
 def migrate(db_file: Path, migrations_dir: Path | None = None) -> int:
     mig_dir = migrations_dir or DEFAULT_MIGRATIONS_DIR
     sql_files = sorted(mig_dir.glob("*.sql"), key=lambda p: p.name)
-    with get_conn(db_file) as conn:
+    db_file.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(
+        str(db_file), timeout=5.0, isolation_level=None, check_same_thread=False
+    )
+    conn.row_factory = sqlite3.Row
+    try:
+        conn.execute("PRAGMA journal_mode = WAL;")
+        conn.execute("PRAGMA foreign_keys = ON;")
+        conn.execute("PRAGMA busy_timeout = 5000;")
         current = get_user_version(conn)
         for idx, sql_file in enumerate(sql_files, start=1):
-            if idx <= current:
+            ver = _migration_version(sql_file, idx)
+            if ver <= current:
                 continue
-            script = sql_file.read_text(encoding="utf-8")
-            conn.executescript(script)
+            body = _strip_explicit_tx(sql_file.read_text(encoding="utf-8"))
+            conn.executescript(f"BEGIN IMMEDIATE;\n{body}\nPRAGMA user_version = {ver};\nCOMMIT;")
             conn.execute("PRAGMA foreign_keys = ON;")
-            conn.execute(f"PRAGMA user_version = {idx};")
-            conn.commit()
-            current = idx
-    return current
+            current = ver
+        return current
+    except Exception:
+        if conn.in_transaction:
+            conn.execute("ROLLBACK;")
+        raise
+    finally:
+        conn.close()
 
 
 def query_all(

@@ -1,5 +1,6 @@
 """Reference video downloader (`yt-dlp` subprocess, top-N/day limit, 7-day auto-cleanup, `BR-REF-01..03`, Phase 13)."""
 from __future__ import annotations
+import ipaddress
 import logging
 import shutil
 import subprocess
@@ -7,6 +8,7 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Callable
+from urllib.parse import urlsplit
 
 from videocreator.config import load_settings
 from videocreator.db import get_conn, query_all, query_one
@@ -15,6 +17,30 @@ from videocreator.ai.budget import app_timezone
 from videocreator.timeutil import UTC_ISO_FORMAT, local_day_start_utc_iso, utc_now
 
 logger = logging.getLogger("videocreator.trends.download")
+
+
+def _is_safe_public_http_url(url: str) -> bool:
+    raw = (url or "").strip()
+    if not raw or raw.startswith("-"):
+        return False
+    parsed = urlsplit(raw)
+    if parsed.scheme.lower() not in ("http", "https"):
+        return False
+    host = (parsed.hostname or "").strip().lower().rstrip(".")
+    if not host or host == "localhost" or host.endswith(".localhost") or host.endswith(".local"):
+        return False
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return True
+    return not (
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_multicast
+        or ip.is_reserved
+        or ip.is_unspecified
+    )
 
 
 def find_yt_dlp_command() -> list[str]:
@@ -28,6 +54,9 @@ def find_yt_dlp_command() -> list[str]:
 
 
 def _default_yt_dlp_download(url: str, dest_path: Path) -> bool:
+    if not _is_safe_public_http_url(url):
+        logger.warning("Rejected unsafe reference video URL: %s", url)
+        return False
     dest_path.parent.mkdir(parents=True, exist_ok=True)
     cmd = [
         *find_yt_dlp_command(),
@@ -49,7 +78,8 @@ def _default_yt_dlp_download(url: str, dest_path: Path) -> bool:
         str(Path(find_ffmpeg_binary("ffmpeg")).parent),
         "-o",
         str(dest_path),
-        url,
+        "--",
+        url.strip(),
     ]
     try:
         proc = subprocess.run(
@@ -98,6 +128,10 @@ def fetch_reference_video(
         (trend_item_id,),
     )
     if item_row is None:
+        return None
+    raw_url = str(item_row.get("url") or "")
+    if not _is_safe_public_http_url(raw_url):
+        logger.warning("Rejected unsafe trend URL on item #%d: %s", trend_item_id, raw_url)
         return None
 
     existing = query_one(

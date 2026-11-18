@@ -42,6 +42,11 @@
               {% if s.formula.recommended_shot_ids %}
                 | Shot gợi ý: <code>{{ s.formula.recommended_shot_ids|join(", ") }}</code>
               {% endif %}
+              {% if s.analysis %}
+                {% if s.analysis.cut_pace_s %} | Nhịp: <code>{{ s.analysis.cut_pace_s }}s/cảnh</code>{% endif %}
+                {% if s.analysis.hook_layout %} | Bố cục: <code>{{ s.analysis.hook_layout }}</code>{% endif %}
+                {% if s.analysis.audio_mode %} | Âm thanh: <code>{{ s.analysis.audio_mode }}</code>{% endif %}
+              {% endif %}
             </div>
           </td>
           <td class="small">
@@ -56,11 +61,18 @@
               <div class="inline-secret-form">
                 <form method="post" action="/suggestions/{{ s.id }}/accept">
                   <input type="hidden" name="count" value="1">
-                  <button type="submit" class="btn btn-small btn-primary">Tạo kịch bản (1 bản)</button>
+                  <input type="hidden" name="auto_render" value="true">
+                  <button type="submit" class="btn btn-small btn-primary">Dựng ngay (1 bản)</button>
                 </form>
                 <form method="post" action="/suggestions/{{ s.id }}/accept">
                   <input type="hidden" name="count" value="3">
-                  <button type="submit" class="btn btn-small">Tạo 3 bản</button>
+                  <input type="hidden" name="auto_render" value="true">
+                  <button type="submit" class="btn btn-small">Dựng 3 biến thể</button>
+                </form>
+                <form method="post" action="/suggestions/{{ s.id }}/accept">
+                  <input type="hidden" name="count" value="1">
+                  <input type="hidden" name="auto_render" value="false">
+                  <button type="submit" class="btn btn-small">Chỉ lập kịch bản</button>
                 </form>
                 <form method="post" action="/suggestions/{{ s.id }}/dismiss">
                   <button type="submit" class="btn btn-small btn-danger">Bỏ qua</button>

@@ -1,9 +1,10 @@
-"""HTTP Basic authentication middleware when bound to a non-localhost interface (Phase 08, NFR-SEC-03)."""
+"""HTTP Basic authentication on non-localhost and cross-origin CSRF protection (Phase 08, NFR-SEC-02)."""
 from __future__ import annotations
 
 import base64
 import secrets
 from pathlib import Path
+from urllib.parse import urlparse
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -13,10 +14,63 @@ from videocreator.config import load_settings
 from videocreator.secrets_store import SecretsStore
 
 LOCALHOST_HOSTS: frozenset[str] = frozenset({"127.0.0.1", "localhost", "::1"})
+SAFE_METHODS: frozenset[str] = frozenset({"GET", "HEAD", "OPTIONS", "TRACE"})
+
+
+def _normalize_host_port(netloc: str, default_scheme: str) -> str:
+    """Normalizes `host[:port]` with explicit default port so same-origin comparison is exact."""
+    parsed = urlparse(f"{default_scheme}://{netloc}")
+    hostname = (parsed.hostname or "").lower()
+    if not hostname:
+        return ""
+    port = parsed.port or (443 if default_scheme == "https" else 80)
+    if ":" in hostname:
+        return f"[{hostname}]:{port}"
+    return f"{hostname}:{port}"
+
+
+def _is_cross_origin_mutation(request: Request) -> tuple[bool, str]:
+    """Blocks cross-origin state-changing browser requests (`POST`/`PUT`/`DELETE`/`PATCH`)
+    using W3C Fetch Metadata (`Sec-Fetch-Site`) and `Origin` / `Referer` verification."""
+    if request.method.upper() in SAFE_METHODS:
+        return False, ""
+
+    sec_fetch_site = (request.headers.get("sec-fetch-site") or "").strip().lower()
+    if sec_fetch_site and sec_fetch_site not in ("same-origin", "none"):
+        return True, f"Cross-origin request blocked (Sec-Fetch-Site={sec_fetch_site})"
+
+    req_scheme = request.url.scheme or "http"
+    req_host_header = (request.headers.get("host") or request.url.netloc or "").strip()
+    expected_authority = _normalize_host_port(req_host_header, req_scheme)
+
+    origin = (request.headers.get("origin") or "").strip()
+    if origin:
+        if origin.lower() == "null":
+            return True, "Cross-origin request blocked (Origin=null)"
+        parsed_origin = urlparse(origin)
+        origin_authority = _normalize_host_port(
+            parsed_origin.netloc, parsed_origin.scheme or req_scheme
+        )
+        if not origin_authority or origin_authority != expected_authority:
+            return True, "Cross-origin request blocked (Origin mismatch)"
+        return False, ""
+
+    if not sec_fetch_site:
+        referer = (request.headers.get("referer") or "").strip()
+        if referer:
+            parsed_ref = urlparse(referer)
+            ref_authority = _normalize_host_port(
+                parsed_ref.netloc, parsed_ref.scheme or req_scheme
+            )
+            if not ref_authority or ref_authority != expected_authority:
+                return True, "Cross-origin request blocked (Referer mismatch)"
+
+    return False, ""
 
 
 class NonLocalhostBasicAuthMiddleware(BaseHTTPMiddleware):
-    """Requires HTTP Basic Auth (`UI_PASSWORD`) whenever `settings.host` is non-localhost."""
+    """Enforces cross-origin CSRF protection on all mutating routes and HTTP Basic Auth
+    (`UI_PASSWORD`) whenever bound to a non-localhost interface."""
 
     def __init__(  # type: ignore[no-untyped-def]
         self,
@@ -33,6 +87,10 @@ class NonLocalhostBasicAuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:  # type: ignore[no-untyped-def]
         if request.url.path == "/health":
             return await call_next(request)
+
+        blocked, reason = _is_cross_origin_mutation(request)
+        if blocked:
+            return Response(content=reason, status_code=403)
 
         # The actual bind host (e.g. from --host) wins over config.toml.
         host = self.bind_host or load_settings(self.config_file).host

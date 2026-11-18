@@ -142,7 +142,7 @@
           <td><code>{{ a.lang }}</code></td>
           <td>
             <form method="post" action="/accounts/{{ a.id }}/slots" class="inline-secret-form">
-              <input class="input" type="text" name="slots" aria-label="Khung giờ đăng riêng của {{ a.name }}" value="{{ a.slots_json or '' }}" placeholder="Mặc định chung" style="width:140px;">
+              <input class="input" type="text" name="slots" aria-label="Khung giờ đăng riêng của {{ a.name }}" value="{{ a.slots_display or '' }}" placeholder="Mặc định chung" style="width:140px;">
               <button type="submit" class="btn btn-small">Lưu giờ</button>
             </form>
           </td>

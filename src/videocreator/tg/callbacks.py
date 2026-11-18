@@ -47,20 +47,26 @@ def route_callback(
     Returns `(allowed, message_text, state_changed, replacement_keyboard)`.
     """
     settings = load_settings(paths.config_file)
+    clean_data = (data or "").strip()
+    parts = clean_data.split(":")
+    if len(parts) >= 2 and parts[0] == "cmd":
+        action = TelegramAction(paths, settings, chat_id, user_id, user_name, now_dt)
+        try:
+            return _run_menu_command(action, parts[1])
+        except Exception as exc:
+            logger.warning("Error handling Telegram menu callback '%s': %s", clean_data, exc)
+            return True, "Thao tác đã được xử lý hoặc không hợp lệ.", False, None
+
     allowed, err_msg = check_two_layer_allowlist(chat_id, user_id, settings)
     if not allowed:
         return False, err_msg or "Không có quyền.", False, None
 
-    clean_data = (data or "").strip()
-    parts = clean_data.split(":")
     if len(parts) < 2:
         return False, "Dữ liệu nút không hợp lệ.", False, None
 
     prefix = parts[0]
     action = TelegramAction(paths, settings, chat_id, user_id, user_name, now_dt)
     try:
-        if prefix == "cmd":
-            return _run_menu_command(action, parts[1])
         handler = ID_CALLBACKS.get(prefix)
         if handler is None or not parts[1].isdigit():
             return UNSUPPORTED

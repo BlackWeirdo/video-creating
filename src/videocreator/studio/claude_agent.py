@@ -12,6 +12,9 @@ from videocreator.config import Settings
 from videocreator.studio.prompts import SKILLS_DIR
 
 AGENT_TOOLS = "Read,Write,Edit,Glob,Grep"
+AGENT_ALLOWED_TOOLS = (
+    "Read,Glob,Grep,Write(plan.json),Write(src/Scene.tsx),Edit(plan.json),Edit(src/Scene.tsx)"
+)
 
 
 # (session_dir, prompt, attempt, resume_ref) -> (session_ref, estimated_cost_usd)
@@ -35,7 +38,7 @@ def make_claude_generator(db_file: Path, settings: Settings) -> CodeGenerator:
             "--output-format", "json",
             "--permission-mode", "dontAsk",
             "--tools", AGENT_TOOLS,
-            "--allowedTools", AGENT_TOOLS,
+            "--allowedTools", AGENT_ALLOWED_TOOLS,
             "--strict-mcp-config",
             "--max-budget-usd", f"{settings.studio.max_session_usd:.2f}",
             "--add-dir", str(SKILLS_DIR),

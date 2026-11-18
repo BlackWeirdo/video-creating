@@ -116,15 +116,20 @@ def classify_cli_error(
 
 def _enforce_no_additional_properties(node: Any) -> Any:
     if isinstance(node, dict):
+        node.pop("title", None)
+        node.pop("default", None)
         if node.get("type") == "object" or "properties" in node:
             node.setdefault("additionalProperties", False)
             if "properties" in node and isinstance(node["properties"], dict):
                 node["required"] = list(node["properties"].keys())
         for k, v in list(node.items()):
-            # Strip keywords unsupported by strict structured output schemas
-            if k in ("title", "default"):
-                continue
-            node[k] = _enforce_no_additional_properties(v)
+            if k in ("properties", "$defs", "definitions") and isinstance(v, dict):
+                node[k] = {
+                    prop_name: _enforce_no_additional_properties(prop_schema)
+                    for prop_name, prop_schema in v.items()
+                }
+            else:
+                node[k] = _enforce_no_additional_properties(v)
     elif isinstance(node, list):
         return [_enforce_no_additional_properties(item) for item in node]
     return node
@@ -133,7 +138,4 @@ def _enforce_no_additional_properties(node: Any) -> Any:
 def pydantic_to_strict_json_schema(schema: type[BaseModel]) -> dict[str, Any]:
     """Converts a Pydantic `BaseModel` into a strict JSON Schema (`additionalProperties: false`)."""
     raw = schema.model_json_schema()
-    strict = _enforce_no_additional_properties(raw)
-    if isinstance(strict, dict):
-        strict.pop("title", None)
-    return strict
+    return _enforce_no_additional_properties(raw)

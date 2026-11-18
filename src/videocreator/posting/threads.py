@@ -122,15 +122,18 @@ class ThreadsPoster:
         video_url: str,
         caption: str,
     ) -> str:
-        resp = client.post(
-            f"{THREADS_API_BASE}/{user_id}/threads",
-            data={
-                "media_type": "VIDEO",
-                "video_url": video_url,
-                "text": caption,
-                "access_token": token,
-            },
-        )
+        try:
+            resp = client.post(
+                f"{THREADS_API_BASE}/{user_id}/threads",
+                data={
+                    "media_type": "VIDEO",
+                    "video_url": video_url,
+                    "text": caption,
+                    "access_token": token,
+                },
+            )
+        except httpx.RequestError as exc:
+            raise TransientPostError(f"Threads container creation network error: {exc}") from exc
         if resp.status_code >= 400:
             self._raise_threads_error(resp)
         data = resp.json()
@@ -142,10 +145,13 @@ class ThreadsPoster:
     def _poll_container_status(
         self, client: httpx.Client, container_id: str, token: str
     ) -> str:
-        resp = client.get(
-            f"{THREADS_API_BASE}/{container_id}",
-            params={"fields": "status,error_message", "access_token": token},
-        )
+        try:
+            resp = client.get(
+                f"{THREADS_API_BASE}/{container_id}",
+                params={"fields": "status,error_message", "access_token": token},
+            )
+        except httpx.RequestError as exc:
+            raise TransientPostError(f"Threads status poll network error: {exc}") from exc
         if resp.status_code >= 400:
             self._raise_threads_error(resp)
         data = resp.json()
@@ -159,10 +165,13 @@ class ThreadsPoster:
         token: str,
         container_id: str,
     ) -> str:
-        resp = client.post(
-            f"{THREADS_API_BASE}/{user_id}/threads_publish",
-            data={"creation_id": container_id, "access_token": token},
-        )
+        try:
+            resp = client.post(
+                f"{THREADS_API_BASE}/{user_id}/threads_publish",
+                data={"creation_id": container_id, "access_token": token},
+            )
+        except httpx.RequestError as exc:
+            raise TransientPostError(f"Threads publish network error: {exc}") from exc
         if resp.status_code >= 400:
             self._raise_threads_error(resp)
         data = resp.json()

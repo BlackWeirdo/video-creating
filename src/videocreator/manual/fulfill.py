@@ -7,7 +7,7 @@ import shutil
 from pathlib import Path
 
 from videocreator.ai.budget import record_usage
-from videocreator.db import get_conn, query_one, record_audit
+from videocreator.db import get_write_conn, query_one, record_audit
 from videocreator.paths import AppPaths
 from videocreator.pipeline.probe import probe_video
 
@@ -60,18 +60,28 @@ def fulfill_manual_ticket(
     rel_dest = f"assets/broll_ticket_{ticket_id}.mp4"
     abs_dest = paths.media_dir / rel_dest
     abs_dest.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(file_path, abs_dest)
 
-    meta = {
-        "source": "manual_ticket",
-        "ticket_id": ticket_id,
-        "prompt": ticket["prompt"],
-        "width": info.width,
-        "height": info.height,
-    }
     tags = ["ai_broll", "manual_broll"]
 
-    with get_conn(paths.db_file) as conn:
+    with get_write_conn(paths.db_file) as conn:
+        live_ticket = conn.execute(
+            "SELECT * FROM manual_tickets WHERE id = ?",
+            (ticket_id,),
+        ).fetchone()
+        if live_ticket is None:
+            raise LookupError(f"Manual ticket #{ticket_id} not found")
+        if str(live_ticket["status"]) not in ("open", "reminded"):
+            raise ValueError(f"Manual ticket #{ticket_id} is already '{live_ticket['status']}'")
+
+        shutil.copy2(file_path, abs_dest)
+
+        meta = {
+            "source": "manual_ticket",
+            "ticket_id": ticket_id,
+            "prompt": live_ticket["prompt"],
+            "width": info.width,
+            "height": info.height,
+        }
         a_cur = conn.execute(
             """
             INSERT INTO assets (kind, path, duration_s, meta_json)
@@ -92,22 +102,24 @@ def fulfill_manual_ticket(
             (
                 asset_id,
                 round(info.duration_s, 3),
-                str(ticket["prompt"]),
+                str(live_ticket["prompt"]),
                 json.dumps(tags, ensure_ascii=False),
             ),
         )
         shot_id = int(s_cur.lastrowid or 0)
 
-        conn.execute(
+        cur = conn.execute(
             """
             UPDATE manual_tickets
             SET status = 'closed',
                 result_asset_id = ?,
                 closed_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-            WHERE id = ?
+            WHERE id = ? AND status IN ('open', 'reminded')
             """,
             (asset_id, ticket_id),
         )
+        if cur.rowcount == 0:
+            raise ValueError(f"Manual ticket #{ticket_id} could not be closed")
         record_audit(
             conn,
             actor=actor,

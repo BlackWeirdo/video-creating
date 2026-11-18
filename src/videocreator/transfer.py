@@ -91,6 +91,11 @@ def export_config_bundle(
     return dest_vcx
 
 
+MAX_VCX_TOTAL_BYTES = 512 * 1024 * 1024  # 512 MB ceiling for config + SQLite DB
+MAX_SECRETS_MEMBER_BYTES = 4 * 1024 * 1024
+ALLOWED_VCX_MEMBERS = frozenset({"secrets.enc.json", "config.toml", "app.db"})
+
+
 def import_config_bundle(
     paths: AppPaths,
     source_vcx: Path,
@@ -113,25 +118,36 @@ def import_config_bundle(
     try:
         try:
             with zipfile.ZipFile(source_vcx, "r") as zf:
-                zf.extractall(tmp_dir)
+                infos = zf.infolist()
+                names = {info.filename for info in infos}
+                if "secrets.enc.json" not in names:
+                    raise ValueError("Archive is missing secrets.enc.json")
+                unexpected = names - ALLOWED_VCX_MEMBERS
+                if unexpected:
+                    raise ValueError(f"Archive contains unexpected entries: {sorted(unexpected)}")
+                total_uncompressed = sum(max(0, info.file_size) for info in infos)
+                if total_uncompressed > MAX_VCX_TOTAL_BYTES:
+                    raise ValueError("Archive exceeds maximum allowed size")
+                sec_info = zf.getinfo("secrets.enc.json")
+                if sec_info.file_size > MAX_SECRETS_MEMBER_BYTES:
+                    raise ValueError("secrets.enc.json is unexpectedly large")
+
+                # Verify password BEFORE extracting app.db or config.toml to disk
+                bundle_meta = json.loads(zf.read("secrets.enc.json").decode("utf-8"))
+                salt = base64.b64decode(bundle_meta["salt_b64"])
+                ciphertext = base64.b64decode(bundle_meta["ciphertext_b64"])
+                fernet = Fernet(_derive_fernet_key(clean_pw, salt))
+                try:
+                    decrypted_bytes = fernet.decrypt(ciphertext)
+                except InvalidToken as exc:
+                    raise ExportPasswordError("Sai mật khẩu giải mã file cấu hình (.vcx)") from exc
+
+                secret_map: dict[str, str] = json.loads(decrypted_bytes.decode("utf-8"))
+                for member in ("config.toml", "app.db"):
+                    if member in names:
+                        zf.extract(member, path=tmp_dir)
         except zipfile.BadZipFile as exc:
             raise ValueError("Invalid .vcx archive file") from exc
-
-        enc_file = tmp_dir / "secrets.enc.json"
-        if not enc_file.exists():
-            raise ValueError("Archive is missing secrets.enc.json")
-
-        bundle_meta = json.loads(enc_file.read_text(encoding="utf-8"))
-        salt = base64.b64decode(bundle_meta["salt_b64"])
-        ciphertext = base64.b64decode(bundle_meta["ciphertext_b64"])
-        fernet = Fernet(_derive_fernet_key(clean_pw, salt))
-
-        try:
-            decrypted_bytes = fernet.decrypt(ciphertext)
-        except InvalidToken as exc:
-            raise ExportPasswordError("Sai mật khẩu giải mã file cấu hình (.vcx)") from exc
-
-        secret_map: dict[str, str] = json.loads(decrypted_bytes.decode("utf-8"))
 
         # Password verified! Now safely replace config.toml, app.db, and secrets
         extracted_cfg = tmp_dir / "config.toml"
@@ -153,9 +169,6 @@ def import_config_bundle(
             migrate(paths.db_file)
 
         sec = secrets_store or SecretsStore(paths.secrets_file)
-        for existing_key in list(sec.list_keys()):
-            sec.delete(existing_key)
-        for k, v in secret_map.items():
-            sec.set(str(k), str(v))
+        sec.replace_all({str(k): str(v) for k, v in secret_map.items()})
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)

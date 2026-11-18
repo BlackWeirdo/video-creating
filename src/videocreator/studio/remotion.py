@@ -63,9 +63,20 @@ def workspace_ready() -> bool:
     return _remotion_cli_path().exists() and _headless_browser_path() is not None
 
 
+def can_use_remotion() -> tuple[bool, str]:
+    """Returns `(ok, detail)` indicating whether Node.js and Remotion are ready or installable."""
+    if not shutil.which("node"):
+        return False, "Chưa cài Node.js; chế độ Studio cần Node.js LTS."
+    if workspace_ready():
+        return True, "ready"
+    if shutil.which("npm"):
+        return True, "installable"
+    return False, "Không tìm thấy npm để cài Remotion."
+
+
 def _link_node_modules(session_dir: Path) -> None:
     link = session_dir / "node_modules"
-    if link.exists():
+    if link.exists() or link.is_symlink():
         return
     target = workspace_dir() / "node_modules"
     if os.name == "nt":
@@ -74,6 +85,20 @@ def _link_node_modules(session_dir: Path) -> None:
         _winapi.CreateJunction(str(target), str(link))
     else:
         os.symlink(target, link, target_is_directory=True)
+
+
+def unlink_node_modules(session_dir: Path) -> None:
+    """Detaches the session's `node_modules` symlink/junction without touching the shared install."""
+    link = session_dir / "node_modules"
+    if link.is_symlink():
+        link.unlink()
+        return
+    if not link.exists():
+        return
+    if os.name == "nt":
+        os.rmdir(link)
+    elif link.is_file():
+        link.unlink()
 
 
 def ensure_workspace(*, timeout_s: int = 900) -> None:
@@ -126,12 +151,12 @@ def scaffold_session(
         dest = public_dir / name
         if not dest.exists() or dest.stat().st_size != source.stat().st_size:
             shutil.copy2(source, dest)
-    _link_node_modules(session_dir)
     (session_dir / "brief.json").write_text(json.dumps(brief, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def render_session(session_dir: Path, out_path: Path, *, timeout_s: int = 1800) -> None:
     """Runs `remotion render src/index.ts Main <out>` for the session with the shared workspace CLI."""
+    _link_node_modules(session_dir)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     try:
         proc = subprocess.run(

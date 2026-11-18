@@ -6,7 +6,7 @@ from pathlib import Path
 
 from videocreator.approvals import reject
 from videocreator.config import Settings, load_settings
-from videocreator.db import get_conn, query_one, record_audit
+from videocreator.db import get_conn, get_write_conn, query_one, record_audit
 from videocreator.jsonutil import loads_or
 from videocreator.paths import AppPaths
 from videocreator.tg.access import check_two_layer_allowlist, telegram_actor
@@ -59,20 +59,42 @@ def _update_caption(
         max_chars = int(settings.platform_limits[platform].max_caption_chars)
     truncated = new_text[:max_chars]
 
-    video_row = query_one(db_file, "SELECT captions_json FROM videos WHERE id = ?", (video_id,))
-    if video_row is None:
-        return f"Không tìm thấy Video #{video_id}."
-    captions = loads_or(video_row.get("captions_json"), {})
-    if isinstance(captions.get(platform), dict):
-        captions[platform]["text"] = truncated
-    else:
-        captions[platform] = {"text": truncated, "hashtags": []}
+    with get_write_conn(db_file) as conn:
+        video_row = conn.execute(
+            "SELECT plan_json, captions_json FROM videos WHERE id = ?",
+            (video_id,),
+        ).fetchone()
+        if video_row is None:
+            return f"Không tìm thấy Video #{video_id}."
 
-    with get_conn(db_file) as conn:
-        conn.execute(
-            "UPDATE videos SET captions_json = ? WHERE id = ?",
-            (json.dumps(captions, ensure_ascii=False), video_id),
-        )
+        raw_plan = video_row["plan_json"]
+        plan = loads_or(raw_plan, {})
+        base_caps = plan.get("captions") if isinstance(plan, dict) and isinstance(plan.get("captions"), dict) else {}
+        override_caps = loads_or(video_row["captions_json"], {})
+        if not isinstance(override_caps, dict):
+            override_caps = {}
+        captions = {k: (dict(v) if isinstance(v, dict) else v) for k, v in {**base_caps, **override_caps}.items()}
+
+        if isinstance(captions.get(platform), dict):
+            captions[platform]["text"] = truncated
+        else:
+            captions[platform] = {"text": truncated, "hashtags": []}
+
+        if raw_plan and isinstance(plan, dict):
+            plan["captions"] = captions
+            conn.execute(
+                "UPDATE videos SET plan_json = ?, captions_json = ? WHERE id = ?",
+                (
+                    json.dumps(plan, ensure_ascii=False),
+                    json.dumps(captions, ensure_ascii=False),
+                    video_id,
+                ),
+            )
+        else:
+            conn.execute(
+                "UPDATE videos SET captions_json = ? WHERE id = ?",
+                (json.dumps(captions, ensure_ascii=False), video_id),
+            )
         record_audit(
             conn,
             actor=actor,

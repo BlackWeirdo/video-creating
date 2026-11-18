@@ -10,6 +10,9 @@ from videocreator.db import get_conn
 from _trend_helpers import _add_item, _jobs, _make_app, _mark_analysed, _status
 
 
+SAMPLE_CLIP = Path(__file__).parent / "samples" / "clip1_6s.mp4"
+
+
 @pytest.mark.local
 def test_analyse_route_and_upload_reference_enqueue(tmp_path: Path) -> None:
     app, paths = _make_app(tmp_path)
@@ -17,6 +20,7 @@ def test_analyse_route_and_upload_reference_enqueue(tmp_path: Path) -> None:
     done = _add_item(paths, "youtube", "d", 4)
     _mark_analysed(paths, done)
     other = _add_item(paths, "youtube", "o", 3)
+    clip_bytes = SAMPLE_CLIP.read_bytes()
     with TestClient(app) as client:
         r = client.post(f"/trends/{a}/analyse", follow_redirects=False)
         assert r.status_code == 303 and "analysis_queued" in r.headers["location"]
@@ -26,9 +30,17 @@ def test_analyse_route_and_upload_reference_enqueue(tmp_path: Path) -> None:
         r = client.post("/trends/99999/analyse", follow_redirects=False)
         assert r.status_code == 404
 
-        r = client.post(
+        bad = client.post(
             f"/trends/{other}/upload-reference",
             files={"file": ("x.mp4", b"not-a-real-video", "video/mp4")},
+            follow_redirects=False,
+        )
+        assert bad.status_code == 400
+        assert not (paths.media_dir / f"reference/ref_{other}.mp4").exists()
+
+        r = client.post(
+            f"/trends/{other}/upload-reference",
+            files={"file": ("x.mp4", clip_bytes, "video/mp4")},
             follow_redirects=False,
         )
         assert r.status_code == 303
@@ -38,7 +50,7 @@ def test_analyse_route_and_upload_reference_enqueue(tmp_path: Path) -> None:
 
         r = client.post(
             f"/trends/{done}/upload-reference",
-            files={"file": ("x.mp4", b"not-a-real-video", "video/mp4")},
+            files={"file": ("x.mp4", clip_bytes, "video/mp4")},
             follow_redirects=False,
         )
         assert r.status_code == 303

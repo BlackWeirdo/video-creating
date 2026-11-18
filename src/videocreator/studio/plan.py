@@ -119,10 +119,59 @@ def write_plan_ts(session_dir: Path, title: str, scenes: list[dict[str, Any]]) -
     (session_dir / "src" / "plan.ts").write_text(body, encoding="utf-8")
 
 
-def video_plan_json(title: str, scenes: list[dict[str, Any]], *, voice_lang: str, unverified_claims: list[str]) -> dict[str, Any]:
-    """Same shape as a Fast mode plan, so the approval screen shows Studio videos the same way."""
+def extract_plan_captions(plan: dict[str, Any] | None) -> dict[str, dict[str, Any]]:
+    """Extracts and sanitizes optional 4-platform captions written into `plan.json` (`BR-CAP-01`)."""
+    from videocreator.pipeline.caption_limits import CAPTION_PLATFORMS, clean_caption
+
+    if not isinstance(plan, dict):
+        return {}
+    raw_caps = plan.get("captions")
+    if not isinstance(raw_caps, dict):
+        return {}
+    out: dict[str, dict[str, Any]] = {}
+    for platform in CAPTION_PLATFORMS:
+        entry = raw_caps.get(platform)
+        if isinstance(entry, dict):
+            text = str(entry.get("text") or "").strip()
+            tags = [str(t) for t in (entry.get("hashtags") or []) if str(t).strip()]
+            if text:
+                out[platform] = clean_caption(platform, text, tags)
+        elif isinstance(entry, str) and entry.strip():
+            out[platform] = clean_caption(platform, entry.strip(), [])
+    return out
+
+
+def build_fallback_captions(title: str, scenes: list[dict[str, Any]], *, caption_lang: str = "vi") -> dict[str, dict[str, Any]]:
+    """Generates safe, fact-free craft captions when a trend-driven Studio session omitted captions."""
+    from videocreator.pipeline.caption_limits import CAPTION_PLATFORMS, clean_caption
+
+    lines = [str(s.get("text") or "").strip() for s in scenes if str(s.get("text") or "").strip()]
+    lead = lines[0] if lines else title
+    if caption_lang == "en":
+        body = f"{lead} — Handcrafted artisan jewelry."
+        base_tags = ["handcraftedjewelry", "silvercraft", "artisanjewelry", "jewelrymaking"]
+    else:
+        body = f"{lead} — Chế tác trang sức thủ công tỉ mỉ từng chi tiết."
+        base_tags = ["trangsucbac", "chetacthucong", "bacmynghe", "handmadejewelry"]
     return {
-        "formula": "studio-custom",
+        platform: clean_caption(platform, body, base_tags[:1] if platform == "threads" else base_tags)
+        for platform in CAPTION_PLATFORMS
+    }
+
+
+def video_plan_json(
+    title: str,
+    scenes: list[dict[str, Any]],
+    *,
+    voice_lang: str,
+    unverified_claims: list[str],
+    formula: str = "studio-custom",
+    captions: dict[str, dict[str, Any]] | None = None,
+    trend_analysis: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Same shape as a Fast mode plan, so the approval screen shows Studio videos the same way."""
+    out: dict[str, Any] = {
+        "formula": formula.strip() or "studio-custom",
         "title": title,
         "voice_lang": voice_lang,
         "product_ids": sorted({pid for s in scenes for pid in s["product_ids"]}),
@@ -133,3 +182,8 @@ def video_plan_json(title: str, scenes: list[dict[str, Any]], *, voice_lang: str
         ],
         "unverified_claims": unverified_claims,
     }
+    if captions:
+        out["captions"] = captions
+    if trend_analysis:
+        out["trend_analysis"] = trend_analysis
+    return out

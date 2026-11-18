@@ -46,7 +46,7 @@ def _broll_flags(db_file: Path, plan: dict[str, Any]) -> tuple[bool, bool]:
         meta_str = str(br.get("meta_json") or "")
         if "stock_broll" in tags_str or "stock_broll" in meta_str or "pexels" in meta_str or "pixabay" in meta_str:
             has_stock_broll = True
-        if br.get("asset_kind") == "broll" or "ai_broll" in tags_str or "broll" in tags_str:
+        elif br.get("asset_kind") == "broll" or "ai_broll" in tags_str or "broll" in tags_str:
             has_ai_broll = True
     return has_ai_broll, has_stock_broll
 
@@ -59,8 +59,12 @@ def enrich_approval_video(
     item = video_display_fields(row, product_map)
     plan = item["plan"]
     unsupported = loads_or(row.get("unsupported_claims_json"), [])
-    # Same order as the posting service: the editable copy in `captions_json` wins over the plan.
-    captions = loads_or(row.get("captions_json"), {}) or plan.get("captions") or {}
+    plan_caps = plan.get("captions") if isinstance(plan.get("captions"), dict) else {}
+    override_caps = loads_or(row.get("captions_json"), {})
+    if not isinstance(override_caps, dict):
+        override_caps = {}
+    # Same order as the posting service: editable entries in `captions_json` win over `plan.captions`.
+    captions = {**plan_caps, **override_caps}
     has_ai_broll, has_stock_broll = _broll_flags(db_file, plan)
     return {
         **item,

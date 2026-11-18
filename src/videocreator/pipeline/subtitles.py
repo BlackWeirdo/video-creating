@@ -81,20 +81,60 @@ def escape_and_wrap_ass_text(text: str, max_chars_per_line: int = 34) -> str:
     return r"\N".join(wrapped_lines)
 
 
+def _expand_kinetic_events(events: list[SubtitleEvent]) -> list[SubtitleEvent]:
+    """Splits longer lines into 2-3 rhythmic phrase chunks for `kinetic_words` preset."""
+    expanded: list[SubtitleEvent] = []
+    for ev in events:
+        words = ev.text.strip().split()
+        dur = ev.end_s - ev.start_s
+        if len(words) <= 4 or dur < 1.2:
+            expanded.append(ev)
+            continue
+        chunk_count = 3 if (len(words) >= 9 and dur >= 2.1) else 2
+        chunks: list[str] = []
+        step = max(1, round(len(words) / chunk_count))
+        for i in range(chunk_count):
+            start_idx = i * step
+            end_idx = len(words) if i == chunk_count - 1 else min(len(words), (i + 1) * step)
+            part = " ".join(words[start_idx:end_idx]).strip()
+            if part:
+                chunks.append(part)
+        if len(chunks) <= 1:
+            expanded.append(ev)
+            continue
+        total_chars = max(1, sum(len(c) for c in chunks))
+        cursor = ev.start_s
+        for idx, chunk in enumerate(chunks):
+            piece_dur = (ev.end_s - cursor) if idx == len(chunks) - 1 else round(dur * (len(chunk) / total_chars), 3)
+            piece_end = min(ev.end_s, round(cursor + max(0.35, piece_dur), 3))
+            if piece_end > cursor:
+                expanded.append(SubtitleEvent(start_s=round(cursor, 3), end_s=piece_end, text=chunk))
+                cursor = piece_end
+    return expanded
+
+
 def build_ass(
     events: list[SubtitleEvent],
     *,
     play_res_x: int = 1080,
     play_res_y: int = 1920,
+    safe_top_ratio: float = 0.15,
     safe_bottom_ratio: float = 0.25,
     safe_right_ratio: float = 0.12,
     font_name: str = FONT_FAMILY,
     font_size: int = 56,
+    layout_preset: str = "clean_bottom",
 ) -> str:
-    """Builds a complete UTF-8 ASS subtitle document positioned above the bottom 25% UI safe zone."""
+    """Builds a complete UTF-8 ASS subtitle document positioned strictly inside the UI safe zone."""
+    margin_top = max(140, int(round(play_res_y * safe_top_ratio)))
     margin_v = max(120, int(round(play_res_y * safe_bottom_ratio)))
     margin_r = max(60, int(round(play_res_x * safe_right_ratio)))
     margin_l = 60
+
+    preset = (layout_preset or "clean_bottom").strip().lower()
+    active_events = _expand_kinetic_events(events) if preset == "kinetic_words" else list(events)
+    hook_size = max(font_size + 14, 68)
+    top_size = max(font_size + 6, 60)
 
     header = f"""[Script Info]
 ScriptType: v4.00+
@@ -106,22 +146,40 @@ ScaledBorderAndShadow: yes
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Default,{font_name},{font_size},&H00FFFFFF,&H000000FF,&H00141414,&H80000000,-1,0,0,0,100,100,0,0,1,4,2,2,{margin_l},{margin_r},{margin_v},1
+Style: HookCenter,{font_name},{hook_size},&H00D8F3FF,&H000000FF,&H00101014,&H90000000,-1,0,0,0,100,100,1,0,1,5,3,5,{margin_l},{margin_r},{margin_v},1
+Style: HookTop,{font_name},{top_size},&H00FFFFFF,&H000000FF,&H99121216,&H99121216,-1,0,0,0,100,100,0,0,3,14,0,8,{margin_l},{margin_r},{margin_top},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
     dialogue_lines: list[str] = []
-    for ev in events:
+    first_emitted = False
+    for ev in active_events:
         if not ev.text or not ev.text.strip():
             continue
         if ev.end_s <= ev.start_s:
             continue
         start_str = format_ass_timestamp(ev.start_s)
         end_str = format_ass_timestamp(ev.end_s)
-        escaped = escape_and_wrap_ass_text(ev.text)
-        if escaped:
-            dialogue_lines.append(
-                f"Dialogue: 0,{start_str},{end_str},Default,,0,0,0,,{escaped}"
-            )
+        wrap_width = 24 if (not first_emitted and preset in ("big_center_title", "top_banner")) else 34
+        escaped = escape_and_wrap_ass_text(ev.text, max_chars_per_line=wrap_width)
+        if not escaped:
+            continue
+
+        style_name = "Default"
+        anim_tag = ""
+        if not first_emitted and ev.start_s <= 2.5:
+            if preset == "big_center_title":
+                style_name = "HookCenter"
+                anim_tag = r"{\fscx108\fscy108\t(0,180,\fscx100\fscy100)}"
+            elif preset == "top_banner":
+                style_name = "HookTop"
+        if preset == "kinetic_words" and not anim_tag:
+            anim_tag = r"{\fscx107\fscy107\t(0,130,\fscx100\fscy100)}"
+
+        first_emitted = True
+        dialogue_lines.append(
+            f"Dialogue: 0,{start_str},{end_str},{style_name},,0,0,0,,{anim_tag}{escaped}"
+        )
 
     return header + "\n".join(dialogue_lines) + "\n"

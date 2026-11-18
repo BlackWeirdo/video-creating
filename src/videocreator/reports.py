@@ -123,7 +123,7 @@ def weekly_summary(
         (week_ago_iso,),
     )
 
-    # Check 72h checkpoint metrics joined with videos
+    # Check 72h checkpoint metrics joined with videos posted within the 7-day window
     metric_rows = query_all(
         paths.db_file,
         """
@@ -134,9 +134,13 @@ def weekly_summary(
         JOIN posts p ON pm.post_id = p.id
         JOIN accounts a ON p.account_id = a.id
         JOIN videos v ON p.video_id = v.id
-        WHERE pm.checkpoint = '72h' AND pm.views IS NOT NULL
+        WHERE pm.checkpoint = '72h'
+          AND pm.views IS NOT NULL
+          AND p.status = 'posted'
+          AND p.posted_at >= ?
         ORDER BY pm.views DESC, p.id ASC
         """,
+        (week_ago_iso,),
     )
 
     lines = [f"📈 Báo cáo tuần (7 ngày tới {base_utc.strftime('%Y-%m-%d')})"]

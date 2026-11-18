@@ -20,7 +20,11 @@ def fetch_threads_metrics(token: str, external_post_id: str) -> dict[str, int | 
                 },
             )
         if resp.status_code != 200:
-            metrics_http_outcome(resp.status_code, "Threads metrics")
+            try:
+                err_body = resp.json()
+            except Exception:
+                err_body = None
+            metrics_http_outcome(resp.status_code, "Threads metrics", err_body)
             return empty_metrics()
         by_name = insight_values(resp.json().get("data") or [])
     except (httpx.HTTPError, ValueError) as exc:

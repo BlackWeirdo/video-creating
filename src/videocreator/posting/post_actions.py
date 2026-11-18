@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
-from videocreator.db import get_conn, query_one, record_audit
+from videocreator.db import get_conn, get_write_conn, query_one, record_audit
 from videocreator.state_posts import recompute_video_status_from_posts, transition_post
 from videocreator.timeutil import utc_now_iso
 
@@ -29,7 +29,7 @@ def retry_failed_post(
 
     new_sched = scheduled_at_iso or utc_now_iso(now_dt)
     video_id = int(p_row["video_id"])
-    with get_conn(db_file) as conn:
+    with get_write_conn(db_file) as conn:
         if not transition_post(conn, post_id, "scheduled", expected_from=cur_status):
             return False
         conn.execute(
@@ -68,13 +68,12 @@ def reschedule_post(
     )
     if p_row is None:
         raise LookupError(f"Post #{post_id} not found")
-    cur_status = str(p_row["status"])
-    if cur_status not in ("scheduled", "failed", "missed"):
+    if str(p_row["status"]) not in ("scheduled", "failed", "missed"):
         return False
 
     video_id = int(p_row["video_id"])
-    with get_conn(db_file) as conn:
-        conn.execute(
+    with get_write_conn(db_file) as conn:
+        cur = conn.execute(
             """
             UPDATE posts
             SET status = 'scheduled',
@@ -82,10 +81,12 @@ def reschedule_post(
                 attempts = 0,
                 next_attempt_at = NULL,
                 error = NULL
-            WHERE id = ?
+            WHERE id = ? AND status IN ('scheduled', 'failed', 'missed')
             """,
             (scheduled_at_iso, post_id),
         )
+        if cur.rowcount != 1:
+            return False
         recompute_video_status_from_posts(conn, video_id)
         record_audit(
             conn,
@@ -114,8 +115,13 @@ def cancel_scheduled_post(
         return False
 
     video_id = int(p_row["video_id"])
-    with get_conn(db_file) as conn:
-        conn.execute("DELETE FROM posts WHERE id = ?", (post_id,))
+    with get_write_conn(db_file) as conn:
+        cur = conn.execute(
+            "DELETE FROM posts WHERE id = ? AND status NOT IN ('publishing', 'posted')",
+            (post_id,),
+        )
+        if cur.rowcount != 1:
+            return False
         rem = conn.execute(
             "SELECT COUNT(*) AS c FROM posts WHERE video_id = ?", (video_id,)
         ).fetchone()

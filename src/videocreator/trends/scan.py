@@ -6,13 +6,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from videocreator.db import get_conn, query_all
+from videocreator.db import get_write_conn, query_all
+from videocreator.logging_setup import redact_text
 from videocreator.paths import AppPaths
 from videocreator.secrets_store import SecretsStore
 from videocreator.timeutil import UTC_ISO_FORMAT, utc_now
 from videocreator.trends.ad_library import MetaAdLibrarySource
 from videocreator.trends.apify import APIFY_SOURCE_CLASSES, APIFY_TOKEN_KEY
 from videocreator.trends.base import TrendItem, TrendSource, WatchItem
+from statistics import median
 from videocreator.trends.facebook import FacebookSource
 from videocreator.trends.ig_discovery import IGBusinessDiscoverySource
 from videocreator.trends.ig_hashtag import IGHashtagSource
@@ -47,19 +49,76 @@ def upsert_trend_item(
     *,
     now_dt: datetime | None = None,
 ) -> int:
-    """Computes `score` for `item` and upserts into `trend_items` (`UNIQUE(source, external_id)`)."""
+    """Computes `score` (with channel Outlier boost) for `item` and upserts into `trend_items`."""
     base_utc = utc_now(now_dt)
     pub_utc = (
         item.published_at.astimezone(timezone.utc)
         if item.published_at.tzinfo is not None
         else item.published_at.replace(tzinfo=timezone.utc)
     )
-    score = score_trend_item(item, now_dt=base_utc)
     pub_iso = pub_utc.strftime(UTC_ISO_FORMAT)
     fetched_iso = base_utc.strftime(UTC_ISO_FORMAT)
-    metrics_str = json.dumps(item.metrics or {}, ensure_ascii=False)
+    metrics_dict = dict(item.metrics or {})
 
-    with get_conn(db_file) as conn:
+    with get_write_conn(db_file) as conn:
+        author_median: float | None = None
+        if item.source != "ad_library" and item.author.strip():
+            peer_rows = conn.execute(
+                """
+                SELECT score, metrics_json FROM trend_items
+                WHERE source = ? AND author = ? AND external_id != ? AND score > 0
+                ORDER BY id DESC LIMIT 20
+                """,
+                (item.source, item.author.strip(), item.external_id),
+            ).fetchall()
+            if len(peer_rows) >= 2:
+                base_velocities: list[float] = []
+                for pr in peer_rows:
+                    pscore = float(pr["score"] or 0.0)
+                    pmult = 1.0
+                    try:
+                        pm = json.loads(str(pr["metrics_json"] or "{}"))
+                        if isinstance(pm, dict) and float(pm.get("outlier_mult") or 1.0) > 0:
+                            pmult = float(pm.get("outlier_mult") or 1.0)
+                    except Exception:
+                        pmult = 1.0
+                    base_velocities.append(pscore / max(1.0, pmult))
+                author_median = float(median(base_velocities))
+
+        base_score = score_trend_item(item, now_dt=base_utc, author_median_velocity=None)
+        score = (
+            score_trend_item(item, now_dt=base_utc, author_median_velocity=author_median)
+            if author_median is not None
+            else base_score
+        )
+        raw_no_boost = score_trend_item(
+            TrendItem(
+                source=item.source,
+                external_id=item.external_id,
+                url=item.url,
+                author=item.author,
+                caption=item.caption,
+                published_at=item.published_at,
+                metrics={k: v for k, v in metrics_dict.items() if k != "author_followers"},
+                video_url=item.video_url,
+            ),
+            now_dt=base_utc,
+        )
+        if item.source != "ad_library" and raw_no_boost > 0 and score > raw_no_boost * 1.02:
+            metrics_dict["outlier_mult"] = round(score / raw_no_boost, 2)
+
+        existing = conn.execute(
+            "SELECT id, metrics_json FROM trend_items WHERE source = ? AND external_id = ?",
+            (item.source, item.external_id),
+        ).fetchone()
+        if existing and existing["metrics_json"] and "pinned" not in metrics_dict:
+            try:
+                prev_metrics = json.loads(str(existing["metrics_json"]))
+                if isinstance(prev_metrics, dict) and prev_metrics.get("pinned"):
+                    metrics_dict["pinned"] = True
+            except Exception:
+                pass
+        metrics_str = json.dumps(metrics_dict, ensure_ascii=False)
         conn.execute(
             """
             INSERT INTO trend_items (
@@ -155,7 +214,7 @@ def scan_all(
         try:
             upserted_count += _store_fetched_items(paths, adapter.fetch(watch), now_dt)
         except Exception as exc:
-            err_str = str(exc)
+            err_str = redact_text(str(exc))
             logger.warning("Trend scan error on %s (%s): %s", src_name, watch.value, err_str)
             errors_by_source[src_name] = err_str
             if _is_rate_limit_error(err_str):

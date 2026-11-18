@@ -2,9 +2,9 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import json
 import logging
+import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
@@ -18,6 +18,7 @@ from videocreator.jobs import enqueue_job
 from videocreator.paths import AppPaths
 from videocreator.pipeline.footage_import import (
     ALLOWED_VIDEO_EXTENSIONS,
+    MAX_UPLOAD_BYTES,
     DuplicateFootageError,
     import_footage_file,
 )
@@ -76,10 +77,15 @@ async def upload_footage(
             detail=f"Đuôi file '{ext}' không được phép. Chỉ nhận: {', '.join(sorted(ALLOWED_VIDEO_EXTENSIONS))}",
         )
 
-    tmp_upload = paths.work_dir / f"upload_{hashlib.md5(filename.encode('utf-8')).hexdigest()}{ext}"
+    paths.work_dir.mkdir(parents=True, exist_ok=True)
+    tmp_upload = paths.work_dir / f"upload_{uuid.uuid4().hex}{ext}"
     try:
+        total_bytes = 0
         with tmp_upload.open("wb") as out_f:
             while chunk := await file.read(1024 * 1024):
+                total_bytes += len(chunk)
+                if total_bytes > MAX_UPLOAD_BYTES:
+                    raise HTTPException(status_code=413, detail="File video vượt quá giới hạn 2 GB")
                 out_f.write(chunk)
         await asyncio.to_thread(
             import_footage_file,

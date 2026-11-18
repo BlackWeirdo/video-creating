@@ -37,15 +37,18 @@ def upload_chunks(client: httpx.Client, upload_url: str, video_bytes: bytes) -> 
     for idx in range(total):
         first = idx * chunk_size
         last = video_size - 1 if idx == total - 1 else first + chunk_size - 1
-        resp = client.put(
-            upload_url,
-            headers={
-                "Content-Type": "video/mp4",
-                "Content-Length": str(last - first + 1),
-                "Content-Range": f"bytes {first}-{last}/{video_size}",
-            },
-            content=video_bytes[first : last + 1],
-        )
+        try:
+            resp = client.put(
+                upload_url,
+                headers={
+                    "Content-Type": "video/mp4",
+                    "Content-Length": str(last - first + 1),
+                    "Content-Range": f"bytes {first}-{last}/{video_size}",
+                },
+                content=video_bytes[first : last + 1],
+            )
+        except httpx.RequestError as exc:
+            raise TransientPostError(f"TikTok upload chunk network error: {exc}") from exc
         if resp.status_code >= 500 or resp.status_code == 429:
             raise TransientPostError(f"TikTok upload chunk transient error ({resp.status_code})")
         if resp.status_code >= 400:

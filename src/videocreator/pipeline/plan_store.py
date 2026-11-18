@@ -104,15 +104,22 @@ def with_parsed_lists(shot_row: dict[str, Any]) -> dict[str, Any]:
     return {**shot_row, "product_ids": product_ids, "tags": tags}
 
 
-def existing_plan_index(db_file: Path, shot_ids: set[int]) -> tuple[list[set[int]], set[str]]:
+def existing_plan_index(
+    db_file: Path,
+    shot_ids: set[int],
+    *,
+    exclude_video_id: int | None = None,
+) -> tuple[list[set[int]], set[str]]:
     """Shot sets and formulas of live videos sharing any of `shot_ids` (for Jaccard deduplication)."""
     existing_sets: list[set[int]] = []
     existing_formulas: set[str] = set()
     existing_videos = query_all(
         db_file,
-        "SELECT plan_json FROM videos WHERE status != 'rejected' AND status != 'superseded'",
+        "SELECT id, plan_json FROM videos WHERE status != 'rejected' AND status != 'superseded'",
     )
     for video in existing_videos:
+        if exclude_video_id is not None and int(video["id"]) == int(exclude_video_id):
+            continue
         try:
             plan = json.loads(video.get("plan_json") or "{}")
             plan_shot_ids = {int(x["shot_id"]) for x in plan.get("shots", []) if "shot_id" in x}
@@ -124,6 +131,35 @@ def existing_plan_index(db_file: Path, shot_ids: set[int]) -> tuple[list[set[int
         except Exception:
             continue
     return existing_sets, existing_formulas
+
+
+def superseded_chain_index(db_file: Path, video_id: int) -> tuple[list[set[int]], set[str]]:
+    """Shot sets and formulas of `supersedes_id` ancestors so a redo cannot repeat an earlier attempt."""
+    sets: list[set[int]] = []
+    formulas: set[str] = set()
+    row = query_one(db_file, "SELECT supersedes_id FROM videos WHERE id = ?", (video_id,))
+    cur_parent = int(row["supersedes_id"]) if row and row.get("supersedes_id") else None
+    seen: set[int] = set()
+    while cur_parent is not None and cur_parent not in seen:
+        seen.add(cur_parent)
+        prow = query_one(
+            db_file,
+            "SELECT plan_json, supersedes_id FROM videos WHERE id = ?",
+            (cur_parent,),
+        )
+        if prow is None:
+            break
+        try:
+            plan = json.loads(prow.get("plan_json") or "{}")
+            plan_shot_ids = {int(x["shot_id"]) for x in plan.get("shots", []) if "shot_id" in x}
+            if plan_shot_ids:
+                sets.append(plan_shot_ids)
+            if plan.get("formula"):
+                formulas.add(str(plan["formula"]).lower())
+        except Exception:
+            pass
+        cur_parent = int(prow["supersedes_id"]) if prow.get("supersedes_id") else None
+    return sets, formulas
 
 
 def save_plan(

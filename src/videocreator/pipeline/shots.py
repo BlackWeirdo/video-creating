@@ -98,6 +98,61 @@ def postprocess_shot_spans(
     return result
 
 
+def _detect_shots_ffmpeg(
+    video_path: Path,
+    *,
+    ffmpeg_bin: str,
+    total_duration_s: float,
+    timeout_s: float,
+) -> tuple[list[ShotSpan], str]:
+    """Fallback shot boundary detector using FFmpeg's scene score filter (`FR-FTG-05`, `S1`)."""
+    import re
+
+    cmd = [
+        ffmpeg_bin,
+        "-hide_banner",
+        "-i",
+        str(video_path),
+        "-vf",
+        "select='gt(scene,0.32)',showinfo",
+        "-an",
+        "-f",
+        "null",
+        "-",
+    ]
+    try:
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout_s,
+            stdin=subprocess.DEVNULL,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise ShotDetectionError(f"ffmpeg scene detection timed out after {timeout_s}s") from exc
+
+    combined_log = ((proc.stdout or "") + "\n" + (proc.stderr or "")).strip()[-2000:]
+    if proc.returncode != 0:
+        raise ShotDetectionError(f"ffmpeg scene detection failed (exit {proc.returncode}): {combined_log[-500:]}")
+
+    cut_times = sorted(
+        {
+            round(float(m.group(1)), 3)
+            for m in re.finditer(r"pts_time:\s*([0-9]+(?:\.[0-9]+)?)", proc.stderr or "")
+            if 0.0 < float(m.group(1)) < total_duration_s
+        }
+    )
+    boundaries = [0.0, *cut_times, round(total_duration_s, 3)]
+    raw_spans = [
+        ShotSpan(start_s=boundaries[i], end_s=boundaries[i + 1])
+        for i in range(len(boundaries) - 1)
+        if boundaries[i + 1] > boundaries[i]
+    ]
+    return postprocess_shot_spans(raw_spans, total_duration_s), f"[ffmpeg-scene-fallback]\n{combined_log}"
+
+
 def detect_shots(
     video_path: Path,
     *,
@@ -105,19 +160,31 @@ def detect_shots(
     work_dir: Path | None = None,
     timeout_s: float = 300.0,
 ) -> tuple[list[ShotSpan], str]:
-    """Runs `rea-video decompose` (Branch A) to detect shot boundaries and normalizes them.
+    """Runs `rea-video decompose` (Branch A) to detect shot boundaries and normalizes them,
+    falling back to FFmpeg scene detection when `rea-video` is not installed.
 
     Returns (spans, stderr_or_stdout_tail).
     """
     if not video_path.exists():
         raise ShotDetectionError(f"Footage file not found: {video_path}")
 
-    rea_bin = find_rea_video_binary()
-    ffmpeg_bin = Path(find_ffmpeg_binary("ffmpeg")).resolve()
+    ffmpeg_raw = find_ffmpeg_binary("ffmpeg")
+    ffmpeg_path = Path(ffmpeg_raw)
+    try:
+        rea_bin = find_rea_video_binary()
+    except FileNotFoundError:
+        return _detect_shots_ffmpeg(
+            video_path,
+            ffmpeg_bin=ffmpeg_raw,
+            total_duration_s=total_duration_s,
+            timeout_s=timeout_s,
+        )
+
     env = os.environ.copy()
     env["PYTHONUTF8"] = "1"
-    if ffmpeg_bin.parent.exists():
-        env["PATH"] = f"{ffmpeg_bin.parent}{os.pathsep}{env.get('PATH', '')}"
+    if ffmpeg_path.is_Absolute() if hasattr(ffmpeg_path, "is_Absolute") else ffmpeg_path.is_absolute():
+        if ffmpeg_path.parent.exists():
+            env["PATH"] = f"{ffmpeg_path.parent}{os.pathsep}{env.get('PATH', '')}"
 
     cleanup_dir = False
     if work_dir is None:

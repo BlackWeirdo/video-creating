@@ -35,11 +35,6 @@ def save_studio_template(
     scene_file = paths.media_dir / "studio" / str(session_id) / "src" / "Scene.tsx"
     if not scene_file.exists():
         raise ValueError(f"Phiên Studio #{session_id} chưa có mã cảnh để lưu làm mẫu")
-    rel_tpl_dir = f"studio_templates/tpl_{session_id}"
-    abs_tpl_dir = paths.media_dir / rel_tpl_dir
-    # Only the scene code: script, footage, renders and node_modules stay in the session.
-    (abs_tpl_dir / "src").mkdir(parents=True, exist_ok=True)
-    shutil.copy2(scene_file, abs_tpl_dir / "src" / "Scene.tsx")
 
     schema_obj = props_schema or {
         "base_prompt": sess.get("prompt", ""),
@@ -50,17 +45,25 @@ def save_studio_template(
         cur = conn.execute(
             """
             INSERT INTO studio_templates (name, project_path, props_schema_json)
-            VALUES (?, ?, ?)
+            VALUES (?, '', ?)
             ON CONFLICT(name) DO UPDATE SET
-                project_path = excluded.project_path,
                 props_schema_json = excluded.props_schema_json
             """,
-            (clean_name, rel_tpl_dir, json.dumps(schema_obj, ensure_ascii=False)),
+            (clean_name, json.dumps(schema_obj, ensure_ascii=False)),
         )
         row = conn.execute(
             "SELECT id FROM studio_templates WHERE name = ?", (clean_name,)
         ).fetchone()
         tpl_id = int(row["id"]) if row else int(cur.lastrowid or 0)
+        rel_tpl_dir = f"studio_templates/tpl_{tpl_id}"
+        abs_tpl_dir = paths.media_dir / rel_tpl_dir
+        # Only the scene code: script, footage, renders and node_modules stay in the session.
+        (abs_tpl_dir / "src").mkdir(parents=True, exist_ok=True)
+        shutil.copy2(scene_file, abs_tpl_dir / "src" / "Scene.tsx")
+        conn.execute(
+            "UPDATE studio_templates SET project_path = ? WHERE id = ?",
+            (rel_tpl_dir, tpl_id),
+        )
         record_audit(
             conn,
             actor=actor,

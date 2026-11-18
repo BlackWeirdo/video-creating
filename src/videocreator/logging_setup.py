@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
@@ -9,6 +10,12 @@ from videocreator.secrets_store import SecretsStore, get_registered_secret_value
 
 MAX_LOG_BYTES = 5 * 1024 * 1024  # 5 MB
 BACKUP_COUNT = 5
+
+_URL_SECRET_PARAM_RE = re.compile(
+    r"([?&](?:access_token|refresh_token|client_secret|api_key|key|token)=)([^&#\s'\"]+)",
+    re.IGNORECASE,
+)
+_TG_BOT_URL_RE = re.compile(r"(https?://api\.telegram\.org/bot)([^/\s'\"]+)", re.IGNORECASE)
 
 
 def redact_text(text: str, extra_secrets: list[str] | None = None) -> str:
@@ -19,7 +26,8 @@ def redact_text(text: str, extra_secrets: list[str] | None = None) -> str:
         for s in extra_secrets:
             if s and len(s.strip()) >= 6:
                 secrets.append(s.strip())
-    result = text
+    result = _URL_SECRET_PARAM_RE.sub(r"\1***", text)
+    result = _TG_BOT_URL_RE.sub(r"\1***", result)
     for secret in secrets:
         if secret and secret in result:
             result = result.replace(secret, "***")
@@ -82,9 +90,25 @@ def setup_logging(
         encoding="utf-8",
     )
     file_handler.setFormatter(fmt)
-    file_handler.addFilter(redactor)
 
     logger.addHandler(file_handler)
     logger.addFilter(redactor)
     logger.propagate = False
+
+    # Prevent httpx/telegram/apscheduler from logging unredacted request URLs (e.g. bot tokens).
+    for noisy_name in ("httpx", "httpcore"):
+        noisy_logger = logging.getLogger(noisy_name)
+        noisy_logger.setLevel(logging.WARNING)
+    for ext_name in ("httpx", "httpcore", "telegram", "apscheduler"):
+        ext_logger = logging.getLogger(ext_name)
+        ext_logger.filters = [
+            f for f in ext_logger.filters if not isinstance(f, SecretRedactingFilter)
+        ]
+        ext_logger.addFilter(redactor)
+    root_logger = logging.getLogger()
+    for root_handler in root_logger.handlers:
+        root_handler.filters = [
+            f for f in root_handler.filters if not isinstance(f, SecretRedactingFilter)
+        ]
+        root_handler.addFilter(redactor)
     return logger

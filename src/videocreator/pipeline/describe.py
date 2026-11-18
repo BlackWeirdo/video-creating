@@ -20,6 +20,12 @@ class ShotDescriptionItem(BaseModel):
     tags: list[str] = Field(description="Danh sách 2-5 nhãn ngắn tiếng Việt")
     has_product: bool = Field(description="Có thấy món trang sức trong khung hình hay không")
     quality: int = Field(ge=1, le=5, description="Điểm chất lượng khung hình từ 1 đến 5")
+    focus_x: float = Field(
+        default=0.5,
+        ge=0.0,
+        le=1.0,
+        description="Tọa độ ngang tâm sản phẩm/bàn tay thợ trong khung hình từ 0.0 (trái) đến 1.0 (phải)",
+    )
 
 
 class ShotDescriptionsResponse(BaseModel):
@@ -40,7 +46,7 @@ def build_describe_prompt(shot_rows: list[dict[str, object]]) -> str:
         "\nHãy trả về mô tả ngắn bằng tiếng Việt cho TỪNG shot (đúng số idx), "
         "chỉ mô tả những gì nhìn thấy thật (tay thợ, dụng cụ, góc quay, ánh sáng, kiểu dáng hình học), "
         "TUYỆT ĐỐI KHÔNG tự suy đoán tuổi bạc, loại đá hay giá tiền. "
-        "Gắn 2-5 nhãn (tags) và chấm điểm chất lượng hình ảnh 1-5."
+        "Gắn 2-5 nhãn (tags), chấm điểm chất lượng hình ảnh 1-5, và ước lượng `focus_x` (0.0..1.0) tâm ngang của chủ thể."
     )
     return "\n".join(lines)
 
@@ -80,6 +86,9 @@ def run_describe_footage(
         thumbnails=thumbnails,
     )
 
+    from videocreator.jsonutil import parse_int_list
+
+    footage_pids = parse_int_list(footage.get("product_ids_json"))
     by_idx = {item.idx: item for item in response.shots}
     updated_count = 0
     with get_conn(paths.db_file) as conn:
@@ -92,18 +101,28 @@ def run_describe_footage(
             if item is None:
                 continue
             clean_tags = [t.strip() for t in item.tags if t and t.strip()][:8]
+            shot_pids = parse_int_list(s.get("product_ids_json")) or footage_pids
+            has_prod = 1 if item.has_product else 0
+            next_pids_json = json.dumps(shot_pids if has_prod else [])
+            focus_x = round(max(0.0, min(1.0, float(item.focus_x))), 3)
             conn.execute(
                 """
                 UPDATE shots
                 SET description = ?,
                     tags_json = ?,
-                    quality = ?
+                    has_product = ?,
+                    product_ids_json = ?,
+                    quality = ?,
+                    focus_x = ?
                 WHERE id = ?
                 """,
                 (
                     item.description.strip(),
                     json.dumps(clean_tags, ensure_ascii=False),
+                    has_prod,
+                    next_pids_json,
                     max(1, min(5, int(item.quality))),
+                    focus_x,
                     shot_id,
                 ),
             )

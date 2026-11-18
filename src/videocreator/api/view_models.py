@@ -6,7 +6,7 @@ from typing import Any
 
 from videocreator.approval_queue import video_display_fields
 from videocreator.db import query_all
-from videocreator.jsonutil import parse_int_list
+from videocreator.jsonutil import loads_or, parse_int_list
 
 
 def enrich_footage_rows(
@@ -59,10 +59,14 @@ def enrich_video_row(
 ) -> dict[str, Any]:
     item = video_display_fields(row, product_map)
     plan = item["plan"]
+    plan_caps = plan.get("captions") if isinstance(plan.get("captions"), dict) else {}
+    override_caps = loads_or(row.get("captions_json"), {})
+    if not isinstance(override_caps, dict):
+        override_caps = {}
     return {
         **item,
         "mode": row.get("engine") or "ffmpeg",
         "shots": plan.get("shots") or [],
-        "captions": plan.get("captions") or {},
+        "captions": {**plan_caps, **override_caps},
         "unverified_claims": plan.get("unverified_claims") or [],
     }

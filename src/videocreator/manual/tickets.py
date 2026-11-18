@@ -4,7 +4,7 @@ import logging
 import re
 from datetime import datetime, timedelta
 
-from videocreator.db import get_conn, query_all, query_one, record_audit
+from videocreator.db import get_conn, get_write_conn, query_all, query_one, record_audit
 from videocreator.manual.fulfill import ALLOWED_VIDEO_EXTS, fulfill_manual_ticket
 from videocreator.paths import AppPaths
 from videocreator.tg.sender import send_text
@@ -30,7 +30,7 @@ def create_manual_ticket(
         raise ValueError("Prompt is required for manual ticket")
 
     full_prompt = f"[9:16 dọc, {seconds}s, cảnh phụ không có sản phẩm thật] {clean_prompt}"
-    with get_conn(paths.db_file) as conn:
+    with get_write_conn(paths.db_file) as conn:
         cur = conn.execute(
             """
             INSERT INTO manual_tickets (kind, prompt, ref_path, status)
@@ -102,55 +102,63 @@ def expire_stale_tickets(
     *,
     now_dt: datetime | None = None,
     max_age_hours: float = 48.0,
+    remind_grace_hours: float = 1.0,
 ) -> list[int]:
-    """Reminds open tickets older than 48h once (`open -> reminded`), then cancels already-reminded stale tickets (`FR-BRL-02`)."""
+    """Reminds open tickets older than 48h once (`open -> reminded`), then cancels reminded tickets after grace (`FR-BRL-02`)."""
     base_utc = utc_now(now_dt)
+    now_iso = base_utc.strftime(UTC_ISO_FORMAT)
     cutoff_iso = (base_utc - timedelta(hours=max_age_hours)).strftime(UTC_ISO_FORMAT)
-
-    to_cancel = query_all(
-        paths.db_file,
-        """
-        SELECT id FROM manual_tickets
-        WHERE status = 'reminded' AND created_at <= ?
-        """,
-        (cutoff_iso,),
-    )
-    to_remind = query_all(
-        paths.db_file,
-        """
-        SELECT id, prompt FROM manual_tickets
-        WHERE status = 'open' AND created_at <= ?
-        """,
-        (cutoff_iso,),
-    )
+    remind_cutoff_iso = (base_utc - timedelta(hours=remind_grace_hours)).strftime(UTC_ISO_FORMAT)
 
     cancelled: list[int] = []
-    with get_conn(paths.db_file) as conn:
+    reminded_rows: list[dict[str, object]] = []
+    with get_write_conn(paths.db_file) as conn:
+        to_cancel = conn.execute(
+            """
+            SELECT id FROM manual_tickets
+            WHERE status = 'reminded'
+              AND created_at <= ?
+              AND COALESCE(reminded_at, created_at) <= ?
+            """,
+            (cutoff_iso, remind_cutoff_iso),
+        ).fetchall()
+        to_remind = conn.execute(
+            """
+            SELECT id, prompt FROM manual_tickets
+            WHERE status = 'open' AND created_at <= ?
+            """,
+            (cutoff_iso,),
+        ).fetchall()
+
         for r in to_cancel:
             tid = int(r["id"])
-            conn.execute(
+            cur = conn.execute(
                 """
                 UPDATE manual_tickets
                 SET status = 'cancelled',
-                    closed_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+                    closed_at = ?
                 WHERE id = ? AND status = 'reminded'
                 """,
-                (tid,),
+                (now_iso, tid),
             )
-            cancelled.append(tid)
+            if cur.rowcount:
+                cancelled.append(tid)
 
         for r in to_remind:
             tid = int(r["id"])
-            conn.execute(
+            cur = conn.execute(
                 """
                 UPDATE manual_tickets
-                SET status = 'reminded'
+                SET status = 'reminded',
+                    reminded_at = ?
                 WHERE id = ? AND status = 'open'
                 """,
-                (tid,),
+                (now_iso, tid),
             )
+            if cur.rowcount:
+                reminded_rows.append(dict(r))
 
-    for r in to_remind:
+    for r in reminded_rows:
         tid = int(r["id"])
         try:
             send_text(

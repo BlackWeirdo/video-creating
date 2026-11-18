@@ -58,11 +58,32 @@ def check_plan_facts(
 ANALYSIS_LABELS: tuple[tuple[str, str], ...] = (
     ("hook", "Mở đầu"),
     ("structure", "Cấu trúc"),
+    ("reference_duration_s", "Thời lượng mẫu"),
     ("cut_pace_s", "Nhịp cắt"),
+    ("hook_layout", "Bố cục chữ mở đầu"),
     ("text_style", "Kiểu chữ"),
+    ("audio_mode", "Chế độ âm thanh"),
     ("music_mood", "Không khí nhạc"),
+    ("energy_level", "Mức năng lượng"),
     ("why_it_works", "Lý do hiệu quả"),
 )
+
+
+def _format_beat(b: Any) -> str:
+    if not isinstance(b, dict):
+        return str(b)
+    head = str(b.get("t") or "").strip()
+    meta_parts = []
+    if b.get("role"):
+        meta_parts.append(str(b["role"]))
+    if b.get("duration_s"):
+        meta_parts.append(f"{float(b['duration_s']):.1f}s")
+    tags = b.get("visual_tags") or []
+    if isinstance(tags, list) and tags:
+        meta_parts.append(",".join(str(t) for t in tags[:3]))
+    meta = f"[{'; '.join(meta_parts)}]" if meta_parts else ""
+    what = str(b.get("what") or "").strip()
+    return " ".join(part for part in (head, meta, what) if part)
 
 
 def _plain(value: Any) -> str:
@@ -78,13 +99,11 @@ def _analysis_block(analysis: dict[str, Any]) -> str:
         if value in (None, "", []):
             continue
         if key == "structure" and isinstance(value, list):
-            beats = [
-                f"{b.get('t', '')} {b.get('what', '')}".strip() if isinstance(b, dict) else str(b)
-                for b in value
-            ]
-            value = "; ".join(beats)
+            value = "; ".join(_format_beat(b) for b in value)
         elif key == "cut_pace_s":
             value = f"khoảng {value} giây mỗi cảnh"
+        elif key == "reference_duration_s":
+            value = f"khoảng {value} giây"
         lines.append(f"- {label}: {_plain(value)}")
     if not lines:
         return ""

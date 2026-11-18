@@ -5,11 +5,26 @@ import base64
 import time
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 
 from videocreator.config import Settings
 from videocreator.secrets_store import SecretsStore
+
+MAX_GATEWAY_VIDEO_BYTES = 250 * 1024 * 1024
+
+
+def _assert_trusted_gateway_url(url: str, base_url: str) -> None:
+    parsed = urlparse(url)
+    base = urlparse(base_url)
+    if parsed.scheme != base.scheme or not parsed.hostname or not base.hostname:
+        raise RuntimeError(f"Untrusted gateway callback URL: {url}")
+    host = parsed.hostname.lower()
+    base_host = base.hostname.lower()
+    same_fal = base_host.endswith(".fal.run") and host.endswith(".fal.run")
+    if host != base_host and not same_fal:
+        raise RuntimeError(f"Gateway callback URL host mismatch ({host} != {base_host})")
 
 
 class GatewayVideoGenProvider:
@@ -73,6 +88,10 @@ class GatewayVideoGenProvider:
             video_url = (data.get("video") or {}).get("url") or data.get("video_url")
             status_url = data.get("status_url")
             response_url = data.get("response_url")
+            if status_url:
+                _assert_trusted_gateway_url(str(status_url), self.base_url)
+            if response_url:
+                _assert_trusted_gateway_url(str(response_url), self.base_url)
 
             deadline = time.monotonic() + 300.0
             while not video_url and status_url and time.monotonic() < deadline:
@@ -81,11 +100,15 @@ class GatewayVideoGenProvider:
                 st_resp.raise_for_status()
                 st_data = st_resp.json()
                 status_val = str(st_data.get("status") or "").upper()
-                if status_val == "COMPLETED" and response_url:
-                    res_resp = client.get(response_url, headers=headers)
-                    res_resp.raise_for_status()
-                    res_data = res_resp.json()
-                    video_url = (res_data.get("video") or {}).get("url") or res_data.get("video_url")
+                if status_val == "COMPLETED":
+                    video_url = (st_data.get("video") or {}).get("url") or st_data.get("video_url")
+                    target_res_url = st_data.get("response_url") or response_url
+                    if not video_url and target_res_url:
+                        _assert_trusted_gateway_url(str(target_res_url), self.base_url)
+                        res_resp = client.get(str(target_res_url), headers=headers)
+                        res_resp.raise_for_status()
+                        res_data = res_resp.json()
+                        video_url = (res_data.get("video") or {}).get("url") or res_data.get("video_url")
                     break
                 if status_val in ("FAILED", "ERROR", "CANCELLED"):
                     raise RuntimeError(f"Gateway video generation failed: {st_data}")
@@ -93,11 +116,29 @@ class GatewayVideoGenProvider:
             if not video_url:
                 raise RuntimeError(f"Gateway response did not return a video URL: {data}")
 
-            dl_resp = client.get(str(video_url))
-            dl_resp.raise_for_status()
+            parsed_dl = urlparse(str(video_url))
+            if parsed_dl.scheme not in ("https", "http"):
+                raise RuntimeError(f"Unsupported gateway video URL scheme: {video_url}")
+
             self.work_dir.mkdir(parents=True, exist_ok=True)
             out_path = self.work_dir / f"gateway_{self.model_key}_{int(time.time() * 1000)}.mp4"
-            out_path.write_bytes(dl_resp.content)
+            if hasattr(client, "stream"):
+                total = 0
+                with client.stream("GET", str(video_url)) as dl_resp:
+                    dl_resp.raise_for_status()
+                    with out_path.open("wb") as fh:
+                        for chunk in dl_resp.iter_bytes():
+                            total += len(chunk)
+                            if total > MAX_GATEWAY_VIDEO_BYTES:
+                                out_path.unlink(missing_ok=True)
+                                raise RuntimeError("Gateway video exceeds maximum allowed size")
+                            fh.write(chunk)
+            else:
+                dl_resp = client.get(str(video_url))
+                dl_resp.raise_for_status()
+                if len(dl_resp.content) > MAX_GATEWAY_VIDEO_BYTES:
+                    raise RuntimeError("Gateway video exceeds maximum allowed size")
+                out_path.write_bytes(dl_resp.content)
             return out_path
         finally:
             if close_client:

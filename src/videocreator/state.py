@@ -5,7 +5,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
-from videocreator.db import get_conn, record_audit
+from videocreator.db import get_write_conn, record_audit
 
 
 class InvalidTransitionError(ValueError):
@@ -20,14 +20,14 @@ FOOTAGE_TRANSITIONS: dict[str, set[str]] = {
 }
 
 VIDEO_TRANSITIONS: dict[str, set[str]] = {
-    "planned": {"rendering", "superseded"},
+    "planned": {"rendering", "failed", "superseded"},
     "rendering": {"rendered", "failed", "superseded"},
     "rendered": {"scoring", "pending_approval", "rendering", "superseded"},
     "scoring": {"pending_approval", "failed", "superseded"},
     "pending_approval": {"approved", "rejected", "superseded"},
     "approved": {"scheduled", "posted"},
     "scheduled": {"posted", "failed"},
-    "failed": {"rendering", "scheduled", "superseded"},
+    "failed": {"rendering", "scheduled", "posted", "superseded"},
     "rejected": set(),
     "posted": set(),
     # Only automatic scoring uses this: the best-scored attempt of a redo chain goes to approval
@@ -50,7 +50,7 @@ def _run_with_conn(
 ) -> Any:
     if isinstance(db_or_conn, sqlite3.Connection):
         return fn(db_or_conn)
-    with get_conn(db_or_conn) as conn:
+    with get_write_conn(db_or_conn) as conn:
         return fn(conn)
 
 

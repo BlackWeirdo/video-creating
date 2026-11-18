@@ -9,7 +9,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from videocreator import __version__
 from videocreator.api.view_models import enrich_video_row
 from videocreator.config import load_settings
-from videocreator.db import get_conn, query_all, query_one, record_audit
+from videocreator.db import get_write_conn, query_all, query_one, record_audit
 from videocreator.jobs import enqueue_job
 from videocreator.jsonutil import loads_or
 from videocreator.paths import AppPaths
@@ -94,31 +94,36 @@ async def update_video_plan(
     video_id: int,
 ) -> RedirectResponse:
     paths: AppPaths = request.app.state.paths
-    row = query_one(paths.db_file, "SELECT * FROM videos WHERE id = ?", (video_id,))
-    if row is None:
-        raise HTTPException(status_code=404, detail="Video not found")
-
     form = await request.form()
-    plan = loads_or(row.get("plan_json"), {})
 
-    title = str(form.get("title") or plan.get("title") or "").strip()
-    if title:
-        plan["title"] = title
+    with get_write_conn(paths.db_file) as conn:
+        row = conn.execute("SELECT * FROM videos WHERE id = ?", (video_id,)).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Video not found")
 
-    shots = plan.get("shots") or []
-    for idx, s in enumerate(shots):
-        new_text = form.get(f"shot_text_{idx}")
-        if new_text is not None:
-            s["text"] = str(new_text).strip()
+        plan = loads_or(row["plan_json"], {})
 
-    captions = plan.get("captions") or {}
-    apply_caption_form(form, captions)
-    plan["captions"] = captions
+        title = str(form.get("title") or plan.get("title") or "").strip()
+        if title:
+            plan["title"] = title
 
-    if form.get("clear_unverified") == "true":
-        plan["unverified_claims"] = []
+        shots = plan.get("shots") or []
+        for idx, s in enumerate(shots):
+            new_text = form.get(f"shot_text_{idx}")
+            if new_text is not None:
+                s["text"] = str(new_text).strip()
 
-    with get_conn(paths.db_file) as conn:
+        base_caps = plan.get("captions") if isinstance(plan.get("captions"), dict) else {}
+        override_caps = loads_or(row["captions_json"], {})
+        if not isinstance(override_caps, dict):
+            override_caps = {}
+        captions = {k: (dict(v) if isinstance(v, dict) else v) for k, v in {**base_caps, **override_caps}.items()}
+        apply_caption_form(form, captions)
+        plan["captions"] = captions
+
+        if form.get("clear_unverified") == "true":
+            plan["unverified_claims"] = []
+
         conn.execute(
             """
             UPDATE videos

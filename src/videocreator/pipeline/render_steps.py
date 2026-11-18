@@ -79,11 +79,14 @@ def cut_shot_segments(
         except Exception:
             crop_cfg = None
 
+        raw_focus = shot_row.get("focus_x")
+        focus_x = float(raw_focus) if raw_focus is not None else None
         filter_args = build_segment_filter_args(
             orientation=str(shot_row.get("orientation") or "portrait"),
             width=int(shot_row.get("width") or 1080),
             height=int(shot_row.get("height") or 1920),
             crop_cfg=crop_cfg,
+            focus_x=focus_x,
         )
 
         if keep_audio:
@@ -198,12 +201,20 @@ def add_voice_over(
     return voice_track, sub_events
 
 
-def write_subtitle_file(sub_events: list[SubtitleEvent], settings: Settings, work_dir: Path) -> None:
+def write_subtitle_file(
+    sub_events: list[SubtitleEvent],
+    settings: Settings,
+    work_dir: Path,
+    *,
+    layout_preset: str = "clean_bottom",
+) -> None:
     """Writes the UTF-8 ASS subtitle file and its fonts into `work_dir`."""
     ass_content = build_ass(
         sub_events,
+        safe_top_ratio=settings.safe_zone.top,
         safe_bottom_ratio=settings.safe_zone.bottom,
         safe_right_ratio=settings.safe_zone.right,
+        layout_preset=layout_preset,
     )
     (work_dir / SUBTITLE_FILENAME).write_text(ass_content, encoding="utf-8")
     shutil.copytree(FONTS_DIR, work_dir / "fonts", dirs_exist_ok=True)

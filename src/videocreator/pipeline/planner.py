@@ -13,6 +13,7 @@ from videocreator.pipeline.plan_store import (
     existing_plan_index,
     load_source_shots,
     save_plan,
+    superseded_chain_index,
     with_parsed_lists,
 )
 from videocreator.pipeline.plan_validate import (
@@ -73,7 +74,13 @@ def create_remix_plans(
     linked_products = [product_map[pid] for pid in sorted(referenced_product_ids) if pid in product_map]
 
     # Existing shot sets enforce Jaccard <= 0.70 deduplication
-    existing_sets, existing_formulas = existing_plan_index(paths.db_file, set(shot_map))
+    existing_sets, existing_formulas = existing_plan_index(
+        paths.db_file, set(shot_map), exclude_video_id=replace_video_id
+    )
+    if replace_video_id is not None:
+        anc_sets, anc_formulas = superseded_chain_index(paths.db_file, replace_video_id)
+        existing_sets.extend(anc_sets)
+        existing_formulas.update(anc_formulas)
 
     writer = writer_provider or get_provider(paths, "writer")
     prompt = build_planner_prompt(
@@ -89,6 +96,18 @@ def create_remix_plans(
     )
     batch = writer.generate_json(prompt, RemixPlansBatch)
 
+    trend_analysis = (
+        formula_dict.get("trend_analysis")
+        if isinstance(formula_dict.get("trend_analysis"), dict) and formula_dict.get("trend_analysis")
+        else None
+    )
+    ref_cut_pace: float | None = None
+    if trend_analysis and trend_analysis.get("cut_pace_s") is not None:
+        try:
+            ref_cut_pace = float(trend_analysis["cut_pace_s"])
+        except (TypeError, ValueError):
+            ref_cut_pace = None
+
     created_video_ids: list[int] = []
     for raw_plan in batch.plans:
         if len(created_video_ids) >= count:
@@ -101,6 +120,7 @@ def create_remix_plans(
                 voice_lang=voice_lang,
                 caption_lang=caption_lang,
                 target_duration_s=target_duration_s,
+                reference_cut_pace_s=ref_cut_pace,
             )
         except ValueError as val_err:
             logger.warning("Skipping invalid plan candidate: %s", val_err)
@@ -126,6 +146,8 @@ def create_remix_plans(
         normalized["unverified_claims"] = unverified
         normalized["footage_id"] = source_footage_id
         normalized["source"] = "library" if use_library else "footage"
+        if trend_analysis:
+            normalized["trend_analysis"] = trend_analysis
 
         with get_conn(paths.db_file) as conn:
             video_id = save_plan(

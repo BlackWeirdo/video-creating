@@ -105,6 +105,9 @@ class TrendsConfig(BaseModel):
     apify_monthly_usd: float = 5.0
     apify_results_per_item: int = 10
     ads_country: str = "VN"
+    # 0 = ask 1-tap approval on suggestions (default); 1..3 = auto-accept & produce top N daily.
+    auto_produce_top_n: int = Field(default=0, ge=0, le=3)
+    render_mode: Literal["studio_preferred", "studio_only", "ffmpeg_enhanced"] = "studio_preferred"
 
 
 class TikTokConfig(BaseModel):

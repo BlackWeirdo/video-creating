@@ -25,12 +25,12 @@ def check_two_layer_allowlist(
         logger.warning("Blocked Telegram action from unauthorized chat_id=%s", chat_id)
         return False, "Chat này không nằm trong danh sách được phép."
 
-    if settings.telegram.approver_user_ids:
-        if user_id is None or int(user_id) not in {int(u) for u in settings.telegram.approver_user_ids}:
-            logger.warning("Blocked Telegram action from non-approver user_id=%s", user_id)
-            return False, "Tài khoản của bạn không có quyền thực hiện thao tác này."
-    elif user_id is None:
-        return False, "Thiếu thông tin người dùng."
+    if not settings.telegram.approver_user_ids:
+        logger.warning("Blocked Telegram approver action because approver_user_ids is empty (user_id=%s)", user_id)
+        return False, "Chưa cấu hình danh sách người duyệt (approver_user_ids)."
+    if user_id is None or int(user_id) not in {int(u) for u in settings.telegram.approver_user_ids}:
+        logger.warning("Blocked Telegram action from non-approver user_id=%s", user_id)
+        return False, "Tài khoản của bạn không có quyền thực hiện thao tác này."
 
     return True, None
 

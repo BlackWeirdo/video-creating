@@ -8,17 +8,30 @@ from typing import Any
 
 from videocreator.ai.base import AIProvider
 from videocreator.config import Settings
-from videocreator.db import get_conn
+from videocreator.db import get_conn, query_one
 from videocreator.engines.mpt_client import MPTClient
+from videocreator.jsonutil import loads_or
 from videocreator.paths import AppPaths
 from videocreator.pipeline.plan_prompts import check_plan_facts
 from videocreator.studio.audio import synthesize_scene_voices, voice_fit_problems
 from videocreator.studio.checks import check_studio_project_dir, scan_scene_contract
 from videocreator.studio.claude_agent import CodeGenerator
 from videocreator.studio.export import update_session
-from videocreator.studio.plan import load_plan, validate_plan, video_plan_json, write_plan_ts
+from videocreator.studio.plan import (
+    build_fallback_captions,
+    extract_plan_captions,
+    load_plan,
+    validate_plan,
+    video_plan_json,
+    write_plan_ts,
+)
 from videocreator.studio.prompts import build_plan_prompt, build_revise_prompt, build_scene_prompt
-from videocreator.studio.remotion import StudioRenderError, render_session, scaffold_session
+from videocreator.studio.remotion import (
+    StudioRenderError,
+    render_session,
+    scaffold_session,
+    unlink_node_modules,
+)
 
 
 @dataclass
@@ -29,6 +42,8 @@ class CheckedScript:
     scenes: list[dict[str, Any]]
     clips: list[Path | None] | None
     problems: list[str]
+    formula: str = "studio-custom"
+    captions: dict[str, dict[str, Any]] | None = None
 
 
 @dataclass
@@ -71,6 +86,7 @@ class StudioRun:
 
     def call_agent(self, prompt: str, attempt: int) -> None:
         assert self.generate is not None
+        unlink_node_modules(self.session_dir)
         ref, cost = self.generate(self.session_dir, prompt, attempt, self.session_ref or None)
         self.session_ref = ref or self.session_ref
         self.cost_usd += cost
@@ -90,22 +106,57 @@ class StudioRun:
             if clips is not None:
                 problems = voice_fit_problems(scenes, clips)
         title = str(plan.get("title") or "").strip() or f"Studio #{self.session_id}"
-        return CheckedScript(title, scenes, clips, problems)
+        formula = str(plan.get("formula") or self.options.get("formula") or "studio-custom").strip() or "studio-custom"
+        captions = extract_plan_captions(plan)
+        if not captions and (self.brief.get("trend_blueprint") or self.options.get("suggestion_id")):
+            cap_lang = str(self.options.get("caption_lang") or self.settings.telegram.default_caption_lang or "vi")
+            captions = build_fallback_captions(title, scenes, caption_lang=cap_lang)
+        return CheckedScript(title, scenes, clips, problems, formula=formula, captions=captions or None)
 
     def save_video_plan(self, script: CheckedScript, claims: list[str]) -> dict[str, Any]:
+        existing_row = query_one(self.paths.db_file, "SELECT plan_json, captions_json FROM videos WHERE id = ?", (self.video_id,))
+        existing_plan = loads_or(existing_row.get("plan_json") if existing_row else None, {})
+        trend_analysis = (
+            self.brief.get("trend_blueprint")
+            or (existing_plan.get("trend_analysis") if isinstance(existing_plan, dict) else None)
+        )
+        formula = script.formula
+        if formula == "studio-custom" and isinstance(existing_plan, dict):
+            prev_f = str(existing_plan.get("formula") or "").strip()
+            if prev_f and prev_f != "studio-custom":
+                formula = prev_f
+
         plan_json = video_plan_json(
-            script.title, script.scenes, voice_lang=self.voice_lang, unverified_claims=claims
+            script.title,
+            script.scenes,
+            voice_lang=self.voice_lang,
+            unverified_claims=claims,
+            formula=formula,
+            captions=script.captions,
+            trend_analysis=trend_analysis if isinstance(trend_analysis, dict) else None,
         )
         with get_conn(self.paths.db_file) as conn:
-            conn.execute(
-                "UPDATE videos SET plan_json = ?, product_ids_json = ?, voice_lang = ? WHERE id = ?",
-                (
-                    json.dumps(plan_json, ensure_ascii=False),
-                    json.dumps(plan_json["product_ids"]),
-                    self.voice_lang,
-                    self.video_id,
-                ),
-            )
+            if script.captions:
+                conn.execute(
+                    "UPDATE videos SET plan_json = ?, captions_json = ?, product_ids_json = ?, voice_lang = ? WHERE id = ?",
+                    (
+                        json.dumps(plan_json, ensure_ascii=False),
+                        json.dumps(script.captions, ensure_ascii=False),
+                        json.dumps(plan_json["product_ids"]),
+                        self.voice_lang,
+                        self.video_id,
+                    ),
+                )
+            else:
+                conn.execute(
+                    "UPDATE videos SET plan_json = ?, product_ids_json = ?, voice_lang = ? WHERE id = ?",
+                    (
+                        json.dumps(plan_json, ensure_ascii=False),
+                        json.dumps(plan_json["product_ids"]),
+                        self.voice_lang,
+                        self.video_id,
+                    ),
+                )
         return plan_json
 
     def write_script(self) -> tuple[CheckedScript, dict[str, Any]]:
@@ -126,7 +177,7 @@ class StudioRun:
 
         claims = check_plan_facts(
             self.paths,
-            {"shots": [{"text": s["text"]} for s in script.scenes], "captions": {}},
+            {"shots": [{"text": s["text"]} for s in script.scenes], "captions": script.captions or {}},
             self.brief["products"],
             checker_provider=self.checker_provider,
         )

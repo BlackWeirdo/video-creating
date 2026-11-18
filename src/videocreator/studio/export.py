@@ -20,7 +20,17 @@ logger = logging.getLogger("videocreator.studio.agent")
 VOICE_OFFLINE_NOTE = "Không lồng tiếng được (dịch vụ MoneyPrinterTurbo không phản hồi); video chỉ có phụ đề"
 
 
+_ALLOWED_SESSION_COLS = frozenset(
+    {"status", "error", "pending_prompt", "session_ref", "cost_usd", "versions_json", "options_json"}
+)
+
+
 def update_session(db_file: Path, session_id: int, **fields: Any) -> None:
+    if not fields:
+        return
+    unknown = set(fields) - _ALLOWED_SESSION_COLS
+    if unknown:
+        raise ValueError(f"Unsupported studio_sessions column(s): {sorted(unknown)}")
     cols = ", ".join(f"{name} = ?" for name in fields)
     with get_conn(db_file) as conn:
         conn.execute(f"UPDATE studio_sessions SET {cols} WHERE id = ?", (*fields.values(), session_id))
@@ -51,6 +61,8 @@ def export_studio_version(
     options: dict[str, Any],
     version_prompt: str,
     session_ref: str | None,
+    cost_usd: float = 0.0,
+    send_notification: bool = True,
 ) -> tuple[dict[str, Any], float]:
     """Adds audio (`FR-STD-06`), exports through the same path as every other engine (`BR-FMT-02`),
     sends the video for approval, and records the version. Returns `(version, duration_s)`."""
@@ -88,13 +100,18 @@ def export_studio_version(
     version = append_studio_version(
         paths.db_file, session_id, prompt=version_prompt,
         output_path=f"studio/{session_id}/out/v{version_no}.mp4",
-        cost_usd=0.0, session_ref=session_ref, status="done",
+        cost_usd=cost_usd, session_ref=session_ref, status="done",
     )
     update_session(paths.db_file, session_id, error=None)
+    if send_notification:
+        notify_studio_pending(paths, video_id)
+    return version, duration_s
+
+
+def notify_studio_pending(paths: AppPaths, video_id: int) -> None:
     try:
         from videocreator.tg.approval_notify import notify_pending
 
         notify_pending(paths, video_id)
     except Exception as exc:  # the video is ready either way; the approval queue in the UI still shows it
         logger.warning("notify_pending failed for studio video #%d: %s", video_id, exc)
-    return version, duration_s

@@ -57,10 +57,15 @@ class InstagramReelsPoster:
             )
 
         ig_id = str(account["external_id"])
-        # Step 1: Create container if not already saved from an earlier attempt (FR-PST-05)
+        post_id = int(post["id"])
+        # Step 1: Reuse saved container unless it expired/errored before publishing (FR-PST-05)
         container_id = str(post.get("remote_container_id") or "").strip()
+        if container_id:
+            initial_code = self._peek_container_status(container_id, token)
+            if initial_code in ("ERROR", "EXPIRED"):
+                container_id = ""
         if not container_id:
-            container_id = self._create_container(ig_id, token, video_url, caption, post_id=int(post["id"]))
+            container_id = self._create_container(ig_id, token, video_url, caption, post_id=post_id)
         if self._wait_until_finished(container_id, token) == "PUBLISHED":
             # An earlier attempt published it but its reply was lost: find the post, never publish twice
             try:
@@ -90,6 +95,20 @@ class InstagramReelsPoster:
             external_post_id=media_id,
             permalink=fetch_reel_permalink(media_id, token),
         )
+
+    def _peek_container_status(self, container_id: str, token: str) -> str:
+        try:
+            status = graph_request(
+                "GET",
+                f"{GRAPH_BASE_URL}/{container_id}",
+                token,
+                error_label="Instagram status check network error",
+                params={"fields": "status_code"},
+                timeout=30.0,
+            )
+            return str(status.get("status_code") or "").upper()
+        except PermanentPostError:
+            return "EXPIRED"
 
     def _create_container(self, ig_id: str, token: str, video_url: str, caption: str, *, post_id: int) -> str:
         """Creates the Reels container and saves its id on the post so a retry reuses it."""
@@ -153,7 +172,8 @@ class InstagramReelsPoster:
                 timeout=20.0,
             )
             if resp.status_code != 200:
-                metrics_http_outcome(resp.status_code, "Instagram metrics")
+                err_body = resp.json() if resp.content else None
+                metrics_http_outcome(resp.status_code, "Instagram metrics", err_body)
                 return empty_metrics()
             data = resp.json()
         except (httpx.HTTPError, ValueError) as exc:

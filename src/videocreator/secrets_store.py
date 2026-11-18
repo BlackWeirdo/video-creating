@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import secrets as _secrets
 import threading
 from pathlib import Path
 
@@ -27,12 +28,13 @@ def get_registered_secret_values() -> list[str]:
 # Decrypted secrets per file, valid while the file's (mtime, size) signature is unchanged.
 _DECRYPTED_CACHE: dict[Path, tuple[tuple[int, int], dict[str, str]]] = {}
 
+
 class SecretsStore:
     """Stores key-value secrets in DPAPI-encrypted file on Windows or 0600 file on POSIX."""
 
     def __init__(self, secrets_file: Path) -> None:
         self.secrets_file = secrets_file
-        self._lock = threading.RLock()
+        self._lock = _LOCK
         self._sync_redaction_cache()
 
     def _read_all(self) -> dict[str, str]:
@@ -71,13 +73,21 @@ class SecretsStore:
             out_bytes = dpapi_encrypt(plain_bytes)
         else:
             out_bytes = plain_bytes
-        tmp_path = self.secrets_file.with_suffix(".bin.tmp")
-        tmp_path.write_bytes(out_bytes)
-        if os.name != "nt":
-            os.chmod(tmp_path, 0o600)
-        tmp_path.replace(self.secrets_file)
-        if os.name != "nt":
-            os.chmod(self.secrets_file, 0o600)
+        tmp_path = self.secrets_file.with_name(f"{self.secrets_file.name}.{_secrets.token_hex(6)}.tmp")
+        try:
+            if os.name == "nt":
+                tmp_path.write_bytes(out_bytes)
+            else:
+                fd = os.open(str(tmp_path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+                try:
+                    os.write(fd, out_bytes)
+                finally:
+                    os.close(fd)
+            tmp_path.replace(self.secrets_file)
+            if os.name != "nt":
+                os.chmod(self.secrets_file, 0o600)
+        finally:
+            tmp_path.unlink(missing_ok=True)
         with _LOCK:
             _DECRYPTED_CACHE.pop(self.secrets_file, None)
 
@@ -103,6 +113,14 @@ class SecretsStore:
             data[name] = value
             self._write_all(data)
             register_secret_for_redaction(value)
+
+    def replace_all(self, new_secrets: dict[str, str]) -> None:
+        """Atomically replaces the entire secret map in a single write."""
+        cleaned = {str(k): str(v) for k, v in new_secrets.items()}
+        with self._lock:
+            self._write_all(cleaned)
+            for val in cleaned.values():
+                register_secret_for_redaction(val)
 
     def delete(self, name: str) -> bool:
         with self._lock:

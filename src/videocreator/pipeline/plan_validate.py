@@ -117,6 +117,7 @@ def validate_and_normalize_plan(
     caption_lang: Literal["vi", "en"],
     target_duration_s: float,
     allow_broll_hook: bool = False,
+    reference_cut_pace_s: float | None = None,
 ) -> dict[str, Any]:
     """Validates `shot_id` existence, clamps/checks time bounds, B-roll rules (`BR-PRD-07..08`), and product-shot consistency (`BR-PRD-05`)."""
     if not item.shots:
@@ -164,6 +165,14 @@ def validate_and_normalize_plan(
     total_dur = round(sum(s["duration_s"] for s in normalized_shots), 2)
     if total_dur < 2.0 or total_dur > max(45.0, target_duration_s * 2.0):
         raise ValueError(f"Total plan duration {total_dur}s out of bounds for target {target_duration_s}s")
+
+    if reference_cut_pace_s is not None and reference_cut_pace_s > 0 and len(shot_map) >= 3:
+        avg_pace = total_dur / max(1, len(normalized_shots))
+        max_allowed_pace = max(reference_cut_pace_s * 2.5, reference_cut_pace_s + 3.0)
+        if avg_pace > max_allowed_pace:
+            raise ValueError(
+                f"Average shot duration {avg_pace:.2f}s exceeds trend cut pace limit ({max_allowed_pace:.2f}s for cut_pace_s={reference_cut_pace_s:.2f}s)"
+            )
 
     return {
         "formula": item.formula.strip() or "hook-first",

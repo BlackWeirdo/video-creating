@@ -10,7 +10,7 @@ from videocreator import __version__
 from videocreator.approval_queue import list_pending_approval_videos
 from videocreator.approvals import approve, reject
 from videocreator.config import load_settings
-from videocreator.db import get_conn, query_all, query_one
+from videocreator.db import get_conn, get_write_conn, query_all, query_one
 from videocreator.jsonutil import loads_or
 from videocreator.paths import AppPaths
 from videocreator.pipeline.caption_limits import apply_caption_form
@@ -19,6 +19,10 @@ from videocreator.state import InvalidTransitionError
 from videocreator.templating import get_templates
 
 router = APIRouter()
+
+MAX_COVER_BYTES = 10 * 1024 * 1024  # 10 MB
+_JPEG_MAGIC = b"\xff\xd8\xff"
+_PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 
 
 @router.get("/approval", response_class=HTMLResponse)
@@ -66,16 +70,23 @@ def _update_captions_from_form(
     video_id: int,
     form: Any,
 ) -> None:
-    row = query_one(paths.db_file, "SELECT plan_json FROM videos WHERE id = ?", (video_id,))
-    if row is None:
-        return
-    plan = loads_or(row.get("plan_json"), {})
-
-    captions = plan.get("captions") or {}
-    if not apply_caption_form(form, captions):
-        return
-    plan["captions"] = captions
-    with get_conn(paths.db_file) as conn:
+    with get_write_conn(paths.db_file) as conn:
+        row = conn.execute(
+            "SELECT plan_json, captions_json FROM videos WHERE id = ?",
+            (video_id,),
+        ).fetchone()
+        if row is None:
+            return
+        plan = loads_or(row["plan_json"], {})
+        base_caps = plan.get("captions") if isinstance(plan, dict) and isinstance(plan.get("captions"), dict) else {}
+        override_caps = loads_or(row["captions_json"], {})
+        if not isinstance(override_caps, dict):
+            override_caps = {}
+        captions = {k: (dict(v) if isinstance(v, dict) else v) for k, v in {**base_caps, **override_caps}.items()}
+        if not apply_caption_form(form, captions):
+            return
+        if isinstance(plan, dict):
+            plan["captions"] = captions
         conn.execute(
             "UPDATE videos SET plan_json = ?, captions_json = ? WHERE id = ?",
             (
@@ -158,10 +169,18 @@ async def upload_cover_route(
     row = query_one(paths.db_file, "SELECT id FROM videos WHERE id = ?", (video_id,))
     if row is None:
         raise HTTPException(status_code=404, detail=f"Video #{video_id} not found")
-    raw = await file.read()
+    raw = await file.read(MAX_COVER_BYTES + 1)
     if not raw:
         raise HTTPException(status_code=400, detail="Empty cover image file")
-    rel_cover = f"output/cover_{video_id}.jpg"
+    if len(raw) > MAX_COVER_BYTES:
+        raise HTTPException(status_code=413, detail="Ảnh bìa vượt quá giới hạn 10 MB")
+    if raw.startswith(_JPEG_MAGIC):
+        ext = ".jpg"
+    elif raw.startswith(_PNG_MAGIC):
+        ext = ".png"
+    else:
+        raise HTTPException(status_code=400, detail="Ảnh bìa chỉ hỗ trợ định dạng JPEG hoặc PNG hợp lệ")
+    rel_cover = f"output/cover_{video_id}{ext}"
     abs_cover = paths.media_dir / rel_cover
     abs_cover.parent.mkdir(parents=True, exist_ok=True)
     abs_cover.write_bytes(raw)

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import shutil
+from pathlib import Path
 from statistics import mean
 from typing import Any
 
@@ -44,7 +45,17 @@ class VideoQualityScore(BaseModel):
     product_clarity: CriterionScore
     text_safe_zone: CriterionScore
     pacing_sync: CriterionScore
+    trend_alignment: CriterionScore | None = Field(
+        default=None,
+        description="Độ bám nhịp mở đầu, nhịp cắt và bố cục chữ của mẫu xu hướng (khi dựng theo xu hướng)",
+    )
     notes: str = Field(description="Nhận xét ngắn gọn tiếng Việt (1-2 câu)")
+
+
+class TrendVideoQualityScore(VideoQualityScore):
+    trend_alignment: CriterionScore = Field(
+        description="Độ bám nhịp mở đầu, tốc độ cắt và bố cục chữ của mẫu xu hướng"
+    )
 
 
 CRITERIA: tuple[tuple[str, str], ...] = (
@@ -53,6 +64,8 @@ CRITERIA: tuple[tuple[str, str], ...] = (
     ("text_safe_zone", "Chữ trong vùng an toàn"),
     ("pacing_sync", "Khớp hình và lời"),
 )
+
+TREND_CRITERION: tuple[str, str] = ("trend_alignment", "Độ bám xu hướng")
 
 RUBRIC = (
     "Thang điểm có mốc cho từng tiêu chí:\n"
@@ -68,15 +81,28 @@ RUBRIC = (
     "Nếu ảnh/video không đủ để chấm thì đặt can_judge = false và ghi lý do."
 )
 
+TREND_RUBRIC_ADDON = (
+    "\n5. Độ bám xu hướng (`trend_alignment`): 2 = lệch hẳn nhịp cắt, mở đầu chậm hoặc bố cục chữ trái ngược bản mẫu; "
+    "5 = chỉ bám một phần; 8 = khớp rõ vai trò mở đầu, tốc độ chuyển cảnh và bố cục chữ (`hook_layout`) của mẫu xu hướng; "
+    "10 = bám sát tinh thần & nhịp điệu mẫu xu hướng mà vẫn giữ nguyên vẻ chân thực của sản phẩm."
+)
+
+
+def _active_criteria(res: VideoQualityScore) -> list[tuple[str, str]]:
+    items = list(CRITERIA)
+    if res.trend_alignment is not None:
+        items.append(TREND_CRITERION)
+    return items
+
 
 def overall_from(res: VideoQualityScore) -> float:
-    """Overall score computed from the four criteria (the model's own total is not trusted)."""
-    return round(mean(getattr(res, key).score for key, _ in CRITERIA), 2)
+    """Overall score computed from the active criteria (4 standard, or 5 when trend-linked)."""
+    return round(mean(getattr(res, key).score for key, _ in _active_criteria(res)), 2)
 
 
 def weakest_hint(res: VideoQualityScore) -> str:
     """The lowest criterion with its evidence, e.g. "Mở đầu 5/10: 0-2s chưa thấy sản phẩm"."""
-    key, label = min(CRITERIA, key=lambda kv: getattr(res, kv[0]).score)
+    key, label = min(_active_criteria(res), key=lambda kv: getattr(res, kv[0]).score)
     crit: CriterionScore = getattr(res, key)
     return f"{label} {crit.score}/10: {crit.evidence.strip()[:200]}"
 
@@ -90,14 +116,46 @@ def _shot_summary(plan: dict[str, Any]) -> str:
     return "\n".join(lines) or "- (không có lời)"
 
 
-def build_score_prompt(plan: dict[str, Any], times: list[float]) -> str:
+def build_score_prompt(
+    plan: dict[str, Any],
+    times: list[float],
+    *,
+    trend_blueprint: dict[str, Any] | None = None,
+    has_storyboard: bool = False,
+) -> str:
     frame_list = "\n".join(
         f"Ảnh {i} = {t:.1f}s" + (" (mở đầu)" if t < 3.0 else "") for i, t in enumerate(times, start=1)
     )
+    if not trend_blueprint:
+        return (
+            "Hãy chấm điểm video ngắn 9:16 trang sức bạc thủ công theo 4 tiêu chí.\n"
+            f"Các ảnh trích từ video theo thứ tự thời gian:\n{frame_list}\n"
+            f"Lời/phụ đề theo kịch bản:\n{_shot_summary(plan)}\n\n{RUBRIC}"
+        )
+
+    bp_lines = []
+    for k, label in (
+        ("hook", "Mở đầu mẫu"),
+        ("cut_pace_s", "Nhịp cắt mẫu (giây/cảnh)"),
+        ("hook_layout", "Bố cục chữ mẫu"),
+        ("audio_mode", "Chế độ âm thanh"),
+        ("energy_level", "Mức năng lượng"),
+    ):
+        val = trend_blueprint.get(k)
+        if val not in (None, ""):
+            bp_lines.append(f"- {label}: {str(val)[:160]}")
+    sb_note = (
+        f"\nẢnh {len(times) + 1} = Storyboard tham khảo từ video xu hướng gốc (dùng để đối chiếu bố cục và nhịp mở đầu)."
+        if has_storyboard
+        else ""
+    )
     return (
-        "Hãy chấm điểm video ngắn 9:16 trang sức bạc thủ công theo 4 tiêu chí.\n"
-        f"Các ảnh trích từ video theo thứ tự thời gian:\n{frame_list}\n"
-        f"Lời/phụ đề theo kịch bản:\n{_shot_summary(plan)}\n\n{RUBRIC}"
+        "Hãy chấm điểm video ngắn 9:16 trang sức bạc thủ công theo 5 tiêu chí (có đối chiếu bản thiết kế xu hướng).\n"
+        f"Các ảnh trích từ video theo thứ tự thời gian:\n{frame_list}{sb_note}\n"
+        f"Lời/phụ đề theo kịch bản:\n{_shot_summary(plan)}\n"
+        "Bản thiết kế xu hướng mục tiêu:\n"
+        + ("\n".join(bp_lines) or "- Bám cấu trúc mở đầu nhanh")
+        + f"\n\n{RUBRIC}{TREND_RUBRIC_ADDON}"
     )
 
 
@@ -180,6 +238,54 @@ def promote_best_attempt(paths: AppPaths, current_id: int, best_id: int) -> bool
     return True
 
 
+def _load_video_trend_context(
+    paths: AppPaths, video_id: int, row: dict[str, Any], plan: dict[str, Any]
+) -> tuple[dict[str, Any] | None, Path | None]:
+    """Finds any linked Trend Blueprint and cached `rea-video` storyboard image for `video_id`."""
+    from videocreator.trends.suggestion_formula import load_suggestion_formula, trim_analysis
+
+    trend_item_id: int | None = None
+    blueprint: dict[str, Any] | None = None
+
+    if isinstance(plan.get("trend_analysis"), dict) and plan["trend_analysis"]:
+        blueprint = plan["trend_analysis"]
+
+    sug_id = row.get("suggestion_id")
+    if sug_id:
+        f_obj = load_suggestion_formula(paths.db_file, int(sug_id)) or {}
+        if f_obj.get("trend_item_id"):
+            trend_item_id = int(f_obj["trend_item_id"])
+        if not blueprint and isinstance(f_obj.get("trend_analysis"), dict) and f_obj["trend_analysis"]:
+            blueprint = f_obj["trend_analysis"]
+
+    if trend_item_id is None:
+        ss = query_one(
+            paths.db_file,
+            "SELECT ref_item_id FROM studio_sessions WHERE video_id = ? AND ref_item_id IS NOT NULL ORDER BY id DESC LIMIT 1",
+            (video_id,),
+        )
+        if ss is not None and ss.get("ref_item_id"):
+            trend_item_id = int(ss["ref_item_id"])
+
+    if not blueprint and trend_item_id:
+        t_row = query_one(paths.db_file, "SELECT analysis_json FROM trend_items WHERE id = ?", (trend_item_id,))
+        if t_row is not None:
+            trimmed = trim_analysis(loads_or(t_row.get("analysis_json"), {}))
+            if trimmed:
+                blueprint = trimmed
+
+    storyboard: Path | None = None
+    if trend_item_id:
+        rv = query_one(paths.db_file, "SELECT rea_dir FROM reference_videos WHERE trend_item_id = ?", (trend_item_id,))
+        rea_rel = str(rv["rea_dir"]) if (rv and rv.get("rea_dir")) else f"reference/rea_{trend_item_id}"
+        rea_dir = paths.media_dir / rea_rel
+        if rea_dir.is_dir():
+            cands = sorted(rea_dir.glob("*storyboard*.jpg")) + sorted(rea_dir.glob("*storyboard*.png"))
+            storyboard = next((p for p in cands if p.is_file()), None)
+
+    return blueprint, storyboard
+
+
 def _judge(
     paths: AppPaths, video_id: int, row: dict[str, Any], provider: AIProvider | None
 ) -> tuple[float | None, str, str]:
@@ -189,6 +295,9 @@ def _judge(
     if video_file is None or not video_file.is_file():
         return None, f"{UNJUDGED_PREFIX}: không tìm thấy file video", ""
     plan = loads_or(row.get("plan_json"), {})
+    if not isinstance(plan, dict):
+        plan = {}
+    blueprint, storyboard = _load_video_trend_context(paths, video_id, row, plan)
     work_dir = paths.work_dir / f"score_{video_id}"
     try:
         try:
@@ -199,12 +308,21 @@ def _judge(
         if len(frames) < MIN_FRAMES:
             return None, f"{UNJUDGED_PREFIX}: chỉ trích được {len(frames)} khung hình", ""
         vis = provider or get_provider(paths, "vision")
+        thumbs = [p for _, p in frames]
+        if blueprint and storyboard is not None:
+            thumbs.append(storyboard)
+        schema_cls: type[VideoQualityScore] = TrendVideoQualityScore if blueprint else VideoQualityScore
         try:
             res = vis.describe_video(
                 video_file,
-                build_score_prompt(plan, [t for t, _ in frames]),
-                VideoQualityScore,
-                thumbnails=[p for _, p in frames],
+                build_score_prompt(
+                    plan,
+                    [t for t, _ in frames],
+                    trend_blueprint=blueprint,
+                    has_storyboard=bool(blueprint and storyboard is not None),
+                ),
+                schema_cls,
+                thumbnails=thumbs,
             )
         except (QuotaWaitRequested, BudgetExceeded) as exc:
             # Out of quota or budget: the render is kept and goes to approval unscored, never redone.
@@ -218,6 +336,24 @@ def _judge(
         return None, f"{UNJUDGED_PREFIX}: {res.cannot_judge_reason.strip()[:160] or 'mô hình không chấm được'}", ""
     hint = weakest_hint(res)
     return overall_from(res), f"{hint} | {res.notes.strip()}", hint
+
+
+def score_studio_video(
+    paths: AppPaths,
+    video_id: int,
+    *,
+    provider: AIProvider | None = None,
+) -> tuple[float | None, str, str]:
+    """Scores a Studio-exported video in-place and saves `quality_score` + `quality_notes`.
+
+    Returns `(score, notes, weakest_fix_hint)`.
+    """
+    row = query_one(paths.db_file, "SELECT * FROM videos WHERE id = ?", (video_id,))
+    if row is None:
+        return None, "", ""
+    score, notes, hint = _judge(paths, video_id, row, provider)
+    _save_score(paths, video_id, row, score, notes)
+    return score, notes, hint
 
 
 def score_rendered_video(

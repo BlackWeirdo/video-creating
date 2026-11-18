@@ -51,8 +51,11 @@ def _exchange_threads(
         },
     )
     r_tok.raise_for_status()
-    tok_data = r_tok.json()
-    short_token = str(tok_data["access_token"])
+    tok_data = r_tok.json() or {}
+    short_token = str(tok_data.get("access_token") or "").strip()
+    if not short_token:
+        err_detail = tok_data.get("error_message") or (tok_data.get("error") or {})
+        raise ValueError(f"Threads OAuth không trả về access_token: {err_detail}")
 
     # Exchange for 60-day long-lived token
     r_long = client.get(
@@ -136,11 +139,15 @@ def _exchange_tiktok(
         },
     )
     r_tok.raise_for_status()
-    tok_data = r_tok.json()
-    access_token = str(tok_data["access_token"])
-    refresh_token = str(tok_data.get("refresh_token") or "")
-    open_id = str(tok_data.get("open_id") or "")
-    expires_in = int(tok_data.get("expires_in") or 86400)
+    tok_data = r_tok.json() or {}
+    tok_inner = tok_data.get("data") if isinstance(tok_data.get("data"), dict) else {}
+    access_token = str(tok_data.get("access_token") or tok_inner.get("access_token") or "").strip()
+    if not access_token:
+        err_desc = tok_data.get("error_description") or tok_data.get("error") or "unknown error"
+        raise ValueError(f"TikTok OAuth không trả về access_token: {err_desc}")
+    refresh_token = str(tok_data.get("refresh_token") or tok_inner.get("refresh_token") or "")
+    open_id = str(tok_data.get("open_id") or tok_inner.get("open_id") or "")
+    expires_in = int(tok_data.get("expires_in") or tok_inner.get("expires_in") or 86400)
 
     acc_id = upsert_account(
         paths,

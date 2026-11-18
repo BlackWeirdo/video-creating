@@ -1,9 +1,9 @@
 """Audio asset management routes (music and SFX, Phase 05, FR-RND-03)."""
 from __future__ import annotations
-import hashlib
 import json
 import shutil
 import subprocess
+import uuid
 from pathlib import Path
 from typing import Any, Literal
 
@@ -20,6 +20,7 @@ from videocreator.templating import get_templates
 router = APIRouter()
 
 ALLOWED_AUDIO_EXTENSIONS: set[str] = {".mp3", ".wav", ".m4a", ".aac", ".ogg", ".flac"}
+MAX_AUDIO_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB
 
 
 def probe_audio_duration(file_path: Path) -> float:
@@ -67,7 +68,15 @@ def import_audio_asset(
         raise ValueError(f"Unsupported audio extension '{ext}'")
 
     duration_s = probe_audio_duration(source_file)
-    meta = {"title": title.strip() or source_file.stem, "original_name": source_file.name}
+    clean_title = title.strip() or source_file.stem
+    meta: dict[str, Any] = {"title": clean_title, "original_name": source_file.name}
+    if kind == "music":
+        try:
+            from videocreator.pipeline.audio_beats import analyse_music_beats
+
+            meta.update(analyse_music_beats(source_file, title_hint=clean_title))
+        except Exception:
+            pass
 
     with get_conn(paths.db_file) as conn:
         cur = conn.execute(
@@ -139,10 +148,15 @@ async def upload_audio_asset(
         raise HTTPException(status_code=400, detail=f"Đuôi nhạc '{ext}' không hợp lệ")
 
     clean_kind: Literal["music", "sfx"] = "sfx" if kind == "sfx" else "music"
-    tmp_path = paths.work_dir / f"upload_aud_{hashlib.md5(filename.encode('utf-8')).hexdigest()}{ext}"
+    paths.work_dir.mkdir(parents=True, exist_ok=True)
+    tmp_path = paths.work_dir / f"upload_aud_{uuid.uuid4().hex}{ext}"
     try:
+        total_bytes = 0
         with tmp_path.open("wb") as out_f:
             while chunk := await file.read(1024 * 1024):
+                total_bytes += len(chunk)
+                if total_bytes > MAX_AUDIO_UPLOAD_BYTES:
+                    raise HTTPException(status_code=413, detail="File âm thanh vượt quá giới hạn 50 MB")
                 out_f.write(chunk)
         import_audio_asset(paths, tmp_path, kind=clean_kind, title=title or Path(filename).stem)
     except ValueError as exc:

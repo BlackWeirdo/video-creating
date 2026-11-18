@@ -51,8 +51,21 @@ def _read_rea_outputs(out_dir: Path) -> dict[str, Any]:
     }
 
 
+_VI_DIACRITIC_RE = __import__("re").compile(
+    r"[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]",
+    __import__("re").IGNORECASE,
+)
+
+
+def detect_rea_lang(hint_text: str) -> str:
+    """Detects `'vi'` when Vietnamese diacritics appear in caption/metadata, otherwise `'en'`."""
+    if hint_text and _VI_DIACRITIC_RE.search(hint_text):
+        return "vi"
+    return "en"
+
+
 def run_rea_decompose_reference(
-    video_path: Path, out_dir: Path
+    video_path: Path, out_dir: Path, *, lang: str | None = None
 ) -> dict[str, Any]:
     """Runs full `rea-video decompose` (without `--vlm`) on a reference video and reads `VIDEO.md` / `timeline.md`."""
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -60,6 +73,7 @@ def run_rea_decompose_reference(
     if cached["video_md"].strip() and cached["timeline_md"].strip() and _has_full_rea_cache(out_dir):
         return cached
 
+    chosen_lang = lang if lang in ("vi", "en", "zh") else "en"
     try:
         rea_bin = find_rea_video_binary()
         ffmpeg_dir = str(Path(find_ffmpeg_binary("ffmpeg")).parent)
@@ -69,7 +83,7 @@ def run_rea_decompose_reference(
 
         # Flags verified against the installed CLI (spike S1): full breakdown (stems, packaging, OCR, ASR, shots) without VLM.
         proc = subprocess.run(
-            [rea_bin, "decompose", str(video_path), "-o", str(out_dir), "--no-vlm", "--lang", "en"],
+            [rea_bin, "decompose", str(video_path), "-o", str(out_dir), "--no-vlm", "--lang", chosen_lang],
             env=env,
             capture_output=True,
             text=True,

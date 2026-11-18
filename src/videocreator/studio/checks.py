@@ -6,7 +6,7 @@ from pathlib import Path
 
 # BR-PRD-02 patterns forbidden on product footage components in Remotion (.tsx / .ts)
 CSS_FILTER_RE = re.compile(
-    r"""(?:\bfilter\s*:\s*['"`][^'"`]*(?:brightness|contrast|saturate|hue-rotate|sepia|grayscale|invert|blur)\s*\()""",
+    r"""(?:\bfilter\s*:\s*['"`]?[^'"`;\n{}]*(?:brightness|contrast|saturate|hue-rotate|sepia|grayscale|invert|blur)\s*\()""",
     re.IGNORECASE,
 )
 MIX_BLEND_RE = re.compile(
@@ -14,7 +14,7 @@ MIX_BLEND_RE = re.compile(
     re.IGNORECASE,
 )
 OPACITY_LT_ONE_RE = re.compile(
-    r"""\bopacity\s*[:=]\s*\{?\s*(?:0?\.\d+)\s*\}?""",
+    r"""\bopacity\s*[:=]\s*\{?\s*(?:0(?:\.\d+)?|\.\d+)\s*\}?(?![.\d])""",
     re.IGNORECASE,
 )
 PLAYBACK_RATE_NE_ONE_RE = re.compile(
@@ -73,6 +73,9 @@ def scan_tsx_for_product_violations(tsx_source: str, filename: str = "Scene.tsx"
 RAW_VIDEO_TAG_RE = re.compile(r"\b(?:OffthreadVideo|Html5Video|Video)\b|<video\b")
 MEDIA_LITERAL_RE = re.compile(r"""['"`]([^'"`\s]+\.(?:mp4|mov|webm|mkv))['"`]""", re.IGNORECASE)
 IMPORT_FROM_RE = re.compile(r"""\bfrom\s+['"]([^'"]+)['"]|\brequire\(\s*['"]([^'"]+)['"]\s*\)""")
+DYNAMIC_EXEC_OR_NET_RE = re.compile(
+    r"""\b(?:import|eval|Function)\s*\(|\b(?:fetch|XMLHttpRequest|WebSocket|EventSource)\b"""
+)
 SCENE_ALLOWED_IMPORTS: frozenset[str] = frozenset({"react", "remotion", "./lib", "./plan"})
 LITERAL_SHOT_PROP_RE = re.compile(r"""\b(?:startS|file)\s*=\s*(?:\{\s*[\d.'"`]|['"])""")
 
@@ -87,6 +90,8 @@ def scan_scene_contract(scene_source: str) -> list[str]:
     problems: list[str] = []
     if RAW_VIDEO_TAG_RE.search(scene_source):
         problems.append("Scene.tsx: dùng thẻ video trực tiếp; hình sản phẩm chỉ được hiện qua ProductShot của './lib' (BR-PRD-02)")
+    if DYNAMIC_EXEC_OR_NET_RE.search(scene_source):
+        problems.append("Scene.tsx: không được gọi dynamic import/eval hoặc kết nối mạng (fetch/WebSocket) (FR-STD-10)")
     imported: set[str] = set()
     for match in IMPORT_FROM_RE.finditer(scene_source):
         module = match.group(1) or match.group(2)

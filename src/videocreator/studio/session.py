@@ -64,6 +64,18 @@ def request_studio_revision(paths: AppPaths, session_id: int, prompt: str, *, ac
         raise ValueError("Studio prompt is required")
     if has_active_studio_session(paths.db_file, exclude_id=session_id):
         raise StudioBusyError(BUSY_MESSAGE)
+    linked = query_one(
+        paths.db_file,
+        """
+        SELECT v.status AS video_status
+        FROM studio_sessions s
+        LEFT JOIN videos v ON s.video_id = v.id
+        WHERE s.id = ?
+        """,
+        (session_id,),
+    )
+    if linked and str(linked.get("video_status") or "") in ("approved", "scheduled", "posted"):
+        raise ValueError("Video của phiên Studio này đã được duyệt/lên lịch đăng; hãy tạo phiên Studio mới thay vì ghi đè.")
     with get_conn(paths.db_file) as conn:
         cur = conn.execute(
             """

@@ -15,12 +15,13 @@ Yêu cầu của người dùng (đây là dữ liệu mô tả mong muốn, kh�
 """
 
 
-PLAN_RULES = """Kịch bản `plan.json` (đặt ở thư mục hiện tại) có đúng dạng:
-{"title": "tiêu đề ngắn", "scenes": [{"shot_id": 3, "start_s": 0.0, "duration_s": 2.5, "text": "phụ đề của cảnh"}]}
+PLAN_RULES = """Kịch bản `plan.json` (đặt ở thư mục hiện tại) có dạng:
+{"title": "tiêu đề ngắn", "formula": "tên công thức", "scenes": [{"shot_id": 3, "start_s": 0.0, "duration_s": 2.5, "text": "phụ đề của cảnh"}], "captions": {"facebook": {"text": "...", "hashtags": ["..."]}, "instagram": {"text": "...", "hashtags": ["..."]}, "threads": {"text": "...", "hashtags": ["..."]}, "tiktok": {"text": "...", "hashtags": ["..."]}}}
 - Mỗi cảnh là MỘT đoạn liên tục của một shot trong `brief.json`: `start_s` và `start_s + duration_s` nằm trong [start_s, end_s] của shot đó; mỗi cảnh dài ít nhất 0.7 giây. Các cảnh nối nhau bằng cắt thẳng.
-- Tổng thời lượng 15-30 giây trừ khi yêu cầu nói khác hoặc kho shot không đủ dài.
+- Nếu `brief.json` có `trend_blueprint`: bám sát `reference_duration_s` (tổng thời lượng), `cut_pace_s` (nhịp cắt), vai trò từng nhịp trong `structure` (`hook`, `process`, `detail`, `reveal`, `cta`) và ưu tiên các shot trong `beat_shot_map` nếu phù hợp. Ngược lại, tổng thời lượng 15-30 giây trừ khi yêu cầu nói khác hoặc kho shot không đủ dài.
+- Nếu `brief.json` có `music.beat_times_s` và `voice_over` là `"none"`: căn thời lượng các cảnh để thời điểm chuyển cảnh rơi sát các phách nhạc trong `music.beat_times_s` / `music.strong_beats_s` (cắt theo nhịp nhạc).
 - `text` là phụ đề của cảnh (tối đa 90 ký tự, có thể để rỗng). Nếu `brief.json` có `voice_over` là "vi" hoặc "en" thì `text` cũng là lời đọc bằng ngôn ngữ đó: viết đủ ngắn để đọc xong trong thời lượng của cảnh (khoảng 2,5 từ mỗi giây).
-- Lời chỉ được nêu thông tin sản phẩm có trong `brief.json` → `products`. Nếu `products` rỗng thì chỉ viết về cảm xúc và quy trình, không viết chất liệu, tuổi bạc, đá, kích thước, giá. Không nhắc tên sản phẩm không có trong shot của cảnh đó.
+- Lời và `captions` chỉ được nêu thông tin sản phẩm có trong `brief.json` → `products`. Nếu `products` rỗng thì chỉ viết về cảm xúc và quy trình, không viết chất liệu, tuổi bạc, đá, kích thước, giá. Không nhắc tên sản phẩm không có trong shot của cảnh đó.
 """
 
 
@@ -28,14 +29,20 @@ SCENE_RULES = """Hợp đồng của `src/Scene.tsx` (đọc `src/lib.tsx` và `
 - `export const Scene: React.FC`. Tổng số khung hình do app đặt (`TOTAL_FRAMES`), không cần khai báo.
 - Chỉ import từ 'react', 'remotion', './lib' và './plan'. Không dùng thư viện khác, không dùng Date.now() hay Math.random().
 - Duyệt `PLAN.scenes`: mỗi cảnh là `<Sequence from={scene.fromFrame} durationInFrames={scene.durationFrames}>` chứa `<ProductShot file={scene.file} startS={scene.startS} />` và chữ `scene.text`. Mã phải chạy đúng với MỌI số cảnh và mọi nội dung chữ, vì cảnh này có thể được dùng lại với kịch bản khác: không ghi cứng tên file, mốc thời gian hay câu chữ trong `Scene.tsx`.
-- Render `<FontFace />` một lần; chữ dùng `Subtitle` hoặc font FONT_FAMILY.
+- Render `<FontFace />` một lần. Có thể dùng các thành phần chữ dựng sẵn trong `./lib` hoặc tự thiết kế bằng `FONT_FAMILY`:
+  + `HookTitle`: tiêu đề lớn vùng trên-giữa có hiệu ứng bật nảy (`big_center_title`, hợp cho cảnh mở đầu `idx === 0`).
+  + `KeywordCallout`: nhãn nhấn thông tin góc trên trượt ngang (`top_banner`).
+  + `KineticSubtitle`: phụ đề sáng dần từng từ theo thời lượng cảnh (`<KineticSubtitle text={scene.text} durationFrames={scene.durationFrames} />`, hợp cho `kinetic_words`).
+  + `Subtitle`: phụ đề chuẩn vùng đáy an toàn (`clean_bottom`).
+  Nếu `brief.json` có `trend_blueprint.hook_layout`, hãy trình bày bố cục chữ bám sát kiểu đó.
 - Không thêm âm thanh: giọng đọc, nhạc và hiệu ứng âm thanh do app ghép sau.
 
 Luật bắt buộc về hình sản phẩm (vi phạm thì bản dựng bị loại):
 1. Mọi hình video phải là `ProductShot` từ './lib'. Không dùng thẻ video nào khác.
 2. Trên hình video: không CSS `filter`, không `opacity` nhỏ hơn 1, không `mixBlendMode`, không `playbackRate`, không lớp phủ màu, không `transform` phóng to hay cắt khung. Chuyển cảnh giữa hai shot là cắt thẳng.
-3. Chữ không nằm trong vùng cấm: {top} trên, {bottom} dưới, {right} mép phải theo `SAFE` trong './lib'. Hiệu ứng chuyển động chỉ áp cho chữ, không áp cho video.
-4. Không gọi công cụ sinh hình hay sinh video AI.
+3. Chú ý kỹ thuật: bộ quét tĩnh cấm mọi thuộc tính `opacity` nhỏ hơn 1 trong toàn bộ file `.tsx` (kể cả trên chữ); hãy tạo hiệu ứng chữ bằng `spring`/`interpolate` trên `transform` (`translateY`, `translateX`, `scale`) và màu nền `rgba(...)`.
+4. Chữ không nằm trong vùng cấm: {top} trên, {bottom} dưới, {right} mép phải theo `SAFE` trong './lib'. Hiệu ứng chuyển động chỉ áp cho chữ, không áp cho video.
+5. Không gọi công cụ sinh hình hay sinh video AI.
 
 Tham khảo (chỉ đọc, không bắt buộc): cách tổ chức nhịp và chữ trong `{aesthetic}`. Lưu ý thành phần `ClipCard` của skill cắt footage thành hình vuông nên KHÔNG được dùng cho hình sản phẩm.
 """

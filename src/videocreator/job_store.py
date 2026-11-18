@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from videocreator.db import get_conn
+from videocreator.db import get_conn, get_write_conn
 
 logger = logging.getLogger("videocreator.jobs")
 
@@ -22,7 +22,7 @@ def recover_interrupted_jobs(db_file: Path) -> int:
     'publishing' back to 'scheduled'. A post that already has a platform container/reel id keeps
     it: the next publish round asks the platform for that container's state instead of creating a
     new one (spec §6), so it is finished, not posted twice."""
-    with get_conn(db_file) as conn:
+    with get_write_conn(db_file) as conn:
         cur = conn.execute(
             """
             UPDATE jobs
@@ -41,7 +41,7 @@ def recover_interrupted_jobs(db_file: Path) -> int:
 
 
 def requeue_waiting_quota_jobs(db_file: Path) -> int:
-    with get_conn(db_file) as conn:
+    with get_write_conn(db_file) as conn:
         cur = conn.execute(
             "UPDATE jobs SET status = 'queued' WHERE status = 'waiting_quota'"
         )
@@ -58,11 +58,11 @@ def wake_expired_quota_jobs(db_file: Path, *, cooldown_s: int = WAKE_COOLDOWN_S)
       instead of in a tight loop.
     - `claude_cli` itself resting: keep waiting.
     """
-    with get_conn(db_file) as conn:
+    with get_write_conn(db_file) as conn:
         resting = {
             str(r["name"])
             for r in conn.execute(
-                "SELECT name FROM provider_state WHERE resting_until IS NOT NULL AND resting_until > unixepoch('now')"
+                "SELECT name FROM provider_state WHERE resting_until IS NOT NULL AND CAST(resting_until AS INTEGER) > unixepoch('now')"
             ).fetchall()
         }
         if not resting:
@@ -85,7 +85,7 @@ def wake_expired_quota_jobs(db_file: Path, *, cooldown_s: int = WAKE_COOLDOWN_S)
 
 
 def claim_next_queued_job(db_file: Path) -> dict[str, Any] | None:
-    with get_conn(db_file) as conn:
+    with get_write_conn(db_file) as conn:
         row = conn.execute(
             """
             SELECT id, kind, ref_id, status, created_at

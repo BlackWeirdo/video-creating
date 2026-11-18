@@ -156,6 +156,12 @@ def collect_due_metrics(
         reader: Any = (reader_overrides or {}).get(platform)
         if reader is None:
             try:
+                from videocreator.posting.oauth_refresh import refresh_token_if_needed
+
+                refresh_token_if_needed(paths, account, now_dt=base_utc, secrets_store=secrets)
+            except Exception as exc:
+                logger.debug("Token refresh before metrics skipped for account #%s: %s", account.get("id"), exc)
+            try:
                 reader = _default_metrics_reader(platform, secrets, paths)
             except Exception as exc:
                 logger.debug("Could not initialize metrics reader for %s: %s", platform, exc)

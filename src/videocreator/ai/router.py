@@ -86,6 +86,7 @@ class RoutedProvider:
         last_error: Exception | None = None
 
         for pname in provider_names:
+            provider = self._resolve_provider(pname, settings)
             resting, until_ts = is_provider_resting(self.paths.db_file, pname)
             if resting:
                 logger.info(
@@ -94,10 +95,9 @@ class RoutedProvider:
                     self.role,
                     until_ts,
                 )
-                resting_sub_providers.append(pname)
+                if provider.route_kind == "subscription":
+                    resting_sub_providers.append(pname)
                 continue
-
-            provider = self._resolve_provider(pname, settings)
 
             # Enforce subscription-first policy before falling back to paid API
             if provider.route_kind == "api":
@@ -138,7 +138,8 @@ class RoutedProvider:
                     duration_s=exc.retry_after_s,
                     error_msg=str(exc),
                 )
-                resting_sub_providers.append(pname)
+                if provider.route_kind == "subscription":
+                    resting_sub_providers.append(pname)
                 last_error = exc
                 logger.warning(
                     "Provider '%s' hit quota limit (%s); marked resting for %ds",

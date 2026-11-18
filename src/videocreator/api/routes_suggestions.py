@@ -26,7 +26,7 @@ async def suggestions_page(
     rows = query_all(
         paths.db_file,
         """
-        SELECT s.*, t.source, t.author, t.url AS ref_url, t.score
+        SELECT s.*, t.source, t.author, t.url AS ref_url, t.score, t.analysis_json
         FROM suggestions s
         LEFT JOIN trend_items t ON s.trend_item_id = t.id
         ORDER BY s.id DESC
@@ -35,7 +35,8 @@ async def suggestions_page(
     suggestions = []
     for r in rows:
         formula = loads_or(r.get("formula_json"), {})
-        suggestions.append({**r, "formula": formula})
+        analysis = loads_or(r.get("analysis_json"), {})
+        suggestions.append({**r, "formula": formula, "analysis": analysis if isinstance(analysis, dict) else {}})
 
     return templates.TemplateResponse(
         request,
@@ -55,9 +56,10 @@ async def accept_suggestion_route(
     request: Request,
     suggestion_id: int,
     count: int = Form(1),
+    auto_render: bool = Form(True),
 ) -> RedirectResponse:
     paths: AppPaths = request.app.state.paths
-    job_id = accept_suggestion(paths, suggestion_id, count=count, actor="ui")
+    job_id = accept_suggestion(paths, suggestion_id, count=count, auto_render=auto_render, actor="ui")
     msg_key = "accepted" if job_id is not None else "already_handled"
     return RedirectResponse(url=f"/suggestions?msg={msg_key}", status_code=303)
 

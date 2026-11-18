@@ -15,8 +15,8 @@ class _DataBlob(ctypes.Structure):
 
 
 def dpapi_encrypt(raw: bytes) -> bytes:
-    crypt32 = ctypes.windll.crypt32
-    kernel32 = ctypes.windll.kernel32
+    crypt32 = ctypes.WinDLL("crypt32", use_last_error=True)  # type: ignore[attr-defined]
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)  # type: ignore[attr-defined]
     crypt32.CryptProtectData.argtypes = [
         ctypes.POINTER(_DataBlob),
         ctypes.c_wchar_p,
@@ -45,7 +45,7 @@ def dpapi_encrypt(raw: bytes) -> bytes:
         ctypes.byref(out_blob),
     )
     if not ok:
-        err = ctypes.GetLastError()
+        err = ctypes.get_last_error()  # type: ignore[attr-defined]
         raise OSError(f"CryptProtectData failed with error code {err}")
     try:
         return ctypes.string_at(out_blob.pbData, out_blob.cbData)
@@ -54,8 +54,8 @@ def dpapi_encrypt(raw: bytes) -> bytes:
 
 
 def dpapi_decrypt(cipher: bytes) -> bytes:
-    crypt32 = ctypes.windll.crypt32
-    kernel32 = ctypes.windll.kernel32
+    crypt32 = ctypes.WinDLL("crypt32", use_last_error=True)  # type: ignore[attr-defined]
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)  # type: ignore[attr-defined]
     crypt32.CryptUnprotectData.argtypes = [
         ctypes.POINTER(_DataBlob),
         ctypes.POINTER(ctypes.c_wchar_p),
@@ -84,7 +84,7 @@ def dpapi_decrypt(cipher: bytes) -> bytes:
         ctypes.byref(out_blob),
     )
     if not ok:
-        err = ctypes.GetLastError()
+        err = ctypes.get_last_error()  # type: ignore[attr-defined]
         raise OSError(f"CryptUnprotectData failed with error code {err}")
     try:
         return ctypes.string_at(out_blob.pbData, out_blob.cbData)

@@ -12,7 +12,7 @@ def enqueue_batch_render(db_file: Path) -> list[int]:
 
     rows = query_all(
         db_file,
-        "SELECT id FROM videos WHERE status = 'planned' ORDER BY id ASC",
+        "SELECT id FROM videos WHERE status = 'planned' AND COALESCE(engine, 'ffmpeg') != 'studio' ORDER BY id ASC",
     )
     job_ids: list[int] = []
     for r in rows:

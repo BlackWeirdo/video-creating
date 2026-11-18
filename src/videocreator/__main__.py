@@ -25,21 +25,29 @@ ERROR_ALREADY_EXISTS = 183
 class SingleInstanceLock:
     """Ensures only one Video Creator instance runs per data directory (FR-OPS-08)."""
 
-    def __init__(self, lock_file: Path, mutex_name: str = "Local\\VideoCreatorAppMutex") -> None:
+    def __init__(self, lock_file: Path, mutex_name: str | None = None) -> None:
+        import hashlib
+
         self.lock_file = lock_file
-        self.mutex_name = mutex_name
+        if mutex_name is None:
+            digest = hashlib.sha256(str(lock_file.resolve()).lower().encode("utf-8")).hexdigest()[:16]
+            self.mutex_name = f"Local\\VideoCreatorAppMutex_{digest}"
+        else:
+            self.mutex_name = mutex_name
         self._mutex_handle: int | None = None
         self._fd: int | None = None
 
     def acquire(self) -> bool:
         if os.name == "nt":
-            kernel32 = ctypes.windll.kernel32
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)  # type: ignore[attr-defined]
             kernel32.CreateMutexW.argtypes = [ctypes.c_void_p, ctypes.c_bool, ctypes.c_wchar_p]
             kernel32.CreateMutexW.restype = ctypes.c_void_p
+            kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+            kernel32.CloseHandle.restype = ctypes.c_bool
             handle = kernel32.CreateMutexW(None, False, self.mutex_name)
             if not handle:
                 return False
-            last_err = kernel32.GetLastError()
+            last_err = ctypes.get_last_error()  # type: ignore[attr-defined]
             if last_err == ERROR_ALREADY_EXISTS:
                 kernel32.CloseHandle(ctypes.c_void_p(handle))
                 return False
@@ -60,7 +68,10 @@ class SingleInstanceLock:
 
     def release(self) -> None:
         if os.name == "nt" and self._mutex_handle is not None:
-            ctypes.windll.kernel32.CloseHandle(ctypes.c_void_p(self._mutex_handle))
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)  # type: ignore[attr-defined]
+            kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+            kernel32.CloseHandle.restype = ctypes.c_bool
+            kernel32.CloseHandle(ctypes.c_void_p(self._mutex_handle))
             self._mutex_handle = None
         elif self._fd is not None:
             try:
@@ -162,12 +173,13 @@ def main(argv: list[str] | None = None) -> int:
     paths = get_paths(args.data_dir)
     settings = load_settings(paths.config_file)
 
-    host = args.host or settings.host
+    host = (args.host or settings.host).strip()
     port = args.port or settings.port
     local_host = "127.0.0.1" if host in ("0.0.0.0", "::") else host
-    base_url = f"http://{local_host}:{port}"
+    url_host = f"[{local_host}]" if ":" in local_host and not local_host.startswith("[") else local_host
+    base_url = f"http://{url_host}:{port}"
 
-    if host not in ("127.0.0.1", "localhost"):
+    if host.lower() not in ("127.0.0.1", "localhost", "::1"):
         secrets = SecretsStore(paths.secrets_file)
         if not secrets.has("UI_PASSWORD"):
             print(

@@ -5,7 +5,7 @@ import logging
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from fastapi import APIRouter, Form, Request
+from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from videocreator import __version__
@@ -43,7 +43,13 @@ def _parse_int_list(raw: str) -> list[int]:
     for part in raw.replace("\n", ",").split(","):
         cleaned = part.strip()
         if cleaned:
-            result.append(int(cleaned))
+            try:
+                result.append(int(cleaned))
+            except ValueError as exc:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Giá trị ID không hợp lệ: '{cleaned}' (chỉ nhận số nguyên)",
+                ) from exc
     return result
 
 
@@ -105,7 +111,9 @@ async def update_config(
     vision_routes: str = Form("claude_api"),
     writer_routes: str = Form("claude_api"),
     checker_routes: str = Form("claude_cli, claude_api, gemini_api"),
-    studio_routes: str = Form("claude_cli, claude_api"),
+    studio_routes: str = Form("claude_cli, claude_api, gemini_api"),
+    auto_produce_top_n: int = Form(0),
+    trend_render_mode: str = Form("studio_preferred"),
     timezone_name: str = Form("Asia/Ho_Chi_Minh"),
     schedule_auto: bool = Form(False),
     keep_original_audio: bool = Form(False),
@@ -136,6 +144,9 @@ async def update_config(
     cfg.ai.routes.writer = _parse_str_list(writer_routes)
     cfg.ai.routes.checker = _parse_str_list(checker_routes)
     cfg.ai.routes.studio = _parse_str_list(studio_routes)
+    cfg.trends.auto_produce_top_n = max(0, min(3, int(auto_produce_top_n)))
+    if trend_render_mode in ("studio_preferred", "studio_only", "ffmpeg_enhanced"):
+        cfg.trends.render_mode = trend_render_mode  # type: ignore[assignment]
     cfg.schedule.timezone = timezone_name.strip() or "Asia/Ho_Chi_Minh"
     cfg.schedule.auto = bool(schedule_auto)
     cfg.render.keep_original_audio = bool(keep_original_audio)

@@ -88,6 +88,21 @@
         <input class="input" id="studio_routes" type="text" name="studio_routes" value="{{ settings.ai.routes.studio | join(', ') }}">
       </div>
 
+      <h3>Tự động bắt Trend & AI Dựng Video</h3>
+      <div class="form-row">
+        <label for="auto_produce_top_n">Tự động dựng thẳng Top N đề xuất xu hướng mỗi ngày (0–3)</label>
+        <input class="input" id="auto_produce_top_n" type="number" min="0" max="3" name="auto_produce_top_n" value="{{ settings.trends.auto_produce_top_n }}">
+        <small class="muted"><code>0</code> = mặc định hỏi duyệt ý tưởng 1 chạm; <code>1..3</code> = AI tự nhận và dựng thẳng ra video chờ duyệt đăng.</small>
+      </div>
+      <div class="form-row">
+        <label for="trend_render_mode">Cơ chế AI dựng video theo xu hướng</label>
+        <select class="select" id="trend_render_mode" name="trend_render_mode">
+          <option value="studio_preferred" {% if settings.trends.render_mode == "studio_preferred" %}selected{% endif %}>studio_preferred (ưu tiên Studio Remotion, tự dự phòng FFmpeg Nâng Cao)</option>
+          <option value="studio_only" {% if settings.trends.render_mode == "studio_only" %}selected{% endif %}>studio_only (chỉ dựng bằng Studio Remotion)</option>
+          <option value="ffmpeg_enhanced" {% if settings.trends.render_mode == "ffmpeg_enhanced" %}selected{% endif %}>ffmpeg_enhanced (FFmpeg cắt khớp phách nhạc + preset chữ)</option>
+        </select>
+      </div>
+
       <h3>Lịch đăng & Telegram</h3>
       <div class="form-row">
         <label for="timezone_name">Múi giờ</label>
