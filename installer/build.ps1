@@ -16,7 +16,8 @@ function Find-Iscc {
 $Iscc = Find-Iscc
 if (-not $Iscc -and (Get-Command winget -ErrorAction SilentlyContinue)) {
     Write-Host "[1/2] Dang cai Inno Setup 6 qua winget de dong goi VideoCreatorSetup.exe..." -ForegroundColor Cyan
-    winget install --id JRSoftware.InnoSetup -e --silent --accept-source-agreements --accept-package-agreements
+    winget install --id JRSoftware.InnoSetup --source winget -e --silent --accept-source-agreements --accept-package-agreements
+    $env:Path = [Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [Environment]::GetEnvironmentVariable("Path", "User")
     $Iscc = Find-Iscc
 }
 

@@ -23,7 +23,7 @@ Refresh-SessionPath
 if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue) -and -not (Test-Path "$env:LOCALAPPDATA\Microsoft\WinGet\Links\ffmpeg.exe")) {
     if (Get-Command winget -ErrorAction SilentlyContinue) {
         Write-Host "[1/5] Dang cai dat FFmpeg..." -ForegroundColor Yellow
-        winget install --id Gyan.FFmpeg -e --silent --accept-source-agreements --accept-package-agreements
+        winget install --id Gyan.FFmpeg --source winget -e --silent --accept-source-agreements --accept-package-agreements
         Refresh-SessionPath
     }
 } else {
@@ -33,7 +33,7 @@ if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue) -and -not (Test-Path
 if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
     if (Get-Command winget -ErrorAction SilentlyContinue) {
         Write-Host "[2/5] Dang cai dat Node.js LTS (ho tro Studio Remotion)..." -ForegroundColor Yellow
-        winget install --id OpenJS.NodeJS.LTS -e --silent --accept-source-agreements --accept-package-agreements
+        winget install --id OpenJS.NodeJS.LTS --source winget -e --silent --accept-source-agreements --accept-package-agreements
         Refresh-SessionPath
     }
 } else {
