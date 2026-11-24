@@ -31,6 +31,7 @@ COMPUTE_JOB_KINDS: frozenset[str] = frozenset(
         "restyle_video",
         "analyse",
         "studio",
+        "localize_extract",
         "localize_render",
         "audio_separate",
         "whisper_asr",

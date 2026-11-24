@@ -4,6 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from videocreator.api.v1.routes_jobs import router as jobs_router
+from videocreator.api.v1.routes_localize_v1 import router as localize_v1_router
 from videocreator.api.v1.routes_models_v1 import router as models_v1_router
 from videocreator.api.v1.routes_production import router as production_router
 from videocreator.api.v1.routes_publishing import router as publishing_router
@@ -23,3 +24,4 @@ v1_router.include_router(trends_v1_router)
 v1_router.include_router(publishing_router)
 v1_router.include_router(settings_v1_router)
 v1_router.include_router(models_v1_router)
+v1_router.include_router(localize_v1_router)

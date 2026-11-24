@@ -328,6 +328,16 @@ async def api_v1_accept_suggestion(
     )
 
 
+class TrendSendLocalizeBody(BaseModel):
+    workspace_id: int | None = None
+    mode: str = "reup_vi"
+    target_lang: str = "vi"
+    hardsub_mode: str = "blur_bar"
+    style_preset: str = "tiktok_karaoke"
+    aspect_ratio: str = "9:16"
+    sync_extract: bool = False
+
+
 @router.post("/suggestions/{suggestion_id}/dismiss")
 async def api_v1_dismiss_suggestion(request: Request, suggestion_id: int) -> JSONResponse:
     paths: AppPaths = request.app.state.paths
@@ -336,3 +346,57 @@ async def api_v1_dismiss_suggestion(request: Request, suggestion_id: int) -> JSO
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return JSONResponse({"dismissed": ok, "suggestion_id": suggestion_id})
+
+
+@router.post("/trends/{trend_id}/send-to-localize", status_code=201)
+async def api_v1_trend_send_to_localize(
+    request: Request,
+    trend_id: int,
+    body: TrendSendLocalizeBody | None = None,
+) -> JSONResponse:
+    from videocreator.pipeline.localize import create_localize_project, run_localize_extract
+
+    paths: AppPaths = request.app.state.paths
+    trend_row = query_one(paths.db_file, "SELECT * FROM trend_items WHERE id = ?", (trend_id,))
+    if trend_row is None:
+        raise HTTPException(status_code=404, detail=f"Trend #{trend_id} not found")
+
+    payload = body or TrendSendLocalizeBody()
+    ws_id = resolve_workspace_id(
+        paths.db_file,
+        payload.workspace_id if payload.workspace_id is not None else int(trend_row.get("workspace_id") or 1),
+    )
+    title = (str(trend_row.get("caption") or "").strip()[:60]) or f"Trend #{trend_id}"
+    try:
+        proj = create_localize_project(
+            paths,
+            workspace_id=ws_id,
+            title=title,
+            mode=payload.mode,
+            source_url=str(trend_row.get("url") or ""),
+            source_trend_id=trend_id,
+            target_lang=payload.target_lang,
+            hardsub_mode=payload.hardsub_mode,
+            style_preset=payload.style_preset,
+            aspect_ratio=payload.aspect_ratio,
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    job_id: int | None = None
+    if payload.sync_extract:
+        try:
+            proj = run_localize_extract(paths, int(proj["id"]))
+        except Exception:
+            pass
+    else:
+        job_id = enqueue_job(
+            paths.db_file,
+            "localize_extract",
+            ref_id=int(proj["id"]),
+            lane="compute",
+            workspace_id=ws_id,
+        )
+    return JSONResponse({"project": proj, "job_id": job_id}, status_code=201)

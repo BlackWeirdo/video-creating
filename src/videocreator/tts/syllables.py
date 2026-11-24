@@ -6,14 +6,38 @@ from typing import Any
 
 _WORD_RE = re.compile(r"[^\W_]+", re.UNICODE)
 _EN_VOWEL_GROUP_RE = re.compile(r"[aeiouy]+", re.IGNORECASE)
+_CJK_CHAR_RE = re.compile(r"[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af]")
+
+_LANG_SYLLABLE_RATE: dict[str, float] = {
+    "vi": 3.8,
+    "en": 3.2,
+    "zh": 4.0,
+    "ja": 4.5,
+    "ko": 4.0,
+}
+
+
+def _lang_rate(lang: str) -> float:
+    code = (lang or "vi").strip().lower().split("-", 1)[0]
+    return _LANG_SYLLABLE_RATE.get(code, 3.6)
 
 
 def count_syllables(text: str, lang: str = "vi") -> int:
-    """Estimates spoken syllable count for Vietnamese (1 word ~= 1 syllable) or English."""
-    words = _WORD_RE.findall((text or "").strip())
+    """Estimates spoken syllable count across Vietnamese, English, and CJK languages."""
+    raw = (text or "").strip()
+    if not raw:
+        return 0
+    code = (lang or "vi").strip().lower().split("-", 1)[0]
+    if code in ("zh", "ja", "ko"):
+        cjk_chars = _CJK_CHAR_RE.findall(raw)
+        non_cjk = _CJK_CHAR_RE.sub(" ", raw)
+        other_words = _WORD_RE.findall(non_cjk)
+        return len(cjk_chars) + len(other_words)
+
+    words = _WORD_RE.findall(raw)
     if not words:
         return 0
-    if (lang or "vi").strip().lower() == "en":
+    if code == "en":
         total = 0
         for w in words:
             cleaned = re.sub(r"(?:es|ed|e)$", "", w.lower()) or w.lower()
@@ -24,9 +48,8 @@ def count_syllables(text: str, lang: str = "vi") -> int:
 
 
 def max_syllables_for_duration(duration_s: float, lang: str = "vi") -> int:
-    """Maximum natural spoken syllables fitting in `duration_s` (`~3.8 syl/s` vi, `~3.2 syl/s` en)."""
-    rate = 3.2 if (lang or "vi").strip().lower() == "en" else 3.8
-    return int(round(max(0.0, float(duration_s)) * rate))
+    """Maximum natural spoken syllables fitting in `duration_s`."""
+    return int(round(max(0.0, float(duration_s)) * _lang_rate(lang)))
 
 
 def check_syllable_budget(
@@ -34,7 +57,7 @@ def check_syllable_budget(
 ) -> list[dict[str, Any]]:
     """Checks each planned shot's script line against its duration syllable budget."""
     clean_lang = (lang or "vi").strip().lower()
-    rate = 3.2 if clean_lang == "en" else 3.8
+    rate = _lang_rate(clean_lang)
     report: list[dict[str, Any]] = []
     for idx, shot in enumerate(shots):
         dur = max(0.5, float(shot.get("duration_s") or 0.5))
