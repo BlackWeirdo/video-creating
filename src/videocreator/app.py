@@ -34,6 +34,7 @@ from videocreator.api.routes_trends import router as trends_router
 from videocreator.api.routes_videos import router as videos_router
 from videocreator.api.routes_voices import router as voices_router
 from videocreator.api.routes_watchlist import router as watchlist_router
+from videocreator.api.routes_freecut_bridge import router as freecut_router
 from videocreator.api.v1 import v1_router
 from videocreator.auth import NonLocalhostBasicAuthMiddleware
 from videocreator.config import load_settings
@@ -156,5 +157,6 @@ def create_app(
     app.include_router(voices_router)
     app.include_router(studio_router)
     app.include_router(v1_router)
+    app.include_router(freecut_router)
 
     return app

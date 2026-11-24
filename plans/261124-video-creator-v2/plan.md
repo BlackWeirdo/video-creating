@@ -62,7 +62,7 @@ Phase 01 (Workspace + Dual-Lane Queue + /api/v1 Core)
 |---|---|---|---|---|
 | **10** | [Nhân vật Cố định & AI Image Studio kèm Tách nền PNG](phase-10-characters-and-image-studio.md) | Đợt 2 | Xong, test local đạt | 100% |
 | **11** | [Studio Tin tức / Bài viết sang Video & Gói đăng bài](phase-11-news-to-video-studio.md) | Phase 10 | Xong, test local đạt | 100% |
-| **12** | [Cầu nối Trình dựng FreeCut (MIT) & Bộ ghép Đa track](phase-12-freecut-and-timeline-editor.md) | Phase 11 | Chờ | 0% |
+| **12** | [Cầu nối Trình dựng FreeCut (MIT) & Bộ ghép Đa track](phase-12-freecut-and-timeline-editor.md) | Phase 11 | Xong, test local đạt | 100% |
 | **13** | [Bảng vẽ Workflow Node (`@xyflow/react`) & Giao diện Đợt 3](phase-13-workflows-and-wave3-views.md) | Phase 12 | Chờ | 0% |
 
 ---
