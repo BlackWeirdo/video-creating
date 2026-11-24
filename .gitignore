@@ -39,6 +39,8 @@ media/
 
 # pinned external tools installed next to the app
 tools/
+runtime/
+ffmpeg/
 
 # per-machine Claude Code permissions
 .claude/settings.local.json

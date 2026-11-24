@@ -45,6 +45,7 @@ def _hydrate_character(row: dict[str, Any]) -> dict[str, Any]:
 def _hydrate_image(row: dict[str, Any]) -> dict[str, Any]:
     out = dict(row)
     out["is_product_shot"] = bool(row.get("is_product_shot", 0))
+    out["simulation_flags"] = loads_or(row.get("simulation_flags_json"), [])
     return out
 
 
@@ -210,30 +211,32 @@ def remove_background_to_png(
     dst_png_path.parent.mkdir(parents=True, exist_ok=True)
 
     rembg_info = get_local_model(paths, "rembg_u2net")
+    used_rembg = False
     if rembg_info and rembg_info["status"] == "ready":
         try:
             from rembg import remove as rembg_remove  # type: ignore[import-not-found]
 
             out_bytes = rembg_remove(src_image_path.read_bytes())
             dst_png_path.write_bytes(out_bytes)
-            return dst_png_path
+            used_rembg = True
         except Exception as exc:
             logger.debug("rembg fallback to FFmpeg colorkey for %s: %s", src_image_path.name, exc)
 
-    run_ffmpeg(
-        [
-            "-i",
-            str(src_image_path.resolve()),
-            "-vf",
-            f"format=rgba,colorkey={key_color}:0.18:0.10",
-            "-frames:v",
-            "1",
-            "-c:v",
-            "png",
-            str(dst_png_path.resolve()),
-        ],
-        allow_creative_filters=True,
-    )
+    if not used_rembg:
+        run_ffmpeg(
+            [
+                "-i",
+                str(src_image_path.resolve()),
+                "-vf",
+                f"format=rgba,colorkey={key_color}:0.18:0.10",
+                "-frames:v",
+                "1",
+                "-c:v",
+                "png",
+                str(dst_png_path.resolve()),
+            ],
+            allow_creative_filters=True,
+        )
     return dst_png_path
 
 
@@ -480,8 +483,8 @@ def generate_ai_image(
 
     with get_conn(paths.db_file) as conn:
         conn.execute(
-            "UPDATE ai_images SET image_path = ? WHERE id = ?",
-            (rel_png, img_id),
+            "UPDATE ai_images SET image_path = ?, simulation_flags_json = ? WHERE id = ?",
+            (rel_png, json.dumps(["ai_image_canvas_placeholder"]), img_id),
         )
         record_audit(
             conn,

@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Mic, Play, Plus } from "lucide-react";
 import { apiFetch, useWorkspace } from "@/lib/api";
+import { SimulationBadge } from "@/components/SimulationBadge";
 
 interface PodcastProject {
   id: number;
@@ -16,6 +17,7 @@ interface PodcastProject {
   output_video_id: number | null;
   output_path: string;
   video_url: string;
+  simulation_flags?: string[];
 }
 
 export default function PodcastStudioPage() {
@@ -213,6 +215,7 @@ export default function PodcastStudioPage() {
                 className="w-full max-h-56 rounded bg-black"
               />
             )}
+            <SimulationBadge flags={p.simulation_flags} />
           </div>
         ))}
       </div>

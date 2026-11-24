@@ -131,45 +131,44 @@ def get_paths(data_dir: Path | str | None = None) -> AppPaths:
 
 
 def find_ffmpeg_binary(name: str = "ffmpeg") -> str:
-    bundled = REPO_ROOT / "ffmpeg" / "bin" / f"{name}.exe"
-    if bundled.exists():
-        return str(bundled)
-    runtime_bundled = REPO_ROOT / "runtime" / "ffmpeg" / f"{name}.exe"
-    if runtime_bundled.exists():
+    exe_name = f"{name}.exe" if os.name == "nt" else name
+    env_dir = (os.environ.get("VIDEOCREATOR_FFMPEG_DIR") or "").strip()
+    if env_dir:
+        env_bin = Path(env_dir).expanduser().resolve() / exe_name
+        if env_bin.is_file():
+            return str(env_bin)
+    runtime_bundled = REPO_ROOT / "runtime" / "ffmpeg" / exe_name
+    if runtime_bundled.is_file():
         return str(runtime_bundled)
+    bundled = REPO_ROOT / "ffmpeg" / "bin" / exe_name
+    if bundled.is_file():
+        return str(bundled)
     found = shutil.which(name)
     if found:
         return found
     local_app_data = os.environ.get("LOCALAPPDATA")
     if local_app_data:
-        winget_link = Path(local_app_data) / "Microsoft" / "WinGet" / "Links" / f"{name}.exe"
+        winget_link = Path(local_app_data) / "Microsoft" / "WinGet" / "Links" / exe_name
         if winget_link.exists():
             return str(winget_link)
         winget_pkgs = Path(local_app_data) / "Microsoft" / "WinGet" / "Packages"
         if winget_pkgs.exists():
-            matches = sorted(winget_pkgs.glob(f"Gyan.FFmpeg*/ffmpeg-*/bin/{name}.exe"))
+            matches = sorted(winget_pkgs.glob(f"Gyan.FFmpeg*/ffmpeg-*/bin/{exe_name}"))
             if matches:
                 return str(matches[-1])
     return name
 
 
 def find_node_runtime() -> str | None:
-    """Locate the Node.js binary, preferring the project or bundled Node 24 LTS runtime."""
-    env_override = os.environ.get("VIDEOCREATOR_NODE_BIN")
+    """Locate the Node.js binary: `VIDEOCREATOR_NODE_BIN` -> `{app}/runtime/node` -> `PATH`."""
+    env_override = (os.environ.get("VIDEOCREATOR_NODE_BIN") or "").strip()
     if env_override and Path(env_override).is_file():
         return str(Path(env_override).resolve())
 
     node_exe = "node.exe" if os.name == "nt" else "node"
-    candidates: list[Path] = [REPO_ROOT / "runtime" / "node" / node_exe]
-    if os.name == "nt":
-        local_app = os.environ.get("LOCALAPPDATA")
-        if local_app:
-            candidates.append(Path(local_app) / "Programs" / "iCast" / "runtime" / "node" / "node.exe")
-        candidates.append(Path(r"C:\Users\ADMIN\AppData\Local\Programs\iCast\runtime\node\node.exe"))
-
-    for candidate in candidates:
-        if candidate.is_file():
-            return str(candidate)
+    bundled = REPO_ROOT / "runtime" / "node" / node_exe
+    if bundled.is_file():
+        return str(bundled)
 
     found = shutil.which("node")
     return found if found else None

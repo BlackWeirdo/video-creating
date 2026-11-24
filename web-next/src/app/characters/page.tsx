@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Image as ImageIcon, Scissors, Upload, UserCheck, Wand2 } from "lucide-react";
 import { apiFetch, useWorkspace } from "@/lib/api";
+import { SimulationBadge } from "@/components/SimulationBadge";
 
 interface CharacterRow {
   id: number;
@@ -24,6 +25,7 @@ interface AIImageRow {
   image_path: string;
   cutout_path: string;
   motion_shot_id: number | null;
+  simulation_flags?: string[];
 }
 
 export default function CharactersPage() {
@@ -285,6 +287,7 @@ export default function CharactersPage() {
                 <div className="text-[10px] text-slate-400">
                   Seed {im.seed} • Shot: {im.motion_shot_id ?? "chưa tạo"}
                 </div>
+                <SimulationBadge flags={im.simulation_flags} />
               </div>
             ))}
           </div>

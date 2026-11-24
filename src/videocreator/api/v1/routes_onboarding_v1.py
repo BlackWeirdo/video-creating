@@ -125,6 +125,7 @@ async def api_v1_backup_restore(
 ) -> JSONResponse:
     paths: AppPaths = request.app.state.paths
     tmp_vcx = paths.work_dir / f"videocreator-v2-import-{uuid.uuid4().hex}.vcx"
+    pre_restore_vcx: Path | None = None
     try:
         written = 0
         with tmp_vcx.open("wb") as out_f:
@@ -135,6 +136,18 @@ async def api_v1_backup_restore(
                         status_code=413, detail="File sao lưu (.vcx) vượt quá 512 MB"
                     )
                 out_f.write(chunk)
+
+        if paths.db_file.is_file() and len(password.strip()) >= 4:
+            paths.backups_dir.mkdir(parents=True, exist_ok=True)
+            stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-%f")
+            pre_restore_vcx = paths.backups_dir / f"pre-restore-{stamp}.vcx"
+            await asyncio.to_thread(
+                export_config_bundle,
+                paths,
+                password,
+                pre_restore_vcx,
+                secrets_store=request.app.state.secrets,
+            )
 
         await asyncio.to_thread(
             import_config_bundle,
@@ -155,6 +168,8 @@ async def api_v1_backup_restore(
                         if asyncio.iscoroutine(res):
                             await res
     except (ExportPasswordError, ValueError) as exc:
+        if pre_restore_vcx is not None:
+            pre_restore_vcx.unlink(missing_ok=True)
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     finally:
         tmp_vcx.unlink(missing_ok=True)
@@ -163,6 +178,7 @@ async def api_v1_backup_restore(
         {
             "restored": True,
             "role": load_settings(paths.config_file).role,
+            "pre_restore_backup": pre_restore_vcx.name if pre_restore_vcx and pre_restore_vcx.is_file() else "",
             "summary": get_backup_summary(paths, secrets_store=request.app.state.secrets),
             "onboarding": get_onboarding_status(paths, secrets_store=request.app.state.secrets),
         }

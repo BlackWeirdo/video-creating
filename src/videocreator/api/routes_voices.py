@@ -17,9 +17,8 @@ router = APIRouter()
 AVAILABLE_VOICE_CATALOG: list[dict[str, str]] = [
     {"provider": "edge", "lang": "vi", "voice": "vi-VN-HoaiMyNeural-Female", "label": "Edge TTS: Hoài My (nữ, tiếng Việt)"},
     {"provider": "edge", "lang": "vi", "voice": "vi-VN-NamMinhNeural-Male", "label": "Edge TTS: Nam Minh (nam, tiếng Việt)"},
-    {"provider": "local", "lang": "vi", "voice": "local-vi-studio", "label": "Local Offline TTS (không cần mạng / test nhịp)"},
     {"provider": "edge", "lang": "en", "voice": "en-US-JennyNeural-Female", "label": "Edge TTS: Jenny (female, English)"},
-    {"provider": "local", "lang": "en", "voice": "local-en-studio", "label": "Local Offline TTS (English offline)"},
+    {"provider": "edge", "lang": "en", "voice": "en-US-GuyNeural-Male", "label": "Edge TTS: Guy (male, English)"},
 ]
 
 @router.get("/voices", response_class=HTMLResponse)

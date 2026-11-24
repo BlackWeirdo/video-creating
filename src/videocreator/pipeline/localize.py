@@ -146,6 +146,7 @@ def _hydrate_project(row: dict[str, Any]) -> dict[str, Any]:
     out["anti_dup"] = loads_or(row.get("anti_dup_json"), {"mirror": False, "zoom": 1.04, "color_eq": True})
     out["segments"] = loads_or(row.get("segments_json"), [])
     out["product_ids"] = loads_or(row.get("product_ids_json"), [])
+    out["simulation_flags"] = loads_or(row.get("simulation_flags_json"), [])
     return out
 
 
@@ -287,26 +288,6 @@ def _fit_text_to_syllable_budget(text: str, lang: str, duration_s: float) -> str
     return cleaned[: max(4, budget)]
 
 
-def _translate_segment_offline(
-    source_text: str, *, mode: str, target_lang: str, duration_s: float
-) -> str:
-    raw = (source_text or "").strip()
-    lang_code = (target_lang or "vi").strip().lower().split("-", 1)[0]
-    if lang_code == "en" and mode == "intl_export":
-        candidate = raw if raw.isascii() else f"Look at this detail: {raw}"
-    elif lang_code == "zh":
-        candidate = f"精选推荐：{raw[:12]}"
-    elif lang_code == "ja":
-        candidate = f"注目ポイント：{raw[:12]}"
-    elif lang_code == "ko":
-        candidate = f"핵심 포인트: {raw[:14]}"
-    elif lang_code == "vi":
-        candidate = raw if not raw.startswith("Segment ") else f"Điểm nhấn nổi bật đoạn này"
-    else:
-        candidate = raw
-    return _fit_text_to_syllable_budget(candidate, lang_code, duration_s)
-
-
 def _pick_workspace_product_shots(
     db_file: Path, workspace_id: int, product_ids: list[int]
 ) -> list[int]:
@@ -393,7 +374,25 @@ def run_localize_extract(paths: AppPaths, project_id: int) -> dict[str, Any]:
                 paths, src_mp4, lang=str(proj.get("source_lang") or "auto")
             )
 
+        from videocreator.models_manager import get_local_model
+
+        sim_flags: list[str] = []
+        uvr_m = get_local_model(paths, "uvr_mdx_kim_vocal2")
+        if not (uvr_m and uvr_m.get("status") == "ready" and uvr_m.get("installed_on_disk")):
+            sim_flags.append("audio_sep_midside_fallback")
+
+        whisper_m = get_local_model(paths, "faster_whisper_small")
+        if not proj.get("source_video_id") and not (
+            whisper_m and whisper_m.get("status") == "ready" and whisper_m.get("installed_on_disk")
+        ):
+            if any(str(s.get("source_text") or "").startswith("Segment ") for s in raw_segments):
+                sim_flags.append("asr_silencedetect_placeholder")
+
+        source_lang = str(proj.get("source_lang") or "auto")
         target_lang = str(proj.get("target_lang") or "vi")
+        if source_lang != target_lang:
+            sim_flags.append("translation_pending")
+
         mode = str(proj["mode"])
         shots_pool = (
             _pick_workspace_product_shots(
@@ -411,9 +410,7 @@ def run_localize_extract(paths: AppPaths, project_id: int) -> dict[str, Any]:
             en = max(st + 0.5, float(seg["end_s"]))
             dur = en - st
             src_txt = str(seg.get("source_text") or "")
-            trans_txt = _translate_segment_offline(
-                src_txt, mode=mode, target_lang=target_lang, duration_s=dur
-            )
+            trans_txt = _fit_text_to_syllable_budget(src_txt, target_lang, dur)
             replace_shot_id = 0
             if mode == "hybrid_remix" and shots_pool and idx == len(raw_segments) - 1:
                 replace_shot_id = shots_pool[idx % len(shots_pool)]
@@ -438,12 +435,19 @@ def run_localize_extract(paths: AppPaths, project_id: int) -> dict[str, Any]:
                 SET vocal_track_path = ?,
                     bgm_track_path = ?,
                     segments_json = ?,
+                    simulation_flags_json = ?,
                     status = 'ready_to_edit',
                     error = NULL,
                     updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
                 WHERE id = ?
                 """,
-                (rel_vocal, rel_bgm, json.dumps(segments, ensure_ascii=False), int(project_id)),
+                (
+                    rel_vocal,
+                    rel_bgm,
+                    json.dumps(segments, ensure_ascii=False),
+                    json.dumps(sim_flags, ensure_ascii=False),
+                    int(project_id),
+                ),
             )
         updated = get_localize_project(paths.db_file, project_id)
         assert updated is not None
@@ -624,7 +628,7 @@ def run_localize_render(
     paths: AppPaths,
     project_id: int,
     *,
-    tts_provider: str = "local",
+    tts_provider: str = "edge",
     target_accounts: list[int] | None = None,
     auto_approve: bool = True,
 ) -> dict[str, Any]:
@@ -725,6 +729,10 @@ def run_localize_render(
         cut_mp4 = concat_segments(seg_files, work_dir)
         cut_times_s = [ev.end_s for ev in sub_events[:-1]]
 
+        sim_flags: list[str] = list(proj.get("simulation_flags") or [])
+        if str(proj.get("hardsub_mode") or "") == "ocr_inpaint" and "ocr_inpaint_delogo_fallback" not in sim_flags:
+            sim_flags.append("ocr_inpaint_delogo_fallback")
+
         target_lang = str(proj.get("target_lang") or "vi")
         legacy_lang = "vi" if target_lang.strip().lower().startswith("vi") else "en"
         try:
@@ -735,14 +743,18 @@ def run_localize_render(
                 provider_name=tts_provider,
                 work_dir=work_dir / "tts",
             )
+            if tts_provider in ("test_tone", "local") and "tts_tone_placeholder" not in sim_flags:
+                sim_flags.append("tts_tone_placeholder")
         except TTSUnavailableError:
             voice_track, _warnings = synthesize_speech_segments(
                 tts_lines,
                 lang=legacy_lang,
                 voice=str(proj.get("voice_id") or "vi-VN-HoaiMyNeural"),
-                provider_name="local",
+                provider_name="test_tone",
                 work_dir=work_dir / "tts",
             )
+            if "tts_tone_placeholder" not in sim_flags:
+                sim_flags.append("tts_tone_placeholder")
 
         bgm_path = (
             paths.media_dir / str(proj["bgm_track_path"])
@@ -866,12 +878,13 @@ def run_localize_render(
                 """
                 UPDATE localize_projects
                 SET output_video_id = ?,
+                    simulation_flags_json = ?,
                     status = 'completed',
                     error = NULL,
                     updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
                 WHERE id = ?
                 """,
-                (video_id, int(project_id)),
+                (video_id, json.dumps(sim_flags, ensure_ascii=False), int(project_id)),
             )
             record_audit(
                 conn,

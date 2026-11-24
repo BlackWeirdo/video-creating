@@ -43,8 +43,9 @@ def synthesize_with_local_fallback(
     voice: str,
     work_dir: Path,
     tts_provider: str | None = None,
+    used_providers_out: list[str] | None = None,
 ) -> Path:
-    """Synthesizes mono 48kHz PCM WAV via configured provider with offline acoustic fallback."""
+    """Synthesizes mono 48kHz PCM WAV via configured provider with honest test_tone fallback."""
     cfg = load_settings(paths.config_file)
     chosen = (tts_provider or "").strip().lower()
     if not chosen:
@@ -61,18 +62,23 @@ def synthesize_with_local_fallback(
                 work_dir=work_dir,
                 max_atempo=1.15,
             )
+            if used_providers_out is not None:
+                used_providers_out.append("edge")
             return track.audio_path
         except TTSUnavailableError as exc:
-            logger.debug("Edge TTS unavailable, falling back to local synthesis: %s", exc)
+            logger.debug("Edge TTS unavailable, falling back to test_tone synthesis: %s", exc)
 
+    tone_prov = chosen if chosen in ("test_tone", "local") else "test_tone"
     track, _ = synthesize_speech_segments(
         lines,
         lang=lang,
         voice=voice,
-        provider_name="local",
+        provider_name=tone_prov,
         work_dir=work_dir,
         max_atempo=1.15,
     )
+    if used_providers_out is not None:
+        used_providers_out.append(tone_prov)
     return track.audio_path
 
 
@@ -143,6 +149,7 @@ def _concat_wavs_padded(
 def _hydrate_podcast(row: dict[str, Any]) -> dict[str, Any]:
     out = dict(row)
     out["dialogue"] = loads_or(row.get("dialogue_json"), [])
+    out["simulation_flags"] = loads_or(row.get("simulation_flags_json"), [])
     out["video_url"] = (
         f"/files/{str(row['output_path']).lstrip('/')}" if row.get("output_path") else ""
     )
@@ -305,6 +312,7 @@ def render_podcast_project(
     try:
         speech_wav = work_dir / "podcast_speech.wav"
         sub_events: list[SubtitleEvent] = []
+        used_tts_providers: list[str] = []
         audio_rel = str(proj.get("audio_source_path") or "").strip().lstrip("/")
         if audio_rel:
             src_audio = Path(audio_rel) if Path(audio_rel).is_absolute() else (paths.media_dir / audio_rel)
@@ -331,11 +339,16 @@ def render_podcast_project(
                     voice=voice,
                     work_dir=work_dir / f"turn_{idx:02d}",
                     tts_provider=tts_provider,
+                    used_providers_out=used_tts_providers,
                 )
                 turn_wavs.append((wav_p, speaker, txt))
             if not turn_wavs:
                 raise ValueError("Không có lượt hội thoại hợp lệ để dựng Podcast")
             _, sub_events, dur_s = _concat_wavs_padded(turn_wavs, speech_wav)
+
+        sim_flags: list[str] = []
+        if any(p in ("test_tone", "local") for p in used_tts_providers):
+            sim_flags.append("tts_tone_placeholder")
 
         dur_s = max(5.4, probe_duration(speech_wav))
         wave_w = int(width * 0.80)
@@ -469,11 +482,12 @@ def render_podcast_project(
             conn.execute(
                 """
                 UPDATE podcast_projects
-                SET output_video_id = ?, output_path = ?, status = 'completed', error = NULL,
+                SET output_video_id = ?, output_path = ?, simulation_flags_json = ?,
+                    status = 'completed', error = NULL,
                     updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
                 WHERE id = ?
                 """,
-                (video_id, rel_out, int(project_id)),
+                (video_id, rel_out, json.dumps(sim_flags, ensure_ascii=False), int(project_id)),
             )
             record_audit(
                 conn,

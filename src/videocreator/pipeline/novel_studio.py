@@ -124,6 +124,7 @@ def _hydrate_novel(db_file: Path, row: dict[str, Any]) -> dict[str, Any]:
     ]
     out["total_chapters"] = len(chapters)
     out["ready_chapters"] = sum(1 for ch in chapters if ch.get("status") == "ready")
+    out["simulation_flags"] = loads_or(row.get("simulation_flags_json"), [])
     return out
 
 
@@ -436,14 +437,25 @@ def render_novel_project(
     else:
         final_status = "failed"
 
+    sim_flags: list[str] = []
+    if proj.get("character_id"):
+        sim_flags.append("ai_image_canvas_placeholder")
+    from videocreator.config import load_settings
+    import shutil as _shutil
+
+    cfg_v = load_settings(paths.config_file).voice.vi_provider
+    if cfg_v in ("test_tone", "local") or (cfg_v == "edge" and not _shutil.which("edge-tts")):
+        sim_flags.append("tts_tone_placeholder")
+
     with get_conn(paths.db_file) as conn:
         conn.execute(
             """
             UPDATE novel_projects
-            SET status = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+            SET status = ?, simulation_flags_json = ?,
+                updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
             WHERE id = ?
             """,
-            (final_status, int(project_id)),
+            (final_status, json.dumps(sim_flags, ensure_ascii=False), int(project_id)),
         )
         record_audit(
             conn,

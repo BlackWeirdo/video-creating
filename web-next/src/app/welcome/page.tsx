@@ -124,6 +124,9 @@ export default function WelcomeWizardPage() {
       setGeminiKey("");
       setAnthropicKey("");
       setApifyToken("");
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("vc:onboarding-updated"));
+      }
       setMsg("Hoàn tất thiết lập ban đầu! Bạn có thể bắt đầu sản xuất video ngay.");
     } catch (e2) {
       setErr(e2 instanceof Error ? e2.message : "Lỗi hoàn tất Welcome Wizard");
@@ -151,6 +154,9 @@ export default function WelcomeWizardPage() {
                 method: "POST",
               });
               setStatus(s);
+              if (typeof window !== "undefined") {
+                window.dispatchEvent(new Event("vc:onboarding-updated"));
+              }
               setStep(1);
             }}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs cursor-pointer"
@@ -440,8 +446,7 @@ export default function WelcomeWizardPage() {
                 onChange={(e) => setViProvider(e.target.value)}
                 className="w-full bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
               >
-                <option value="edge">Edge TTS (trực tuyến miễn phí)</option>
-                <option value="local">Local Synthesizer (offline 100%)</option>
+                <option value="edge">Edge TTS (trực tuyến miễn phí — mặc định)</option>
               </select>
             </div>
             <div className="space-y-1">

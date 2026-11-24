@@ -71,6 +71,7 @@ def compute_pcm_rms_envelope(wav_path: Path, *, window_ms: int = 120) -> dict[st
 def _hydrate_lipsync(row: dict[str, Any]) -> dict[str, Any]:
     out = dict(row)
     out["metrics"] = loads_or(row.get("metrics_json"), {})
+    out["simulation_flags"] = loads_or(row.get("simulation_flags_json"), ["lipsync_waveform_preview"])
     out["video_url"] = (
         f"/files/{str(row['output_path']).lstrip('/')}" if row.get("output_path") else ""
     )
@@ -188,6 +189,7 @@ def render_lipsync_project(
 
     try:
         speech_wav = work_dir / "lipsync_speech.wav"
+        used_tts_providers: list[str] = []
         audio_rel = str(proj.get("audio_path") or "").strip().lstrip("/")
         script_txt = str(proj.get("script_text") or "").strip()
         if audio_rel:
@@ -206,6 +208,7 @@ def render_lipsync_project(
                 voice=str(proj.get("voice_id") or "vi-VN-HoaiMyNeural"),
                 work_dir=work_dir / "tts",
                 tts_provider=tts_provider,
+                used_providers_out=used_tts_providers,
             )
             _, sub_events, dur_s = _concat_wavs_padded([(raw_wav, "", script_txt)], speech_wav)
 
@@ -236,12 +239,13 @@ def render_lipsync_project(
             overlay_image=portrait_src,
         )
 
-        wav2lip_model = get_local_model(paths, "wav2lip_gan")
-        engine_used = (
-            "wav2lip_gan_local"
-            if (wav2lip_model and wav2lip_model.get("status") == "ready")
-            else "ffmpeg_viseme"
-        )
+        # Honestly record FFmpeg waveform preview until real Wav2Lip inference is invoked
+        engine_used = "ffmpeg_waveform_preview"
+        sim_flags = ["lipsync_waveform_preview"]
+        if any(p in ("test_tone", "local") for p in used_tts_providers):
+            sim_flags.append("tts_tone_placeholder")
+        if portrait_src is None:
+            sim_flags.append("ai_image_canvas_placeholder")
 
         # Render subtle portrait motion + synced viseme wave bar near lower face/mouth region
         frames = max(90, int(round(dur_s * 30)))
@@ -363,7 +367,8 @@ def render_lipsync_project(
             conn.execute(
                 """
                 UPDATE lipsync_projects
-                SET engine_used = ?, metrics_json = ?, output_video_id = ?, output_path = ?,
+                SET engine_used = ?, metrics_json = ?, simulation_flags_json = ?,
+                    output_video_id = ?, output_path = ?,
                     status = 'completed', error = NULL,
                     updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
                 WHERE id = ?
@@ -371,6 +376,7 @@ def render_lipsync_project(
                 (
                     engine_used,
                     json.dumps(rms_metrics, ensure_ascii=False),
+                    json.dumps(sim_flags, ensure_ascii=False),
                     video_id,
                     rel_out,
                     int(project_id),

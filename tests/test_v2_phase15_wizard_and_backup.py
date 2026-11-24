@@ -132,6 +132,7 @@ def test_vcx_backup_export_and_cross_machine_restore_api(tmp_path: Path) -> None
         assert bad.status_code == 400
         assert sec_b.get("EXISTING_LOCAL_KEY") == "untouched_value_123"
         assert sec_b.get("GEMINI_API_KEY") is None
+        assert list(paths_b.backups_dir.glob("pre-restore-*.vcx")) == []
 
         ok = client_b.post(
             "/api/v1/backup/restore",
@@ -142,9 +143,14 @@ def test_vcx_backup_export_and_cross_machine_restore_api(tmp_path: Path) -> None
         body = ok.json()
         assert body["restored"] is True
         assert body["role"] == "server"
+        assert body["pre_restore_backup"].startswith("pre-restore-")
+        assert (paths_b.backups_dir / body["pre_restore_backup"]).is_file()
         assert body["onboarding"]["wizard_completed"] is True
         assert sec_b.get("GEMINI_API_KEY") == "AIza_cross_machine_secret_001"
         assert sec_b.get("TELEGRAM_BOT_TOKEN") == "999888:TG-BOT-TOKEN"
+
+        voices_cat = client_b.get("/api/v1/voices").json()["catalog"]
+        assert all(v["provider"] != "local" for v in voices_cat)
 
         wfs = client_b.get("/api/v1/workflows").json()["workflows"]
         assert any(w["name"] == "Portable Workflow V2" for w in wfs)

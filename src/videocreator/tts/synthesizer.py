@@ -326,8 +326,9 @@ def synthesize_speech_segments(
         raise TTSUnavailableError("Không có lời thoại để lồng tiếng")
 
     target_dur = sum(max(0.5, float(d)) for _, d in lines)
-    prov = (provider_name or "local").strip().lower()
-    if prov == "local":
+    prov = (provider_name or "edge").strip().lower()
+    is_tone_sim = prov in ("test_tone", "local")
+    if is_tone_sim:
         raw_track = _synthesize_local_waveform(lines, work_dir=work_dir)
     elif prov == "edge":
         raw_track = _synthesize_edge_cli(lines, voice=voice, work_dir=work_dir)
@@ -342,6 +343,10 @@ def synthesize_speech_segments(
         out_path=work_dir / "voice_fitted.wav",
     )
     warnings: list[str] = []
+    if is_tone_sim:
+        warnings.append(
+            "Đang dùng âm hiệu nhịp kiểm thử (test_tone), không phải giọng người thật."
+        )
     if factor > 1.02:
         warnings.append(
             f"Tự động tăng nhịp giọng x{factor:.2f} để khớp tổng thời lượng hình {target_dur:.1f}s"

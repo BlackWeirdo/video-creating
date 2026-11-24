@@ -14,6 +14,7 @@ from typing import Any
 import pytest
 import uvicorn
 
+from videocreator import __version__
 from videocreator.__main__ import start_nextjs_standalone, stop_nextjs_standalone, wait_for_health
 from videocreator.app import create_app
 from videocreator.paths import REPO_ROOT, find_ffmpeg_binary, find_node_runtime, get_paths
@@ -48,10 +49,19 @@ def _find_iscc() -> Path | None:
 
 
 def test_windows_v2_packaging_artifacts_and_exe_installer() -> None:
+    assert __version__ == "2.0.0"
+
+    # Zero personal machine paths (`ADMIN` or `iCast`) anywhere in `src/`
+    for py_file in (REPO_ROOT / "src").rglob("*.py"):
+        src_txt = py_file.read_text(encoding="utf-8")
+        assert "ADMIN" not in src_txt, f"Hardcoded ADMIN path in {py_file}"
+        assert "iCast" not in src_txt, f"Hardcoded iCast path in {py_file}"
+
     iss_path = REPO_ROOT / "installer" / "videocreator.iss"
     iss_text = iss_path.read_text(encoding="utf-8")
     assert "AppName=Video Creator V2" in iss_text
-    assert "AppVersion=2.0.0" in iss_text
+    assert f'#define MyAppVersion "{__version__}"' in iss_text
+    assert "AppVersion={#MyAppVersion}" in iss_text
     assert "OutputBaseFilename=VideoCreatorV2Setup" in iss_text
     assert r"web-next\.next\standalone\*" in iss_text
     assert "THIRD_PARTY_NOTICES.md" in iss_text

@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Languages, Play, Scissors, Upload } from "lucide-react";
 import { apiFetch, useWorkspace } from "@/lib/api";
+import { SimulationBadge } from "@/components/SimulationBadge";
 
 interface LocalizeSegment {
   index: number;
@@ -29,6 +30,7 @@ interface LocalizeProject {
   output_video_id: number | null;
   error: string | null;
   segments: LocalizeSegment[];
+  simulation_flags?: string[];
 }
 
 interface ShotRow {
@@ -341,6 +343,7 @@ export default function LocalizePage() {
           <h3 className="font-semibold text-white">
             Biên tập Đoạn thoại & Tráo Shot thật {activeProj ? `— #${activeProj.id}` : ""}
           </h3>
+          {activeProj && <SimulationBadge flags={activeProj.simulation_flags} />}
           {!activeProj || activeProj.segments.length === 0 ? (
             <div className="text-slate-500 py-6 text-center">
               Chọn dự án và bấm &quot;Tách lời &amp; Dịch&quot; để sinh các đoạn lời theo nhịp giây.

@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { BookOpen, Play, Plus, RefreshCw } from "lucide-react";
 import { apiFetch, useWorkspace } from "@/lib/api";
+import { SimulationBadge } from "@/components/SimulationBadge";
 
 interface NovelChapter {
   id: number;
@@ -24,6 +25,7 @@ interface NovelProject {
   total_chapters: number;
   ready_chapters: number;
   chapters: NovelChapter[];
+  simulation_flags?: string[];
 }
 
 export default function NovelStudioPage() {
@@ -225,6 +227,7 @@ export default function NovelStudioPage() {
                 </button>
               </div>
             </div>
+            <SimulationBadge flags={p.simulation_flags} />
             <div className="grid md:grid-cols-2 gap-3">
               {p.chapters.map((ch) => (
                 <div

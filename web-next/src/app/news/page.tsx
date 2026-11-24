@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Download, Newspaper, Play, Sparkles } from "lucide-react";
 import { apiFetch, useWorkspace } from "@/lib/api";
+import { SimulationBadge } from "@/components/SimulationBadge";
 
 interface NewsProject {
   id: number;
@@ -15,6 +16,7 @@ interface NewsProject {
   publish_pack_path: string;
   facts?: { headline?: string; preserved_tokens?: string[] };
   script?: Array<{ role: string; duration_s: number; text: string }>;
+  simulation_flags?: string[];
 }
 
 export default function NewsPage() {
@@ -193,6 +195,7 @@ export default function NewsPage() {
                 ))}
               </div>
             )}
+            <SimulationBadge flags={p.simulation_flags} />
             <div className="flex gap-3">
               {p.output_video_id && (
                 <Link href={`/videos/${p.output_video_id}`} className="text-sky-400 hover:underline">

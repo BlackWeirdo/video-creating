@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Activity,
-  AudioWaveform,
   BookOpen,
   Bot,
   CheckCircle2,
@@ -46,7 +45,6 @@ const NAV_ITEMS = [
   { href: "/news", label: "Tin tức → Video", icon: Newspaper },
   { href: "/novel", label: "Tiểu thuyết → Video", icon: BookOpen },
   { href: "/podcast", label: "Podcast Sóng nhạc", icon: Mic },
-  { href: "/lipsync", label: "Lip-sync AI", icon: AudioWaveform },
   { href: "/editor", label: "Trình dựng FreeCut", icon: Scissors },
   { href: "/workflows", label: "Workflow Node", icon: Workflow },
   { href: "/video-style", label: "Video Style & Audio", icon: Palette },
@@ -90,10 +88,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [showNewWs, setShowNewWs] = useState(false);
 
   useEffect(() => {
-    void apiFetch<{ wizard_completed: boolean }>("/api/v1/onboarding/status")
-      .then((res) => setWizardNeeded(!res.wizard_completed))
-      .catch(() => {});
-  }, [pathname]);
+    const checkWizard = () => {
+      void apiFetch<{ wizard_completed: boolean }>("/api/v1/onboarding/status")
+        .then((res) => setWizardNeeded(!res.wizard_completed))
+        .catch(() => {});
+    };
+    checkWizard();
+    window.addEventListener("vc:onboarding-updated", checkWizard);
+    return () => window.removeEventListener("vc:onboarding-updated", checkWizard);
+  }, []);
 
   const [wsName, setWsName] = useState("");
   const [wsNiche, setWsNiche] = useState("general");

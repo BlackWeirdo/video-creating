@@ -22,18 +22,13 @@ _LIVE_HEARTBEATS: dict[str, str] = {}
 
 
 def find_freecut_dist_dir() -> Path | None:
-    """Finds optional prebuilt MIT FreeCut static editor assets without bundling in git."""
+    """Finds bundled or env-configured MIT FreeCut static editor assets."""
     candidates: list[Path] = []
     env_dir = (os.environ.get("VIDEOCREATOR_FREECUT_DIR") or "").strip()
     if env_dir:
         candidates.append(Path(env_dir).expanduser().resolve())
+    candidates.append(REPO_ROOT / "tools" / "freecut")
     candidates.append(REPO_ROOT / "tools" / "freecut-dist")
-    if os.name == "nt":
-        local_app = os.environ.get("LOCALAPPDATA") or ""
-        if local_app:
-            candidates.append(
-                Path(local_app) / "Programs" / "iCast" / "backend" / "icast" / "assets" / "editor"
-            )
     for cand in candidates:
         if (cand / "index.html").is_file():
             return cand

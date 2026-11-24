@@ -535,6 +535,14 @@ export default function SettingsPage() {
               type="button"
               onClick={async () => {
                 if (!restoreFile) return;
+                if (
+                  typeof window !== "undefined" &&
+                  !window.confirm(
+                    "Khôi phục gói .vcx sẽ ghi đè cấu hình, cơ sở dữ liệu và API Keys hiện tại (hệ thống sẽ tự lưu bản sao pre-restore trước). Tiếp tục?"
+                  )
+                ) {
+                  return;
+                }
                 setErr("");
                 setMsg("");
                 try {
@@ -542,10 +550,16 @@ export default function SettingsPage() {
                   fd.append("file", restoreFile);
                   fd.append("password", restorePassword);
                   fd.append("as_server", "true");
-                  await apiFetch("/api/v1/backup/restore", { method: "POST", body: fd });
+                  const res = await apiFetch<{ pre_restore_backup?: string }>(
+                    "/api/v1/backup/restore",
+                    { method: "POST", body: fd }
+                  );
                   setRestorePassword("");
                   setRestoreFile(null);
-                  setMsg("Đã khôi phục toàn bộ Workspaces, DB và API Keys từ gói .vcx!");
+                  const bkNote = res.pre_restore_backup
+                    ? ` (đã tự lưu bản cũ: ${res.pre_restore_backup})`
+                    : "";
+                  setMsg(`Đã khôi phục toàn bộ Workspaces, DB và API Keys từ gói .vcx${bkNote}!`);
                   await load();
                 } catch (e2) {
                   setErr(e2 instanceof Error ? e2.message : "Khôi phục .vcx thất bại");

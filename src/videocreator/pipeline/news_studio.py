@@ -217,6 +217,7 @@ def _hydrate_news(row: dict[str, Any]) -> dict[str, Any]:
     out = dict(row)
     out["facts"] = loads_or(row.get("facts_json"), {})
     out["script"] = loads_or(row.get("script_json"), [])
+    out["simulation_flags"] = loads_or(row.get("simulation_flags_json"), [])
     return out
 
 
@@ -467,18 +468,28 @@ def render_news_project(
             shutil.copy2(raw_zip, dest_zip)
             rel_pack = f"output/news_pack_{project_id}.zip"
 
+        from videocreator.config import load_settings
+
+        sim_flags: list[str] = []
+        if proj.get("character_id"):
+            sim_flags.append("ai_image_canvas_placeholder")
+        cfg_v = load_settings(paths.config_file).voice.vi_provider
+        if cfg_v in ("test_tone", "local") or (cfg_v == "edge" and not shutil.which("edge-tts")):
+            sim_flags.append("tts_tone_placeholder")
+
         with get_conn(paths.db_file) as conn:
             conn.execute(
                 """
                 UPDATE news_projects
                 SET output_video_id = ?,
                     publish_pack_path = ?,
+                    simulation_flags_json = ?,
                     status = 'completed',
                     error = NULL,
                     updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
                 WHERE id = ?
                 """,
-                (video_id, rel_pack, int(project_id)),
+                (video_id, rel_pack, json.dumps(sim_flags, ensure_ascii=False), int(project_id)),
             )
             record_audit(
                 conn,

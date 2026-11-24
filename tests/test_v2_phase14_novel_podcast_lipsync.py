@@ -259,14 +259,25 @@ def test_lipsync_studio_rms_envelope_and_policy(tmp_path: Path) -> None:
         assert up.status_code == 200
         assert up.json()["project"]["portrait_path"].startswith("characters/")
 
+        # Even if wav2lip_gan row is marked ready in DB, engine_used must NOT falsely claim wav2lip_gan_local
+        from videocreator.db import get_conn
+
+        with get_conn(paths.db_file) as conn:
+            conn.execute(
+                "UPDATE local_models SET status = 'ready', local_path = 'dummy.pth' WHERE model_id = 'wav2lip_gan'"
+            )
+
         rn = client.post(
             f"/api/v1/lipsync/projects/{lid}/render",
-            json={"sync": True, "tts_provider": "local"},
+            json={"sync": True, "tts_provider": "test_tone"},
         )
         assert rn.status_code == 200, rn.text
         done = rn.json()["project"]
         assert done["status"] == "completed"
-        assert done["engine_used"] == "ffmpeg_viseme"
+        assert done["engine_used"] == "ffmpeg_waveform_preview"
+        assert done["engine_used"] != "wav2lip_gan_local"
+        assert "lipsync_waveform_preview" in done["simulation_flags"]
+        assert "tts_tone_placeholder" in done["simulation_flags"]
         assert done["metrics"]["peak_rms"] > 0.05
         assert done["metrics"]["frames"] >= 20
 

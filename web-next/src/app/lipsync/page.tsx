@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { AudioWaveform, Play, Plus, Upload } from "lucide-react";
 import { apiFetch, useWorkspace } from "@/lib/api";
+import { SimulationBadge } from "@/components/SimulationBadge";
 
 interface CharacterOption {
   id: number;
@@ -20,6 +21,7 @@ interface LipsyncProject {
   output_path: string;
   video_url: string;
   metrics?: { peak_rms?: number; active_speech_ratio?: number; frames?: number };
+  simulation_flags?: string[];
 }
 
 export default function LipsyncStudioPage() {
@@ -225,6 +227,7 @@ export default function LipsyncStudioPage() {
                 className="w-full max-h-56 rounded bg-black"
               />
             )}
+            <SimulationBadge flags={p.simulation_flags} />
           </div>
         ))}
       </div>
