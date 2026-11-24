@@ -211,10 +211,15 @@ def test_migration_010_keeps_rows_and_allows_new_sources(tmp_path: Path) -> None
     with pytest.raises(sqlite3.IntegrityError):
         with get_conn(db) as conn:
             conn.execute("INSERT INTO watch_items (source, kind, value) VALUES ('facebook', 'page', 'x')")
-    before = query_all(db, "SELECT * FROM watch_items ORDER BY id")
+    cols = "id, source, kind, value, enabled, created_at"
+    before = query_all(db, f"SELECT {cols} FROM watch_items ORDER BY id")
 
     assert migrate(db) == len(list(DEFAULT_MIGRATIONS_DIR.glob("*.sql")))  # every later migration applied
-    assert query_all(db, "SELECT * FROM watch_items ORDER BY id") == before
+    assert query_all(db, f"SELECT {cols} FROM watch_items ORDER BY id") == before
+    assert [
+        r["workspace_id"]
+        for r in query_all(db, "SELECT workspace_id FROM watch_items ORDER BY id")
+    ] == [1, 1]
     with get_conn(db) as conn:
         conn.execute("INSERT INTO watch_items (source, kind, value) VALUES ('facebook', 'page', 'https://www.facebook.com/a')")
         conn.execute("INSERT INTO watch_items (source, kind, value) VALUES ('tiktok', 'account', '@a')")

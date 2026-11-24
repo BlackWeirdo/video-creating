@@ -124,6 +124,22 @@ class R2Config(BaseModel):
     public_base: str = ""
 
 
+class WorkerConfig(BaseModel):
+    io_concurrency: int = Field(default=4, ge=1, le=16)
+    compute_concurrency: int = Field(default=1, ge=1, le=4)
+
+
+class WebUIConfig(BaseModel):
+    allowed_origins: list[str] = Field(
+        default_factory=lambda: [
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "http://localhost:3200",
+            "http://127.0.0.1:3200",
+        ]
+    )
+
+
 class Settings(BaseModel):
     role: Literal["server", "client"] = "server"
     host: str = "127.0.0.1"
@@ -148,6 +164,8 @@ class Settings(BaseModel):
     videogen: VideoGenConfig = Field(default_factory=VideoGenConfig)
     retention: RetentionConfig = Field(default_factory=RetentionConfig)
     r2: R2Config = Field(default_factory=R2Config)
+    worker: WorkerConfig = Field(default_factory=WorkerConfig)
+    web_ui: WebUIConfig = Field(default_factory=WebUIConfig)
 
 
 # Parsed settings per config file, valid while the file's (mtime, size) signature is unchanged.

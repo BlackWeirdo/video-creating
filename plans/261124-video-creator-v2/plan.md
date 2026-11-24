@@ -29,7 +29,7 @@ Xây dựng **Video Creator V2** trên nhánh `v2` của repo `c:\Users\ADMIN\vi
 
 | Phase | Tên Phase | Phụ thuộc | Trạng thái | Tiến độ |
 |---|---|---|---|---|
-| **01** | [Nền móng Multi-Workspace, Hàng đợi 2 làn & `/api/v1` Core](phase-01-multi-workspace-and-dual-lane-queue.md) | Baseline V1 | Đang triển khai | 0% |
+| **01** | [Nền móng Multi-Workspace, Hàng đợi 2 làn & `/api/v1` Core](phase-01-multi-workspace-and-dual-lane-queue.md) | Baseline V1 | Xong, test local đạt | 100% |
 | **02** | [Video Style Engine, Phụ đề động, Auto-Ducking, QC & Gỡ MPT](phase-02-video-style-engine-and-qc.md) | Phase 01 | Chờ | 0% |
 | **03** | [Quản lý Kênh, Chính sách duyệt 3 cấp, YouTube & Gói `.zip`](phase-03-channels-youtube-and-publish-packs.md) | Phase 01, 02 | Chờ | 0% |
 | **04** | [Hoàn thiện Lớp JSON REST API `/api/v1/*` cho toàn bộ tính năng Đợt 1](phase-04-rest-api-v1-surface.md) | Phase 01, 02, 03 | Chờ | 0% |

@@ -1,4 +1,4 @@
-"""SQLite-backed job queue and single-concurrency asyncio worker."""
+"""SQLite-backed dual-lane job queue and asyncio worker."""
 from __future__ import annotations
 
 import asyncio
@@ -11,21 +11,43 @@ from typing import Any
 
 from videocreator.db import get_conn
 from videocreator.job_store import (
+    VALID_LANES,
     claim_next_queued_job,
     complete_job,
+    is_queue_paused,
     recover_interrupted_jobs,
+    set_queue_paused,
     wake_expired_quota_jobs,
 )
+from videocreator.workspaces import DEFAULT_WORKSPACE_ID, require_workspace
 
 logger = logging.getLogger("videocreator.jobs")
 
 JobHandler = Callable[[int | None], Any]
 
+COMPUTE_JOB_KINDS: frozenset[str] = frozenset(
+    {
+        "render",
+        "analyse",
+        "studio",
+        "localize_render",
+        "audio_separate",
+        "whisper_asr",
+        "inpaint_subtitles",
+    }
+)
+
+
+def classify_job_lane(kind: str) -> str:
+    return "compute" if kind in COMPUTE_JOB_KINDS else "io"
+
 
 class QuotaWaitRequested(Exception):
     """Raised by a job handler when subscription quota is exhausted and policy is 'never' or 'ask'."""
 
-    def __init__(self, reason: str = "Waiting for subscription quota", *, retry_after_s: int = 3600) -> None:
+    def __init__(
+        self, reason: str = "Waiting for subscription quota", *, retry_after_s: int = 3600
+    ) -> None:
         super().__init__(reason)
         self.reason = reason
         self.retry_after_s = retry_after_s
@@ -34,12 +56,22 @@ class QuotaWaitRequested(Exception):
 class JobRegistry:
     def __init__(self) -> None:
         self._handlers: dict[str, JobHandler] = {}
+        self._lanes: dict[str, str] = {}
 
-    def register(self, kind: str, handler: JobHandler) -> None:
+    def register(
+        self, kind: str, handler: JobHandler, *, lane: str | None = None
+    ) -> None:
+        chosen_lane = lane if lane is not None else classify_job_lane(kind)
+        if chosen_lane not in VALID_LANES:
+            raise ValueError(f"Invalid job lane: {chosen_lane}")
         self._handlers[kind] = handler
+        self._lanes[kind] = chosen_lane
 
     def get(self, kind: str) -> JobHandler | None:
         return self._handlers.get(kind)
+
+    def get_lane(self, kind: str) -> str:
+        return self._lanes.get(kind) or classify_job_lane(kind)
 
     def kinds(self) -> list[str]:
         return sorted(self._handlers.keys())
@@ -52,21 +84,38 @@ PRIORITY_USER = 10  # someone is waiting for the result
 PRIORITY_PINNED = 5  # a trend video the owner pasted by hand
 PRIORITY_BACKGROUND = 0
 # `analyse`/`describe` are footage the owner has just imported, so they also jump the trend batch.
-USER_FACING_KINDS = frozenset({"plan", "render", "replan", "studio", "analyse", "describe"})
+USER_FACING_KINDS = frozenset(
+    {"plan", "render", "replan", "studio", "analyse", "describe"}
+)
 
 
 def enqueue_job(
-    db_file: Path, kind: str, ref_id: int | None = None, *, priority: int | None = None
+    db_file: Path,
+    kind: str,
+    ref_id: int | None = None,
+    *,
+    priority: int | None = None,
+    lane: str | None = None,
+    workspace_id: int = DEFAULT_WORKSPACE_ID,
+    registry: JobRegistry = default_registry,
 ) -> int:
-    """Queues a job. The worker takes higher `priority` first, then the oldest; user-facing kinds
-    default to `PRIORITY_USER` so they never wait behind a batch of background analyses."""
-    prio = priority if priority is not None else (
-        PRIORITY_USER if kind in USER_FACING_KINDS else PRIORITY_BACKGROUND
+    """Queues a job with priority and execution lane (`io` or `compute`)."""
+    require_workspace(db_file, workspace_id)
+    chosen_lane = lane if lane is not None else registry.get_lane(kind)
+    if chosen_lane not in VALID_LANES:
+        raise ValueError(f"Invalid job lane: {chosen_lane}")
+    prio = (
+        priority
+        if priority is not None
+        else (PRIORITY_USER if kind in USER_FACING_KINDS else PRIORITY_BACKGROUND)
     )
     with get_conn(db_file) as conn:
         cur = conn.execute(
-            "INSERT INTO jobs (kind, ref_id, status, priority) VALUES (?, ?, 'queued', ?)",
-            (kind, ref_id, prio),
+            """
+            INSERT INTO jobs (kind, ref_id, status, priority, lane, workspace_id)
+            VALUES (?, ?, 'queued', ?, ?, ?)
+            """,
+            (kind, ref_id, prio, chosen_lane, int(workspace_id)),
         )
         return int(cur.lastrowid or 0)
 
@@ -80,9 +129,11 @@ def get_job(db_file: Path, job_id: int) -> dict[str, Any] | None:
 async def run_one_job(
     db_file: Path,
     registry: JobRegistry = default_registry,
+    *,
+    lane: str | None = None,
 ) -> bool:
-    """Claims and executes the oldest queued job. Returns True if a job was processed."""
-    job = claim_next_queued_job(db_file)
+    """Claims and executes the next queued job (optionally filtered by lane)."""
+    job = claim_next_queued_job(db_file, lane=lane)
     if job is None:
         return False
 
@@ -96,7 +147,13 @@ async def run_one_job(
         complete_job(db_file, job_id, status="failed", error=msg)
         return True
 
-    logger.info("Starting job id=%d kind=%s ref_id=%s", job_id, kind, ref_id)
+    logger.info(
+        "Starting job id=%d kind=%s lane=%s ref_id=%s",
+        job_id,
+        kind,
+        job.get("lane", "io"),
+        ref_id,
+    )
     try:
         if inspect.iscoroutinefunction(handler):
             result = await handler(ref_id)
@@ -122,45 +179,86 @@ async def run_one_job(
 
 
 class JobWorker:
-    """Single-concurrency background asyncio worker polling the jobs table."""
+    """Dual-lane background asyncio worker polling the jobs table (`io` + `compute`)."""
 
     def __init__(
         self,
         db_file: Path,
         registry: JobRegistry = default_registry,
         poll_interval_s: float = 0.5,
+        *,
+        io_concurrency: int = 4,
+        compute_concurrency: int = 1,
     ) -> None:
+        if io_concurrency < 1 or compute_concurrency < 1:
+            raise ValueError("Worker lane concurrency must be >= 1")
         self.db_file = db_file
         self.registry = registry
         self.poll_interval_s = poll_interval_s
+        self.io_concurrency = int(io_concurrency)
+        self.compute_concurrency = int(compute_concurrency)
         self._stop_event = asyncio.Event()
-        self._task: asyncio.Task[None] | None = None
+        self._tasks: list[asyncio.Task[None]] = []
+
+    @property
+    def is_paused(self) -> bool:
+        return is_queue_paused(self.db_file)
+
+    def pause(self) -> None:
+        set_queue_paused(self.db_file, True)
+
+    def resume(self) -> None:
+        set_queue_paused(self.db_file, False)
 
     def start(self) -> None:
-        if self._task is not None and not self._task.done():
+        if any(not t.done() for t in self._tasks):
             return
         recover_interrupted_jobs(self.db_file)
         self._stop_event.clear()
-        self._task = asyncio.create_task(self._loop(), name="videocreator-job-worker")
+        self._tasks = []
+        for idx in range(self.io_concurrency):
+            self._tasks.append(
+                asyncio.create_task(
+                    self._lane_loop("io", wake_quota=(idx == 0)),
+                    name=f"videocreator-job-io-{idx}",
+                )
+            )
+        for idx in range(self.compute_concurrency):
+            self._tasks.append(
+                asyncio.create_task(
+                    self._lane_loop("compute", wake_quota=False),
+                    name=f"videocreator-job-compute-{idx}",
+                )
+            )
 
     async def stop(self) -> None:
         self._stop_event.set()
-        if self._task is not None:
-            try:
-                await asyncio.wait_for(self._task, timeout=5.0)
-            except (asyncio.TimeoutError, asyncio.CancelledError):
-                self._task.cancel()
-            self._task = None
+        if not self._tasks:
+            return
+        try:
+            await asyncio.wait_for(
+                asyncio.gather(*self._tasks, return_exceptions=True), timeout=5.0
+            )
+        except asyncio.TimeoutError:
+            for task in self._tasks:
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(*self._tasks, return_exceptions=True)
+        self._tasks = []
 
-    async def _loop(self) -> None:
+    async def _lane_loop(self, lane: str, *, wake_quota: bool = False) -> None:
         while not self._stop_event.is_set():
             try:
-                wake_expired_quota_jobs(self.db_file)
-                processed = await run_one_job(self.db_file, self.registry)
-                if processed:
-                    continue
+                if wake_quota:
+                    wake_expired_quota_jobs(self.db_file)
+                if not self.is_paused:
+                    processed = await run_one_job(
+                        self.db_file, self.registry, lane=lane
+                    )
+                    if processed:
+                        continue
             except Exception as exc:
-                logger.error("Unexpected worker loop error: %s", exc)
+                logger.error("Unexpected worker loop error (lane=%s): %s", lane, exc)
             try:
                 await asyncio.wait_for(
                     self._stop_event.wait(), timeout=self.poll_interval_s
@@ -168,6 +266,6 @@ class JobWorker:
             except asyncio.TimeoutError:
                 pass
 
-    def run_next_once(self) -> bool:
+    def run_next_once(self, *, lane: str | None = None) -> bool:
         """Synchronous convenience wrapper for executing a single job tick in tests."""
-        return asyncio.run(run_one_job(self.db_file, self.registry))
+        return asyncio.run(run_one_job(self.db_file, self.registry, lane=lane))

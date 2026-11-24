@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from videocreator import __version__
@@ -33,6 +34,7 @@ from videocreator.api.routes_trends import router as trends_router
 from videocreator.api.routes_videos import router as videos_router
 from videocreator.api.routes_voices import router as voices_router
 from videocreator.api.routes_watchlist import router as watchlist_router
+from videocreator.api.v1 import v1_router
 from videocreator.auth import NonLocalhostBasicAuthMiddleware
 from videocreator.config import load_settings
 from videocreator.db import migrate
@@ -61,11 +63,16 @@ def create_app(
     migrate(paths.db_file)
     secrets = SecretsStore(paths.secrets_file)
     setup_logging(paths.log_file, secrets_store=secrets)
-    load_settings(paths.config_file)  # writes config.toml with defaults on first run
+    initial_settings = load_settings(paths.config_file)  # writes config.toml with defaults on first run
 
     register_job_handlers(job_registry, paths)
 
-    worker = JobWorker(paths.db_file, registry=job_registry)
+    worker = JobWorker(
+        paths.db_file,
+        registry=job_registry,
+        io_concurrency=initial_settings.worker.io_concurrency,
+        compute_concurrency=initial_settings.worker.compute_concurrency,
+    )
     tg_service = TelegramBotService(paths, secrets)
     scheduler = AppScheduler(paths)
     mpt_service = MPTServiceManager(paths)
@@ -118,6 +125,13 @@ def create_app(
         secrets_store=secrets,
         bind_host=bind_host,
     )
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=initial_settings.web_ui.allowed_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
     if paths.static_dir.exists():
         app.mount("/static", StaticFiles(directory=str(paths.static_dir)), name="static")
@@ -145,5 +159,6 @@ def create_app(
     app.include_router(manual_router)
     app.include_router(voices_router)
     app.include_router(studio_router)
+    app.include_router(v1_router)
 
     return app

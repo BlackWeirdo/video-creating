@@ -6,6 +6,7 @@ from typing import Any
 
 from videocreator.db import get_conn, query_all, query_one, record_audit
 from videocreator.jsonutil import loads_or
+from videocreator.workspaces import DEFAULT_WORKSPACE_ID, require_workspace
 
 
 def _parse_product_row(row: dict[str, Any]) -> dict[str, Any]:
@@ -14,6 +15,7 @@ def _parse_product_row(row: dict[str, Any]) -> dict[str, Any]:
         facts = {}
     return {
         "id": int(row["id"]),
+        "workspace_id": int(row.get("workspace_id") or DEFAULT_WORKSPACE_ID),
         "name": str(row["name"]),
         "material": str(row.get("material") or ""),
         "hidden": bool(row.get("hidden")),
@@ -29,12 +31,24 @@ def _parse_product_row(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def list_products(db_file: Path, *, include_hidden: bool = False) -> list[dict[str, Any]]:
-    sql = "SELECT * FROM products"
+def list_products(
+    db_file: Path,
+    *,
+    include_hidden: bool = False,
+    workspace_id: int | None = None,
+) -> list[dict[str, Any]]:
+    clauses: list[str] = []
+    params: list[Any] = []
     if not include_hidden:
-        sql += " WHERE hidden = 0"
+        clauses.append("hidden = 0")
+    if workspace_id is not None:
+        clauses.append("workspace_id = ?")
+        params.append(int(workspace_id))
+    sql = "SELECT * FROM products"
+    if clauses:
+        sql += " WHERE " + " AND ".join(clauses)
     sql += " ORDER BY id DESC"
-    return [_parse_product_row(r) for r in query_all(db_file, sql)]
+    return [_parse_product_row(r) for r in query_all(db_file, sql, params)]
 
 
 def get_product(db_file: Path, product_id: int) -> dict[str, Any] | None:
@@ -48,8 +62,10 @@ def create_product(
     name: str,
     material: str = "",
     facts: dict[str, Any] | None = None,
+    workspace_id: int = DEFAULT_WORKSPACE_ID,
     actor: str = "ui",
 ) -> int:
+    require_workspace(db_file, workspace_id)
     clean_name = name.strip()
     if not clean_name:
         raise ValueError("Product name is required")
@@ -61,8 +77,8 @@ def create_product(
     facts_json = json.dumps(clean_facts, ensure_ascii=False)
     with get_conn(db_file) as conn:
         cur = conn.execute(
-            "INSERT INTO products (name, material, facts_json) VALUES (?, ?, ?)",
-            (clean_name, material.strip(), facts_json),
+            "INSERT INTO products (workspace_id, name, material, facts_json) VALUES (?, ?, ?, ?)",
+            (int(workspace_id), clean_name, material.strip(), facts_json),
         )
         new_id = int(cur.lastrowid or 0)
         record_audit(
@@ -153,7 +169,12 @@ def delete_or_hide_product(db_file: Path, product_id: int, actor: str = "ui") ->
     return action
 
 
-def product_name_map(db_file: Path) -> dict[int, str]:
+def product_name_map(
+    db_file: Path, *, workspace_id: int | None = None
+) -> dict[int, str]:
     """`{product_id: name}` of every product, hidden ones included (old videos still reference them)."""
-    return {p["id"]: p["name"] for p in list_products(db_file, include_hidden=True)}
+    return {
+        p["id"]: p["name"]
+        for p in list_products(db_file, include_hidden=True, workspace_id=workspace_id)
+    }
 

@@ -15,6 +15,7 @@ from videocreator.secrets_store import SecretsStore
 
 LOCALHOST_HOSTS: frozenset[str] = frozenset({"127.0.0.1", "localhost", "::1"})
 SAFE_METHODS: frozenset[str] = frozenset({"GET", "HEAD", "OPTIONS", "TRACE"})
+PUBLIC_HEALTH_PATHS: frozenset[str] = frozenset({"/health", "/api/v1/health"})
 
 
 def _normalize_host_port(netloc: str, default_scheme: str) -> str:
@@ -29,14 +30,24 @@ def _normalize_host_port(netloc: str, default_scheme: str) -> str:
     return f"{hostname}:{port}"
 
 
-def _is_cross_origin_mutation(request: Request) -> tuple[bool, str]:
+def _normalize_origin(origin: str) -> str:
+    return origin.strip().rstrip("/").lower()
+
+
+def _is_cross_origin_mutation(
+    request: Request, allowed_origins: set[str] | None = None
+) -> tuple[bool, str]:
     """Blocks cross-origin state-changing browser requests (`POST`/`PUT`/`DELETE`/`PATCH`)
-    using W3C Fetch Metadata (`Sec-Fetch-Site`) and `Origin` / `Referer` verification."""
+    using W3C Fetch Metadata (`Sec-Fetch-Site`) and `Origin` / `Referer` verification.
+    Allows configured local frontend origins on `/api/v1/*` unless `Sec-Fetch-Site` is `cross-site`."""
     if request.method.upper() in SAFE_METHODS:
         return False, ""
 
+    is_v1_api = request.url.path.startswith("/api/v1/")
+    allowed = allowed_origins or set()
+
     sec_fetch_site = (request.headers.get("sec-fetch-site") or "").strip().lower()
-    if sec_fetch_site and sec_fetch_site not in ("same-origin", "none"):
+    if sec_fetch_site == "cross-site":
         return True, f"Cross-origin request blocked (Sec-Fetch-Site={sec_fetch_site})"
 
     req_scheme = request.url.scheme or "http"
@@ -44,6 +55,13 @@ def _is_cross_origin_mutation(request: Request) -> tuple[bool, str]:
     expected_authority = _normalize_host_port(req_host_header, req_scheme)
 
     origin = (request.headers.get("origin") or "").strip()
+    normalized_origin = _normalize_origin(origin)
+    origin_explicitly_allowed = is_v1_api and bool(normalized_origin) and (normalized_origin in allowed)
+
+    if sec_fetch_site and sec_fetch_site not in ("same-origin", "none"):
+        if not (sec_fetch_site == "same-site" and origin_explicitly_allowed):
+            return True, f"Cross-origin request blocked (Sec-Fetch-Site={sec_fetch_site})"
+
     if origin:
         if origin.lower() == "null":
             return True, "Cross-origin request blocked (Origin=null)"
@@ -51,7 +69,9 @@ def _is_cross_origin_mutation(request: Request) -> tuple[bool, str]:
         origin_authority = _normalize_host_port(
             parsed_origin.netloc, parsed_origin.scheme or req_scheme
         )
-        if not origin_authority or origin_authority != expected_authority:
+        if not origin_authority or (
+            origin_authority != expected_authority and not origin_explicitly_allowed
+        ):
             return True, "Cross-origin request blocked (Origin mismatch)"
         return False, ""
 
@@ -62,7 +82,11 @@ def _is_cross_origin_mutation(request: Request) -> tuple[bool, str]:
             ref_authority = _normalize_host_port(
                 parsed_ref.netloc, parsed_ref.scheme or req_scheme
             )
-            if not ref_authority or ref_authority != expected_authority:
+            ref_origin = _normalize_origin(f"{parsed_ref.scheme}://{parsed_ref.netloc}")
+            ref_allowed = is_v1_api and ref_origin in allowed
+            if not ref_authority or (
+                ref_authority != expected_authority and not ref_allowed
+            ):
                 return True, "Cross-origin request blocked (Referer mismatch)"
 
     return False, ""
@@ -85,15 +109,19 @@ class NonLocalhostBasicAuthMiddleware(BaseHTTPMiddleware):
         self.bind_host = bind_host
 
     async def dispatch(self, request: Request, call_next) -> Response:  # type: ignore[no-untyped-def]
-        if request.url.path == "/health":
+        if request.url.path in PUBLIC_HEALTH_PATHS:
             return await call_next(request)
 
-        blocked, reason = _is_cross_origin_mutation(request)
+        settings = load_settings(self.config_file)
+        allowed_origins = {
+            _normalize_origin(o) for o in settings.web_ui.allowed_origins if o.strip()
+        }
+        blocked, reason = _is_cross_origin_mutation(request, allowed_origins=allowed_origins)
         if blocked:
             return Response(content=reason, status_code=403)
 
         # The actual bind host (e.g. from --host) wins over config.toml.
-        host = self.bind_host or load_settings(self.config_file).host
+        host = self.bind_host or settings.host
         if host.strip().lower() in LOCALHOST_HOSTS:
             return await call_next(request)
 
