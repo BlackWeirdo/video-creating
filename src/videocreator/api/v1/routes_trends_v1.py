@@ -328,6 +328,17 @@ async def api_v1_accept_suggestion(
     )
 
 
+class TrendSendBatchBody(BaseModel):
+    workspace_id: int | None = None
+    title: str = ""
+    trend_ids: list[int]
+    ab_count: int = 2
+    style_presets: list[str] = ["tiktok_karaoke", "neon_glow"]
+    aspect_ratio: str = "9:16"
+    target_lang: str = "vi"
+    sync: bool = False
+
+
 class TrendSendLocalizeBody(BaseModel):
     workspace_id: int | None = None
     mode: str = "reup_vi"
@@ -400,3 +411,43 @@ async def api_v1_trend_send_to_localize(
             workspace_id=ws_id,
         )
     return JSONResponse({"project": proj, "job_id": job_id}, status_code=201)
+
+
+@router.post("/trends/send-to-batch", status_code=201)
+async def api_v1_trends_send_to_batch(
+    request: Request,
+    body: TrendSendBatchBody,
+) -> JSONResponse:
+    from videocreator.pipeline.batch_studio import create_batch_run, run_batch_run
+
+    paths: AppPaths = request.app.state.paths
+    ws_id = resolve_workspace_id(paths.db_file, body.workspace_id)
+    try:
+        batch = create_batch_run(
+            paths,
+            workspace_id=ws_id,
+            title=body.title or f"Trend Batch ({len(body.trend_ids)} items)",
+            source_kind="trends",
+            items=body.trend_ids,
+            ab_count=body.ab_count,
+            style_presets=body.style_presets,
+            aspect_ratio=body.aspect_ratio,
+            target_lang=body.target_lang,
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    job_id: int | None = None
+    if body.sync:
+        batch = run_batch_run(paths, int(batch["id"]))
+    else:
+        job_id = enqueue_job(
+            paths.db_file,
+            "batch_run",
+            ref_id=int(batch["id"]),
+            lane="io",
+            workspace_id=ws_id,
+        )
+    return JSONResponse({"batch": batch, "job_id": job_id}, status_code=201)

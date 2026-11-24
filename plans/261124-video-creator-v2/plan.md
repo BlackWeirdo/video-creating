@@ -51,7 +51,7 @@ Phase 01 (Workspace + Dual-Lane Queue + /api/v1 Core)
 |---|---|---|---|---|
 | **06** | [Trình quản lý Model AI Cục bộ & Bể xoay vòng API Key](phase-06-local-models-and-key-pool.md) | Đợt 1 | Xong, test local đạt | 100% |
 | **07** | [Studio Việt hóa / Reup, Hybrid Remix & Quốc tế hóa](phase-07-localize-reup-hybrid-remix.md) | Phase 06 | Xong, test local đạt | 100% |
-| **08** | [Batch Studio & Biến thể Sản phẩm A/B kèm Checkpoint Resume](phase-08-batch-and-product-ab-studio.md) | Phase 07 | Chờ | 0% |
+| **08** | [Batch Studio & Biến thể Sản phẩm A/B kèm Checkpoint Resume](phase-08-batch-and-product-ab-studio.md) | Phase 07 | Xong, test local đạt | 100% |
 | **09** | [Kênh Autopilot tự chạy & Giao diện Next.js Đợt 2](phase-09-autopilot-and-wave2-views.md) | Phase 08 | Chờ | 0% |
 
 ---
