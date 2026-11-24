@@ -34,6 +34,7 @@ COMPUTE_JOB_KINDS: frozenset[str] = frozenset(
         "localize_extract",
         "localize_render",
         "news_render",
+        "workflow_run",
         "audio_separate",
         "whisper_asr",
         "inpaint_subtitles",

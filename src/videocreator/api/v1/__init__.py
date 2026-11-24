@@ -17,6 +17,7 @@ from videocreator.api.v1.routes_resources import router as resources_router
 from videocreator.api.v1.routes_settings_v1 import router as settings_v1_router
 from videocreator.api.v1.routes_system import router as system_router
 from videocreator.api.v1.routes_trends_v1 import router as trends_v1_router
+from videocreator.api.v1.routes_workflows_v1 import router as workflows_v1_router
 from videocreator.api.v1.routes_workspaces import router as workspaces_router
 
 v1_router = APIRouter(prefix="/api/v1")
@@ -35,3 +36,4 @@ v1_router.include_router(autopilot_v1_router)
 v1_router.include_router(characters_v1_router)
 v1_router.include_router(news_v1_router)
 v1_router.include_router(editor_v1_router)
+v1_router.include_router(workflows_v1_router)
