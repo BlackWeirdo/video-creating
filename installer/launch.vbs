@@ -2,6 +2,13 @@ Set WshShell = CreateObject("WScript.Shell")
 Set FSO = CreateObject("Scripting.FileSystemObject")
 AppRoot = FSO.GetParentFolderName(FSO.GetParentFolderName(WScript.ScriptFullName))
 WshShell.CurrentDirectory = AppRoot
+
+NodeBin = AppRoot & "\runtime\node\node.exe"
+If FSO.FileExists(NodeBin) Then
+    Set ProcEnv = WshShell.Environment("PROCESS")
+    ProcEnv("VIDEOCREATOR_NODE_BIN") = NodeBin
+End If
+
 PythonW = AppRoot & "\.venv\Scripts\pythonw.exe"
 PythonExe = AppRoot & "\.venv\Scripts\python.exe"
 
@@ -17,5 +24,5 @@ If FSO.FileExists(PythonW) Then
 ElseIf FSO.FileExists(PythonExe) Then
     WshShell.Run """" & PythonExe & """ -m videocreator", 0, False
 Else
-    MsgBox "Chua tim thay moi truong Python (.venv) tai:" & vbCrLf & AppRoot & vbCrLf & vbCrLf & "Hay chay file installer\post_install.cmd de cai dat thu vien.", 16, "Video Creator"
+    MsgBox "Chua tim thay moi truong Python (.venv) tai:" & vbCrLf & AppRoot & vbCrLf & vbCrLf & "Hay chay file installer\post_install.cmd de cai dat thu vien.", 16, "Video Creator V2"
 End If

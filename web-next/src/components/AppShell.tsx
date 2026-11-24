@@ -5,6 +5,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Activity,
+  AudioWaveform,
+  BookOpen,
   Bot,
   CheckCircle2,
   Clapperboard,
@@ -14,11 +16,13 @@ import {
   Languages,
   Layers,
   LayoutDashboard,
+  Mic,
   Newspaper,
   Palette,
   Pause,
   Play,
   Plus,
+  Rocket,
   Scissors,
   Settings,
   ShieldCheck,
@@ -40,6 +44,9 @@ const NAV_ITEMS = [
   { href: "/batch", label: "Batch & A/B Studio", icon: Layers },
   { href: "/characters", label: "Nhân vật & Ảnh AI", icon: UserCheck },
   { href: "/news", label: "Tin tức → Video", icon: Newspaper },
+  { href: "/novel", label: "Tiểu thuyết → Video", icon: BookOpen },
+  { href: "/podcast", label: "Podcast Sóng nhạc", icon: Mic },
+  { href: "/lipsync", label: "Lip-sync AI", icon: AudioWaveform },
   { href: "/editor", label: "Trình dựng FreeCut", icon: Scissors },
   { href: "/workflows", label: "Workflow Node", icon: Workflow },
   { href: "/video-style", label: "Video Style & Audio", icon: Palette },
@@ -47,6 +54,7 @@ const NAV_ITEMS = [
   { href: "/autopilot", label: "Kênh Autopilot", icon: Bot },
   { href: "/approval", label: "Duyệt, Kênh & Lịch đăng", icon: CheckCircle2 },
   { href: "/settings", label: "Cài đặt & AI Keys", icon: Settings },
+  { href: "/welcome", label: "Welcome Wizard", icon: Rocket },
 ];
 
 const POLICY_BADGE: Record<Workspace["content_policy"], { label: string; cls: string }> = {
@@ -78,7 +86,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [recentJobs, setRecentJobs] = useState<JobRecord[]>([]);
   const [showLogs, setShowLogs] = useState(false);
   const [logLines, setLogLines] = useState<string[]>([]);
+  const [wizardNeeded, setWizardNeeded] = useState(false);
   const [showNewWs, setShowNewWs] = useState(false);
+
+  useEffect(() => {
+    void apiFetch<{ wizard_completed: boolean }>("/api/v1/onboarding/status")
+      .then((res) => setWizardNeeded(!res.wizard_completed))
+      .catch(() => {});
+  }, [pathname]);
 
   const [wsName, setWsName] = useState("");
   const [wsNiche, setWsNiche] = useState("general");
@@ -250,6 +265,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* Main Content + Persistent Queue Bar */}
       <div className="flex-1 flex flex-col min-w-0">
+        {wizardNeeded && pathname !== "/welcome" && (
+          <div className="bg-sky-500/10 border-b border-sky-500/30 px-6 py-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <span className="text-sky-200">
+              Chào mừng bạn đến Video Creator V2! Hãy hoàn tất Welcome Wizard để kiểm tra FFmpeg, Workspace &amp; AI Keys.
+            </span>
+            <Link
+              href="/welcome"
+              className="inline-flex items-center gap-1 px-3 py-1 rounded bg-sky-500 text-slate-950 font-semibold"
+            >
+              <Rocket className="w-3.5 h-3.5" /> Thiết lập ngay →
+            </Link>
+          </div>
+        )}
         <main className="flex-1 p-6 pb-20 overflow-y-auto">{children}</main>
 
         {/* Bottom Live Dual-Lane Queue & Logs Bar */}

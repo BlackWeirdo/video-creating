@@ -47,3 +47,10 @@ tools/
 .next/
 out/
 *.tsbuildinfo
+
+# installer artifacts & compiled builds
+installer/dist/
+installer/staging/
+build/
+dist/
+*.vcx

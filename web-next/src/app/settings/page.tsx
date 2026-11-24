@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
-import { Cpu, Download, KeyRound, Plus, Save, Settings, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { Archive, Cpu, Download, KeyRound, Plus, Rocket, Save, Settings, Trash2, Upload } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 
 interface LocalModelRow {
@@ -23,6 +24,17 @@ interface PooledKeyRow {
   priority: number;
   is_cooling_down: boolean;
   use_count: number;
+}
+
+interface BackupSummary {
+  db_size_bytes: number;
+  workspaces: number;
+  products: number;
+  workflows: number;
+  channels: number;
+  pooled_keys: number;
+  secrets_count: number;
+  snapshots: Array<{ filename: string; size_bytes: number }>;
 }
 
 interface SecretMeta {
@@ -57,12 +69,16 @@ export default function SettingsPage() {
   const [poolLabel, setPoolLabel] = useState("");
   const [poolSecret, setPoolSecret] = useState("");
   const [spentToday, setSpentToday] = useState(0);
+  const [backupSummary, setBackupSummary] = useState<BackupSummary | null>(null);
+  const [backupPassword, setBackupPassword] = useState("");
+  const [restorePassword, setRestorePassword] = useState("");
+  const [restoreFile, setRestoreFile] = useState<File | null>(null);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
 
   const load = useCallback(async () => {
     try {
-      const [cfgRes, vRes, secRes, usageRes, modRes, kpRes] = await Promise.all([
+      const [cfgRes, vRes, secRes, usageRes, modRes, kpRes, bkRes] = await Promise.all([
         apiFetch<{
           settings: {
             worker: { io_concurrency: number; compute_concurrency: number };
@@ -79,6 +95,7 @@ export default function SettingsPage() {
         apiFetch<{ spent_today_usd: number }>("/api/v1/ai/usage"),
         apiFetch<{ models: LocalModelRow[] }>("/api/v1/models"),
         apiFetch<{ keys: PooledKeyRow[] }>("/api/v1/key-pool"),
+        apiFetch<BackupSummary>("/api/v1/backup/summary"),
       ]);
       const s = cfgRes.settings;
       setIoConc(s.worker?.io_concurrency ?? 4);
@@ -94,6 +111,7 @@ export default function SettingsPage() {
       setSpentToday(usageRes.spent_today_usd || 0);
       setLocalModels(modRes.models || []);
       setPoolKeys(kpRes.keys || []);
+      setBackupSummary(bkRes);
       setErr("");
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Lỗi tải cài đặt");
@@ -432,6 +450,112 @@ export default function SettingsPage() {
               </div>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* Encrypted Backup / Restore (.vcx) + Welcome Wizard */}
+      <div className="bg-[#111827] border border-slate-800 rounded-xl p-5 space-y-4 text-xs">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-white flex items-center gap-1.5">
+            <Archive className="w-4 h-4 text-sky-400" /> Sao lưu &amp; Khôi phục Cấu hình Mã hóa (`.vcx`)
+          </h2>
+          <Link
+            href="/welcome"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 font-semibold"
+          >
+            <Rocket className="w-3.5 h-3.5" /> Mở Welcome Wizard
+          </Link>
+        </div>
+
+        {backupSummary && (
+          <div className="text-[11px] text-slate-400">
+            Cơ sở dữ liệu: {(backupSummary.db_size_bytes / 1024).toFixed(1)} KB •{" "}
+            {backupSummary.workspaces} workspaces • {backupSummary.products} sản phẩm •{" "}
+            {backupSummary.workflows} workflows • {backupSummary.secrets_count} khóa bảo mật
+          </div>
+        )}
+
+        <div className="grid md:grid-cols-2 gap-4">
+          <div className="bg-[#182235] border border-slate-800 rounded-lg p-3.5 space-y-2">
+            <div className="font-semibold text-white">Xuất gói Sao lưu Mã hóa (.vcx)</div>
+            <input
+              type="password"
+              value={backupPassword}
+              onChange={(e) => setBackupPassword(e.target.value)}
+              placeholder="Mật khẩu mã hóa (ít nhất 4 ký tự)"
+              className="w-full bg-[#111827] border border-slate-700 rounded px-3 py-1.5"
+            />
+            <button
+              type="button"
+              onClick={async () => {
+                setErr("");
+                setMsg("");
+                const resp = await fetch("/api/v1/backup/export", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ password: backupPassword, save_copy: true }),
+                });
+                if (!resp.ok) {
+                  setErr("Xuất sao lưu thất bại (kiểm tra mật khẩu >= 4 ký tự).");
+                  return;
+                }
+                const blob = await resp.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "videocreator-v2-backup.vcx";
+                a.click();
+                URL.revokeObjectURL(url);
+                setBackupPassword("");
+                setMsg("Đã xuất gói sao lưu .vcx mã hóa và lưu bản cục bộ.");
+                await load();
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-sky-500 text-slate-950 font-semibold cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5" /> Tải file .vcx
+            </button>
+          </div>
+
+          <div className="bg-[#182235] border border-slate-800 rounded-lg p-3.5 space-y-2">
+            <div className="font-semibold text-white">Khôi phục từ file .vcx</div>
+            <input
+              type="file"
+              accept=".vcx"
+              onChange={(e) => setRestoreFile(e.target.files?.[0] || null)}
+              className="w-full text-[11px] text-slate-300"
+            />
+            <input
+              type="password"
+              value={restorePassword}
+              onChange={(e) => setRestorePassword(e.target.value)}
+              placeholder="Mật khẩu giải mã file .vcx"
+              className="w-full bg-[#111827] border border-slate-700 rounded px-3 py-1.5"
+            />
+            <button
+              type="button"
+              onClick={async () => {
+                if (!restoreFile) return;
+                setErr("");
+                setMsg("");
+                try {
+                  const fd = new FormData();
+                  fd.append("file", restoreFile);
+                  fd.append("password", restorePassword);
+                  fd.append("as_server", "true");
+                  await apiFetch("/api/v1/backup/restore", { method: "POST", body: fd });
+                  setRestorePassword("");
+                  setRestoreFile(null);
+                  setMsg("Đã khôi phục toàn bộ Workspaces, DB và API Keys từ gói .vcx!");
+                  await load();
+                } catch (e2) {
+                  setErr(e2 instanceof Error ? e2.message : "Khôi phục .vcx thất bại");
+                }
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-emerald-500 text-slate-950 font-semibold cursor-pointer"
+            >
+              <Upload className="w-3.5 h-3.5" /> Khôi phục .vcx
+            </button>
+          </div>
         </div>
       </div>
     </div>

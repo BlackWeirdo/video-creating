@@ -21,7 +21,7 @@ Xây dựng **Video Creator V2** trên nhánh `v2` của repo `c:\Users\ADMIN\vi
 | **Đợt 1** *(đã hoàn thành)* | Nền móng Multi-Workspace, Hàng đợi 2 làn, Video Style Engine (gỡ MPT), YouTube + Gói `.zip`, `/api/v1/*` và Shell Next.js 15 cho toàn bộ tính năng lõi | Nền tảng đa thương hiệu chạy trên Next.js 15 + FastAPI, dựng video `9:16` đẹp hơn V1 (sub nhảy chữ, ducking, QC) và đăng đủ 5 MXH + `.zip` |
 | **Đợt 2** *(đã hoàn thành)* | Trình quản lý Model AI tải thêm + Studio Việt hóa/Reup/Hybrid Remix/Quốc tế hóa + Batch & Product A/B Studio + Kênh Autopilot | Tự động hóa sản xuất số lượng lớn từ Xu hướng, Sản phẩm hoặc Việt hóa/Remix và tự chạy lịch cho kênh vệ tinh |
 | **Đợt 3** *(đã hoàn thành)* | Characters & AI Image Studio + News-to-Video + Nhúng trình dựng FreeCut (MIT) + Visual Workflow Node (`@xyflow/react`) | Hoàn thiện bộ công cụ đồng nhất nhân vật, tạo ảnh AI, tin tức, cắt ghép đa track và workflow kéo-thả |
-| **Đợt 4** *(đang thực hiện)* | Studio Tiểu thuyết, Sóng nhạc Podcast (`16:9`), Lip-sync AI + Welcome Wizard, Sao lưu/Khôi phục, Bộ cài `.exe` Inno Setup (+ tùy chọn Nuitka `.pyd`) | Xuất xưởng bộ cài `.exe` hoàn chỉnh cài độc lập cho từng máy nhân viên |
+| **Đợt 4** *(đã hoàn thành)* | Studio Tiểu thuyết, Sóng nhạc Podcast (`16:9`), Lip-sync AI + Welcome Wizard, Sao lưu/Khôi phục, Bộ cài `.exe` Inno Setup (+ tùy chọn Nuitka `.pyd`) | Xuất xưởng bộ cài `.exe` hoàn chỉnh cài độc lập cho từng máy nhân viên |
 
 ---
 
@@ -73,7 +73,7 @@ Phase 01 (Workspace + Dual-Lane Queue + /api/v1 Core)
 |---|---|---|---|---|
 | **14** | [Studio Chuyên biệt: Tiểu thuyết, Sóng nhạc Podcast (`16:9`) & Lip-sync AI](phase-14-novel-podcast-and-lipsync-studios.md) | Đợt 3 | Xong, test local đạt | 100% |
 | **15** | [Welcome Wizard & Sao lưu / Khôi phục Mã hóa (`.vcx`)](phase-15-welcome-wizard-and-backup-restore.md) | Phase 14 | Xong, test local đạt | 100% |
-| **16** | [Giao diện Next.js Đợt 4, Bộ cài Windows `.exe` Inno Setup & Nghiệm thu](phase-16-wave4-ui-and-windows-installer.md) | Phase 15 | Chờ | 0% |
+| **16** | [Giao diện Next.js Đợt 4, Bộ cài Windows `.exe` Inno Setup & Nghiệm thu](phase-16-wave4-ui-and-windows-installer.md) | Phase 15 | Xong, test local đạt | 100% |
 
 ---
 

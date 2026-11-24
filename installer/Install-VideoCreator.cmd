@@ -1,14 +1,14 @@
 @echo off
-title Cai dat Video Creator
+title Cai dat Video Creator V2
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$s = (Get-Content -LiteralPath '%~f0' -Encoding UTF8 | Select-Object -Skip 5) -join [Environment]::NewLine; Invoke-Expression $s"
 if %ERRORLEVEL% NEQ 0 pause
 exit /b %ERRORLEVEL%
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 $env:UV_SYSTEM_CERTS = "true"
 $env:UV_NATIVE_TLS = "true"
-$InstallDir = "$env:LOCALAPPDATA\Programs\VideoCreator"
+$InstallDir = "$env:LOCALAPPDATA\Programs\VideoCreatorV2"
 $RepoUrl = "https://github.com/BlackWeirdo/video-creating.git"
-$ZipUrl = "https://github.com/BlackWeirdo/video-creating/archive/refs/heads/main.zip"
+$ZipUrl = "https://github.com/BlackWeirdo/video-creating/archive/refs/heads/v2.zip"
 
 function Refresh-SessionPath {
     $m = [Environment]::GetEnvironmentVariable("Path", "Machine")
@@ -90,13 +90,13 @@ Set-Location $InstallDir
 if ($LASTEXITCODE -ne 0) { & $uv sync }
 
 # 5. Tao Shortcut tren Desktop va Start Menu
-Write-Host "[5/5] Dang tao bieu tuong Video Creator ngoai Desktop..." -ForegroundColor Yellow
+Write-Host "[5/5] Dang tao bieu tuong Video Creator V2 ngoai Desktop..." -ForegroundColor Yellow
 $WshShell = New-Object -ComObject WScript.Shell
 $DesktopDir = [Environment]::GetFolderPath("Desktop")
-$StartMenuDir = Join-Path ([Environment]::GetFolderPath("Programs")) "Video Creator"
+$StartMenuDir = Join-Path ([Environment]::GetFolderPath("Programs")) "Video Creator V2"
 New-Item -ItemType Directory -Path $StartMenuDir -Force | Out-Null
 
-foreach ($ShortcutPath in @((Join-Path $DesktopDir "Video Creator.lnk"), (Join-Path $StartMenuDir "Video Creator.lnk"))) {
+foreach ($ShortcutPath in @((Join-Path $DesktopDir "Video Creator V2.lnk"), (Join-Path $StartMenuDir "Video Creator V2.lnk"))) {
     $Sc = $WshShell.CreateShortcut($ShortcutPath)
     $Sc.TargetPath = "$env:SystemRoot\System32\wscript.exe"
     $Sc.Arguments = "`"$InstallDir\installer\launch.vbs`""
@@ -104,11 +104,11 @@ foreach ($ShortcutPath in @((Join-Path $DesktopDir "Video Creator.lnk"), (Join-P
     if (Test-Path "$InstallDir\installer\videocreator.ico") {
         $Sc.IconLocation = "$InstallDir\installer\videocreator.ico,0"
     }
-    $Sc.Description = "Video Creator"
+    $Sc.Description = "Video Creator V2"
     $Sc.Save()
 }
 
 Write-Host ""
-Write-Host "=== CAI DAT HOAN TAT! DANG MO VIDEO CREATOR... ===" -ForegroundColor Green
+Write-Host "=== CAI DAT HOAN TAT! DANG MO VIDEO CREATOR V2... ===" -ForegroundColor Green
 Start-Process -FilePath "$env:SystemRoot\System32\wscript.exe" -ArgumentList "`"$InstallDir\installer\launch.vbs`"" -WorkingDirectory $InstallDir
 Start-Sleep -Seconds 3
