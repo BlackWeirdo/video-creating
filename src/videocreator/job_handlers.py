@@ -10,6 +10,7 @@ from videocreator.pipeline.batch_studio import run_batch_run_job
 from videocreator.pipeline.describe import run_describe_footage
 from videocreator.pipeline.footage_analyse import run_analyse_footage
 from videocreator.pipeline.localize import run_localize_extract_job, run_localize_render_job
+from videocreator.pipeline.news_studio import run_news_render_job
 from videocreator.pipeline.plan_request import run_plan_footage
 from videocreator.pipeline.render import render_video
 from videocreator.pipeline.replan import replan_video
@@ -77,6 +78,10 @@ def register_job_handlers(job_registry: JobRegistry, paths: AppPaths) -> None:
     job_registry.register(
         "localize_render",
         lambda ref_id: run_localize_render_job(paths, int(ref_id or 0)),
+    )
+    job_registry.register(
+        "news_render",
+        lambda ref_id: run_news_render_job(paths, int(ref_id or 0)),
     )
     job_registry.register(
         "batch_run",
