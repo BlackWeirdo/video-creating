@@ -38,7 +38,6 @@ from videocreator.api.v1 import v1_router
 from videocreator.auth import NonLocalhostBasicAuthMiddleware
 from videocreator.config import load_settings
 from videocreator.db import migrate
-from videocreator.engines.mpt_service import MPTServiceManager
 from videocreator.job_handlers import register_job_handlers
 from videocreator.job_store import recover_interrupted_jobs
 from videocreator.jobs import JobRegistry, JobWorker, default_registry
@@ -75,7 +74,6 @@ def create_app(
     )
     tg_service = TelegramBotService(paths, secrets)
     scheduler = AppScheduler(paths)
-    mpt_service = MPTServiceManager(paths)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -95,7 +93,6 @@ def create_app(
             worker.start()
             scheduler.start()
             tg_task = asyncio.create_task(tg_service.start())
-            mpt_service.start()
         try:
             yield
         finally:
@@ -105,7 +102,6 @@ def create_app(
                     await tg_task
                 except BaseException:
                     pass
-            mpt_service.stop()
             scheduler.stop()
             await tg_service.stop()
             await worker.stop()

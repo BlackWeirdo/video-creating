@@ -32,6 +32,12 @@ ALLOWED_FILTERS: frozenset[str] = frozenset(
         "asetpts",
         "aresample",
         "adelay",
+        "sidechaincompress",
+        "silenceremove",
+        "atempo",
+        "asplit",
+        "aformat",
+        "acompressor",
     }
 )
 

@@ -28,6 +28,7 @@ JobHandler = Callable[[int | None], Any]
 COMPUTE_JOB_KINDS: frozenset[str] = frozenset(
     {
         "render",
+        "restyle_video",
         "analyse",
         "studio",
         "localize_render",

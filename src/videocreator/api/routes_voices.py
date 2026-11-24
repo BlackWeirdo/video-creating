@@ -15,11 +15,11 @@ from videocreator.templating import get_templates
 router = APIRouter()
 
 AVAILABLE_VOICE_CATALOG: list[dict[str, str]] = [
-    # Verified end to end through MoneyPrinterTurbo v1.3.9 (spike S12). Edge TTS needs no key;
-    # its terms for commercial use are still unconfirmed (spike S8).
     {"provider": "edge", "lang": "vi", "voice": "vi-VN-HoaiMyNeural-Female", "label": "Edge TTS: Hoài My (nữ, tiếng Việt)"},
     {"provider": "edge", "lang": "vi", "voice": "vi-VN-NamMinhNeural-Male", "label": "Edge TTS: Nam Minh (nam, tiếng Việt)"},
+    {"provider": "local", "lang": "vi", "voice": "local-vi-studio", "label": "Local Offline TTS (không cần mạng / test nhịp)"},
     {"provider": "edge", "lang": "en", "voice": "en-US-JennyNeural-Female", "label": "Edge TTS: Jenny (female, English)"},
+    {"provider": "local", "lang": "en", "voice": "local-en-studio", "label": "Local Offline TTS (English offline)"},
 ]
 
 @router.get("/voices", response_class=HTMLResponse)

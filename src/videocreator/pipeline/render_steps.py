@@ -12,7 +12,13 @@ from videocreator.paths import AppPaths
 from videocreator.pipeline.ffmpeg import RenderError, run_ffmpeg
 from videocreator.pipeline.probe import probe_duration, probe_video
 from videocreator.pipeline.render_inputs import build_segment_filter_args
-from videocreator.pipeline.subtitles import FONTS_DIR, SubtitleEvent, build_ass, parse_srt
+from videocreator.pipeline.subtitles import (
+    FONTS_DIR,
+    SubtitleEvent,
+    build_ass,
+    build_styled_ass,
+    parse_srt,
+)
 
 SUBTITLE_FILENAME = "sub.ass"
 
@@ -60,9 +66,15 @@ def _segment_audio_args(
 
 
 def cut_shot_segments(
-    paths: AppPaths, planned_shots: list[dict[str, Any]], work_dir: Path, *, keep_audio: bool = False
+    paths: AppPaths,
+    planned_shots: list[dict[str, Any]],
+    work_dir: Path,
+    *,
+    keep_audio: bool = False,
+    target_width: int = 1080,
+    target_height: int = 1920,
 ) -> tuple[list[str], list[SubtitleEvent], float]:
-    """Step 1: cuts each planned shot into a 1080x1920 30fps segment, without sound unless
+    """Step 1: cuts each planned shot into a target canvas 30fps segment, without sound unless
     `keep_audio` (then each segment carries the footage sound, or silence when it has none).
 
     Returns `(segment_file_names, subtitle_events_on_shot_timing, total_duration_s)`."""
@@ -87,6 +99,8 @@ def cut_shot_segments(
             height=int(shot_row.get("height") or 1920),
             crop_cfg=crop_cfg,
             focus_x=focus_x,
+            target_width=target_width,
+            target_height=target_height,
         )
 
         if keep_audio:
@@ -201,20 +215,172 @@ def add_voice_over(
     return voice_track, sub_events
 
 
+def _assign_word_timings_to_events(
+    planned_shots: list[dict[str, Any]],
+    word_timings: list[Any],
+    total_duration_s: float,
+) -> list[SubtitleEvent]:
+    """Maps synthesized per-word timings onto shot subtitle cues cleanly."""
+    events: list[SubtitleEvent] = []
+    wt_idx = 0
+    cursor_s = 0.0
+    n_timings = len(word_timings)
+
+    for shot in planned_shots:
+        dur_s = max(0.5, float(shot.get("duration_s") or 2.0))
+        text = str(shot.get("text") or "").strip()
+        sec_text = str(shot.get("secondary_text") or "").strip()
+        if not text:
+            cursor_s += dur_s
+            continue
+
+        words_in_line = [w for w in text.split() if w]
+        slice_timings: list[tuple[str, float, float]] = []
+        if wt_idx + len(words_in_line) <= n_timings and words_in_line:
+            raw_slice = word_timings[wt_idx : wt_idx + len(words_in_line)]
+            wt_idx += len(words_in_line)
+            for orig_word, wt in zip(words_in_line, raw_slice):
+                w_start = max(0.0, min(total_duration_s, float(wt.start_s)))
+                w_end = max(w_start + 0.04, min(total_duration_s, float(wt.end_s)))
+                if w_start < total_duration_s:
+                    slice_timings.append((orig_word, round(w_start, 3), round(w_end, 3)))
+
+        if slice_timings:
+            ev_start = slice_timings[0][1]
+            ev_end = slice_timings[-1][2]
+            events.append(
+                SubtitleEvent(
+                    start_s=ev_start,
+                    end_s=ev_end,
+                    text=text,
+                    words=tuple(slice_timings),
+                    secondary_text=sec_text,
+                )
+            )
+        elif cursor_s < total_duration_s:
+            events.append(
+                SubtitleEvent(
+                    start_s=round(cursor_s, 3),
+                    end_s=round(min(total_duration_s, cursor_s + dur_s), 3),
+                    text=text,
+                    secondary_text=sec_text,
+                )
+            )
+        cursor_s += dur_s
+    return events
+
+
+def add_internal_voice_over(
+    paths: AppPaths,
+    video_id: int,
+    *,
+    planned_shots: list[dict[str, Any]],
+    voice_lang: str,
+    work_dir: Path,
+    video_duration_s: float,
+    voice_provider: str | None = None,
+    voice_name: str | None = None,
+) -> tuple[Any, list[SubtitleEvent] | None, list[str]]:
+    """Internal TTS step replacing MPT (`local` waveform / `edge-tts`) with word timings + atempo fit."""
+    from videocreator.config import load_settings
+    from videocreator.tts import TTSUnavailableError, synthesize_speech_segments
+
+    cfg = load_settings(paths.config_file)
+    if voice_lang == "en":
+        chosen_prov = voice_provider or cfg.voice.en_provider
+        chosen_voice = voice_name or cfg.voice.en_voice
+    else:
+        chosen_prov = voice_provider or cfg.voice.vi_provider
+        chosen_voice = voice_name or cfg.voice.vi_voice
+
+    lines: list[tuple[str, float]] = []
+    for ps in planned_shots:
+        dur = max(0.5, float(ps.get("duration_s") or 2.0))
+        lines.append((str(ps.get("text") or ""), dur))
+
+    try:
+        track, warnings = synthesize_speech_segments(
+            lines,
+            lang=voice_lang,
+            voice=chosen_voice,
+            provider_name=chosen_prov,
+            work_dir=work_dir / "tts",
+        )
+    except TTSUnavailableError as exc:
+        return None, None, [f"Không lồng tiếng được ({voice_lang}/{chosen_prov}): {exc}"]
+
+    sub_events = _assign_word_timings_to_events(
+        planned_shots, track.word_timings, video_duration_s
+    )
+    return track, sub_events, warnings
+
+
+def subtitle_events_to_json(events: list[SubtitleEvent]) -> list[dict[str, Any]]:
+    return [
+        {
+            "start_s": float(ev.start_s),
+            "end_s": float(ev.end_s),
+            "text": str(ev.text),
+            "words": [[str(w[0]), float(w[1]), float(w[2])] for w in ev.words],
+            "secondary_text": str(ev.secondary_text or ""),
+        }
+        for ev in events
+    ]
+
+
+def subtitle_events_from_json(items: list[dict[str, Any]]) -> list[SubtitleEvent]:
+    out: list[SubtitleEvent] = []
+    for item in items:
+        raw_words = item.get("words") or []
+        words_tuple = tuple(
+            (str(w[0]), float(w[1]), float(w[2]))
+            for w in raw_words
+            if isinstance(w, (list, tuple)) and len(w) >= 3
+        )
+        out.append(
+            SubtitleEvent(
+                start_s=float(item.get("start_s") or 0.0),
+                end_s=float(item.get("end_s") or 0.0),
+                text=str(item.get("text") or ""),
+                words=words_tuple,
+                secondary_text=str(item.get("secondary_text") or ""),
+            )
+        )
+    return out
+
+
 def write_subtitle_file(
     sub_events: list[SubtitleEvent],
     settings: Settings,
     work_dir: Path,
     *,
     layout_preset: str = "clean_bottom",
+    style_preset_row: dict[str, Any] | None = None,
+    play_res_x: int = 1080,
+    play_res_y: int = 1920,
+    total_duration_s: float | None = None,
 ) -> None:
     """Writes the UTF-8 ASS subtitle file and its fonts into `work_dir`."""
-    ass_content = build_ass(
-        sub_events,
-        safe_top_ratio=settings.safe_zone.top,
-        safe_bottom_ratio=settings.safe_zone.bottom,
-        safe_right_ratio=settings.safe_zone.right,
-        layout_preset=layout_preset,
-    )
+    if style_preset_row is not None:
+        ass_content = build_styled_ass(
+            sub_events,
+            style_preset_row,
+            play_res_x=play_res_x,
+            play_res_y=play_res_y,
+            safe_top_ratio=settings.safe_zone.top,
+            safe_bottom_ratio=settings.safe_zone.bottom,
+            safe_right_ratio=settings.safe_zone.right,
+            total_duration_s=total_duration_s,
+        )
+    else:
+        ass_content = build_ass(
+            sub_events,
+            play_res_x=play_res_x,
+            play_res_y=play_res_y,
+            safe_top_ratio=settings.safe_zone.top,
+            safe_bottom_ratio=settings.safe_zone.bottom,
+            safe_right_ratio=settings.safe_zone.right,
+            layout_preset=layout_preset,
+        )
     (work_dir / SUBTITLE_FILENAME).write_text(ass_content, encoding="utf-8")
     shutil.copytree(FONTS_DIR, work_dir / "fonts", dirs_exist_ok=True)

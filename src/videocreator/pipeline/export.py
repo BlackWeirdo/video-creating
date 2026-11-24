@@ -11,6 +11,16 @@ __all__ = ["ALLOWED_FILTERS", "extract_cover_frame", "normalize_to_master"]
 
 SOURCE_AUDIO_UNDER = 0.3  # footage sound level under voice-over or music
 
+ASPECT_DIMENSIONS: dict[str, tuple[int, int]] = {
+    "9:16": (1080, 1920),
+    "16:9": (1920, 1080),
+    "1:1": (1080, 1080),
+}
+
+
+def resolve_canvas_dimensions(aspect_ratio: str | None) -> tuple[int, int]:
+    return ASPECT_DIMENSIONS.get((aspect_ratio or "9:16").strip(), (1080, 1920))
+
 
 def normalize_to_master(
     src_video: Path,
@@ -23,14 +33,22 @@ def normalize_to_master(
     preset: str = "veryfast",
     crf: int = 18,
     mix_source_audio: bool = False,
+    width: int = 1080,
+    height: int = 1920,
+    ducking: bool = True,
+    music_volume: float = 0.2,
+    sfx_events: list[tuple[Path, float]] | None = None,
 ) -> float:
-    """Normalizes `src_video` into the canonical 1080x1920 30fps H.264 High / AAC 48kHz stereo master MP4.
+    """Normalizes `src_video` into canonical H.264 High / AAC 48kHz stereo master MP4.
 
-    `mix_source_audio` keeps the source's own sound at `SOURCE_AUDIO_UNDER` under voice and music;
-    with neither, the source sound is used as is."""
+    Supports multi-aspect-ratio (`9:16`, `16:9`, `1:1`), `sidechaincompress` music ducking
+    under voice-over, transition SFX overlays via `adelay`, and `-14 LUFS` `loudnorm`."""
     info = probe_video(src_video)
     total_dur = max(0.5, info.duration_s)
     fade_start = max(0.0, total_dur - 0.5)
+    target_w = int(width) if width > 0 else 1080
+    target_h = int(height) if height > 0 else 1920
+    clean_music_vol = max(0.02, min(1.0, float(music_volume)))
 
     dest_master.parent.mkdir(parents=True, exist_ok=True)
 
@@ -41,8 +59,8 @@ def normalize_to_master(
         vf_parts.append(f"subtitles={ass_filename}{fonts_opt}")
     vf_parts.extend(
         [
-            "scale=1080:1920:force_original_aspect_ratio=decrease",
-            "pad=1080:1920:(ow-iw)/2:(oh-ih)/2",
+            f"scale={target_w}:{target_h}:force_original_aspect_ratio=decrease",
+            f"pad={target_w}:{target_h}:(ow-iw)/2:(oh-ih)/2",
             "setsar=1",
             "fps=30",
             "format=yuv420p",
@@ -50,47 +68,154 @@ def normalize_to_master(
     )
     vf_str = ",".join(vf_parts)
 
+    valid_sfx = [
+        (p, max(0.0, float(t)))
+        for p, t in (sfx_events or [])
+        if p.exists() and float(t) < total_dur
+    ]
     args: list[str] = ["-i", str(src_video.resolve())]
     af_args: list[str] = []
-    # Footage sound kept under voice/music (render option); `[src]` joins the mix below.
     with_source = mix_source_audio and info.has_audio
-    src_part = f"[0:a]volume={SOURCE_AUDIO_UNDER}[src];" if with_source else ""
+    src_part = (
+        f"[0:a]aformat=sample_rates=48000:channel_layouts=stereo,volume={SOURCE_AUDIO_UNDER}[src];"
+        if with_source
+        else ""
+    )
     src_label = "[src]" if with_source else ""
     n_src = 1 if with_source else 0
 
-    if voice_path is not None and voice_path.exists():
-        # Voice-over on a silent bed as long as the footage, optional music underneath.
-        # The footage length always wins: a longer voice is cut by `-t`, never the other way round.
+    has_voice = voice_path is not None and voice_path.exists()
+    has_music = music_path is not None and music_path.exists()
+
+    if has_voice:
+        assert voice_path is not None
         args.extend(["-i", str(voice_path.resolve())])
         args.extend(["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000"])
-        graph = f"{src_part}[2:a][1:a]{src_label}amix=inputs={2 + n_src}:duration=first:normalize=0"
-        if music_path is not None and music_path.exists():
+        next_idx = 3
+        sfx_chains: list[str] = []
+        sfx_labels: list[str] = []
+
+        if has_music:
+            assert music_path is not None
+            music_idx = next_idx
+            next_idx += 1
             args.extend(["-stream_loop", "-1", "-i", str(music_path.resolve())])
-            graph = (
-                f"{src_part}[3:a]atrim=0:{total_dur:.3f},asetpts=PTS-STARTPTS,volume=0.2,"
-                f"afade=t=out:st={fade_start:.3f}:d=0.5[bed];"
-                f"[2:a][1:a][bed]{src_label}amix=inputs={3 + n_src}:duration=first:normalize=0"
+
+            for s_i, (s_path, s_at) in enumerate(valid_sfx):
+                args.extend(["-i", str(s_path.resolve())])
+                delay_ms = max(0, int(round(s_at * 1000)))
+                lbl = f"[sfx{s_i}]"
+                sfx_labels.append(lbl)
+                sfx_chains.append(
+                    f"[{next_idx}:a]aformat=sample_rates=48000:channel_layouts=stereo,"
+                    f"volume=0.35,adelay={delay_ms}|{delay_ms}{lbl};"
+                )
+                next_idx += 1
+
+            bed_prep = (
+                f"[{music_idx}:a]atrim=0:{total_dur:.3f},asetpts=PTS-STARTPTS,"
+                f"aformat=sample_rates=48000:channel_layouts=stereo,"
+                f"volume={clean_music_vol:.3f},afade=t=out:st={fade_start:.3f}:d=0.5[bedraw];"
             )
-        graph += ",loudnorm=I=-14:TP=-1.5:LRA=11[aout]"
+            if ducking:
+                graph = (
+                    f"{src_part}"
+                    f"[2:a]atrim=0:{total_dur:.3f}[sil];"
+                    f"[sil][1:a]amix=inputs=2:duration=first:normalize=0,"
+                    f"aformat=sample_rates=48000:channel_layouts=stereo,asplit=2[vkey][vmix];"
+                    f"{bed_prep}"
+                    f"[bedraw][vkey]sidechaincompress=threshold=0.03:ratio=6:attack=20:release=280:makeup=1[bed];"
+                    f"{''.join(sfx_chains)}"
+                    f"[vmix][bed]{src_label}{''.join(sfx_labels)}"
+                    f"amix=inputs={2 + n_src + len(sfx_labels)}:duration=first:normalize=0,"
+                    f"loudnorm=I=-14:TP=-1.5:LRA=11[aout]"
+                )
+            else:
+                graph = (
+                    f"{src_part}{bed_prep}{''.join(sfx_chains)}"
+                    f"[2:a][1:a][bedraw]{src_label}{''.join(sfx_labels)}"
+                    f"amix=inputs={3 + n_src + len(sfx_labels)}:duration=first:normalize=0,"
+                    f"loudnorm=I=-14:TP=-1.5:LRA=11[aout]"
+                )
+        else:
+            for s_i, (s_path, s_at) in enumerate(valid_sfx):
+                args.extend(["-i", str(s_path.resolve())])
+                delay_ms = max(0, int(round(s_at * 1000)))
+                lbl = f"[sfx{s_i}]"
+                sfx_labels.append(lbl)
+                sfx_chains.append(
+                    f"[{next_idx}:a]aformat=sample_rates=48000:channel_layouts=stereo,"
+                    f"volume=0.35,adelay={delay_ms}|{delay_ms}{lbl};"
+                )
+                next_idx += 1
+            graph = (
+                f"{src_part}{''.join(sfx_chains)}"
+                f"[2:a][1:a]{src_label}{''.join(sfx_labels)}"
+                f"amix=inputs={2 + n_src + len(sfx_labels)}:duration=first:normalize=0,"
+                f"loudnorm=I=-14:TP=-1.5:LRA=11[aout]"
+            )
         args.extend(["-filter_complex", graph, "-map", "0:v:0", "-map", "[aout]"])
-    elif music_path is not None and music_path.exists() and with_source:
+    elif has_music and with_source:
+        assert music_path is not None
         args.extend(["-stream_loop", "-1", "-i", str(music_path.resolve())])
+        next_idx = 2
+        sfx_chains = []
+        sfx_labels = []
+        for s_i, (s_path, s_at) in enumerate(valid_sfx):
+            args.extend(["-i", str(s_path.resolve())])
+            delay_ms = max(0, int(round(s_at * 1000)))
+            lbl = f"[sfx{s_i}]"
+            sfx_labels.append(lbl)
+            sfx_chains.append(
+                f"[{next_idx}:a]aformat=sample_rates=48000:channel_layouts=stereo,"
+                f"volume=0.35,adelay={delay_ms}|{delay_ms}{lbl};"
+            )
+            next_idx += 1
         graph = (
-            f"{src_part}[1:a]atrim=0:{total_dur:.3f},asetpts=PTS-STARTPTS,"
-            f"afade=t=out:st={fade_start:.3f}:d=0.5[bed];"
-            "[bed][src]amix=inputs=2:duration=first:normalize=0,loudnorm=I=-14:TP=-1.5:LRA=11[aout]"
+            f"{src_part}"
+            f"[1:a]atrim=0:{total_dur:.3f},asetpts=PTS-STARTPTS,"
+            f"aformat=sample_rates=48000:channel_layouts=stereo,"
+            f"volume={clean_music_vol:.3f},afade=t=out:st={fade_start:.3f}:d=0.5[bed];"
+            f"{''.join(sfx_chains)}"
+            f"[bed][src]{''.join(sfx_labels)}amix=inputs={2 + len(sfx_labels)}:duration=first:normalize=0,"
+            f"loudnorm=I=-14:TP=-1.5:LRA=11[aout]"
         )
         args.extend(["-filter_complex", graph, "-map", "0:v:0", "-map", "[aout]"])
-    elif music_path is not None and music_path.exists():
+    elif has_music:
+        assert music_path is not None
         args.extend(["-stream_loop", "-1", "-i", str(music_path.resolve())])
-        args.extend(["-map", "0:v:0", "-map", "1:a:0"])
-        af_str = (
-            f"atrim=0:{total_dur:.3f},"
-            f"asetpts=PTS-STARTPTS,"
-            f"afade=t=out:st={fade_start:.3f}:d=0.5,"
-            f"loudnorm=I=-14:TP=-1.5:LRA=11"
-        )
-        af_args = ["-af", af_str]
+        if valid_sfx:
+            sfx_chains = []
+            sfx_labels = []
+            next_idx = 2
+            for s_i, (s_path, s_at) in enumerate(valid_sfx):
+                args.extend(["-i", str(s_path.resolve())])
+                delay_ms = max(0, int(round(s_at * 1000)))
+                lbl = f"[sfx{s_i}]"
+                sfx_labels.append(lbl)
+                sfx_chains.append(
+                    f"[{next_idx}:a]aformat=sample_rates=48000:channel_layouts=stereo,"
+                    f"volume=0.35,adelay={delay_ms}|{delay_ms}{lbl};"
+                )
+                next_idx += 1
+            graph = (
+                f"[1:a]atrim=0:{total_dur:.3f},asetpts=PTS-STARTPTS,"
+                f"aformat=sample_rates=48000:channel_layouts=stereo,"
+                f"volume={clean_music_vol:.3f},afade=t=out:st={fade_start:.3f}:d=0.5[bed];"
+                f"{''.join(sfx_chains)}"
+                f"[bed]{''.join(sfx_labels)}amix=inputs={1 + len(sfx_labels)}:duration=first:normalize=0,"
+                f"loudnorm=I=-14:TP=-1.5:LRA=11[aout]"
+            )
+            args.extend(["-filter_complex", graph, "-map", "0:v:0", "-map", "[aout]"])
+        else:
+            args.extend(["-map", "0:v:0", "-map", "1:a:0"])
+            af_str = (
+                f"atrim=0:{total_dur:.3f},"
+                f"asetpts=PTS-STARTPTS,"
+                f"afade=t=out:st={fade_start:.3f}:d=0.5,"
+                f"loudnorm=I=-14:TP=-1.5:LRA=11"
+            )
+            af_args = ["-af", af_str]
     elif info.has_audio:
         args.extend(["-map", "0:v:0", "-map", "0:a:0"])
         af_args = ["-af", "loudnorm=I=-14:TP=-1.5:LRA=11"]

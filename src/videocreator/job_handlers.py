@@ -9,6 +9,7 @@ from videocreator.pipeline.footage_analyse import run_analyse_footage
 from videocreator.pipeline.plan_request import run_plan_footage
 from videocreator.pipeline.render import render_video
 from videocreator.pipeline.replan import replan_video
+from videocreator.pipeline.restyle import run_restyle_job
 from videocreator.studio.agent import run_studio_job
 from videocreator.studio.session import STUDIO_JOB_KIND
 from videocreator.trends.analyse_queue import ANALYSE_TREND_JOB_KIND
@@ -36,6 +37,10 @@ def register_job_handlers(job_registry: JobRegistry, paths: AppPaths) -> None:
     job_registry.register(
         "render",
         lambda ref_id: render_video(paths, int(ref_id or 0)),
+    )
+    job_registry.register(
+        "restyle_video",
+        lambda ref_id: run_restyle_job(paths, int(ref_id or 0)),
     )
     job_registry.register(
         "scan_trends",

@@ -20,9 +20,14 @@ def build_segment_filter_args(
     height: int,
     crop_cfg: dict[str, Any] | None,
     focus_x: float | None = None,
+    target_width: int = 1080,
+    target_height: int = 1920,
 ) -> list[str]:
-    """Builds `-vf` or `-filter_complex` arguments to convert a source shot to 1080x1920 30fps without violating BR-PRD-03."""
-    if orientation == "landscape" and width > 0 and height > 0:
+    """Builds `-vf` or `-filter_complex` arguments to convert a source shot to target canvas dimensions without violating BR-PRD-03."""
+    tw = int(target_width) if target_width > 0 else 1080
+    th = int(target_height) if target_height > 0 else 1920
+
+    if orientation == "landscape" and width > 0 and height > 0 and tw < th:
         mode = str((crop_cfg or {}).get("mode") or "blur_pad")
         if mode in ("crop", "smart_crop"):
             raw_x = (crop_cfg or {}).get("x_offset_ratio")
@@ -33,26 +38,38 @@ def build_segment_filter_args(
             else:
                 chosen_x = float(raw_x if raw_x is not None else 0.5)
             x_ratio = max(0.0, min(1.0, chosen_x))
-            crop_w = int(round(height * 9 / 16))
+            crop_w = int(round(height * tw / th))
             crop_w = max(2, crop_w - (crop_w % 2))
             crop_w = min(width, crop_w)
             max_x = max(0, width - crop_w)
             x_off = int(round(max_x * x_ratio))
-            vf = f"crop={crop_w}:{height}:{x_off}:0,scale=1080:1920,setsar=1,fps=30"
+            vf = f"crop={crop_w}:{height}:{x_off}:0,scale={tw}:{th},setsar=1,fps=30"
             return ["-vf", vf]
 
-        # Default landscape handling: full frame centered on a blurred 9:16 background (never center-cropped)
         fc = (
             "split[bg][fg];"
-            "[bg]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:5[bgb];"
-            "[fg]scale=1080:1920:force_original_aspect_ratio=decrease[fgs];"
+            f"[bg]scale={tw}:{th}:force_original_aspect_ratio=increase,crop={tw}:{th},boxblur=20:5[bgb];"
+            f"[fg]scale={tw}:{th}:force_original_aspect_ratio=decrease[fgs];"
             "[bgb][fgs]overlay=(W-w)/2:(H-h)/2,setsar=1,fps=30"
         )
         return ["-filter_complex", fc]
 
+    src_ratio = (width / max(1, height)) if (width > 0 and height > 0) else (tw / th)
+    dst_ratio = tw / max(1, th)
+    if width > 0 and height > 0 and abs(src_ratio - dst_ratio) > 0.2:
+        mode = str((crop_cfg or {}).get("mode") or "blur_pad")
+        if mode == "blur_pad":
+            fc = (
+                "split[bg][fg];"
+                f"[bg]scale={tw}:{th}:force_original_aspect_ratio=increase,crop={tw}:{th},boxblur=20:5[bgb];"
+                f"[fg]scale={tw}:{th}:force_original_aspect_ratio=decrease[fgs];"
+                "[bgb][fgs]overlay=(W-w)/2:(H-h)/2,setsar=1,fps=30"
+            )
+            return ["-filter_complex", fc]
+
     vf = (
-        "scale=1080:1920:force_original_aspect_ratio=decrease,"
-        "pad=1080:1920:(ow-iw)/2:(oh-ih)/2,"
+        f"scale={tw}:{th}:force_original_aspect_ratio=decrease,"
+        f"pad={tw}:{th}:(ow-iw)/2:(oh-ih)/2,"
         "setsar=1,"
         "fps=30"
     )
@@ -153,3 +170,20 @@ def pick_music_asset(
         paths, music_asset_id=music_asset_id, music_mood=music_mood, energy_level=energy_level
     )
     return rec["path"] if rec is not None else None
+
+
+def pick_sfx_asset_path(
+    paths: AppPaths, sfx_asset_id: int | None = None
+) -> Path | None:
+    """Resolves an SFX asset path by ID (or returns None if missing)."""
+    if sfx_asset_id is None:
+        return None
+    row = query_one(
+        paths.db_file,
+        "SELECT path FROM assets WHERE id = ? AND kind = 'sfx'",
+        (int(sfx_asset_id),),
+    )
+    if not row or not row.get("path"):
+        return None
+    p = paths.media_dir / str(row["path"])
+    return p if p.exists() else None
