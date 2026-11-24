@@ -287,11 +287,20 @@ def add_internal_voice_over(
 
     cfg = load_settings(paths.config_file)
     if voice_lang == "en":
-        chosen_prov = voice_provider or cfg.voice.en_provider
-        chosen_voice = voice_name or cfg.voice.en_voice
+        base_prov = voice_provider or cfg.voice.en_provider
+        raw_voice = voice_name or cfg.voice.en_voice
     else:
-        chosen_prov = voice_provider or cfg.voice.vi_provider
-        chosen_voice = voice_name or cfg.voice.vi_voice
+        base_prov = voice_provider or cfg.voice.vi_provider
+        raw_voice = voice_name or cfg.voice.vi_voice
+
+    from videocreator.pipeline.channel_voices import resolve_voice_id_to_tts_spec
+
+    chosen_prov, chosen_voice, ref_audio = resolve_voice_id_to_tts_spec(
+        paths,
+        raw_voice,
+        lang=voice_lang,
+        default_provider=base_prov,
+    )
 
     lines: list[tuple[str, float]] = []
     for ps in planned_shots:
@@ -305,6 +314,8 @@ def add_internal_voice_over(
             voice=chosen_voice,
             provider_name=chosen_prov,
             work_dir=work_dir / "tts",
+            ref_audio=ref_audio,
+            paths=paths,
         )
     except TTSUnavailableError as exc:
         return None, None, [f"Không lồng tiếng được ({voice_lang}/{chosen_prov}): {exc}"]

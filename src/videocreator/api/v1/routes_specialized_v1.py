@@ -67,6 +67,8 @@ class PodcastCreateBody(BaseModel):
     host_b_name: str = "Host B"
     host_a_voice: str = "vi-VN-HoaiMyNeural"
     host_b_voice: str = "vi-VN-NamMinhNeural"
+    host_a_avatar_path: str = ""
+    host_b_avatar_path: str = ""
     audio_source_path: str = ""
     aspect_ratio: str = "16:9"
     waveform_style: str = "cline"
@@ -215,6 +217,8 @@ async def api_v1_create_podcast(request: Request, body: PodcastCreateBody) -> JS
             host_b_name=body.host_b_name,
             host_a_voice=body.host_a_voice,
             host_b_voice=body.host_b_voice,
+            host_a_avatar_path=body.host_a_avatar_path,
+            host_b_avatar_path=body.host_b_avatar_path,
             audio_source_path=body.audio_source_path,
             aspect_ratio=body.aspect_ratio,
             waveform_style=body.waveform_style,

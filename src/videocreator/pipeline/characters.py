@@ -39,6 +39,7 @@ def _image_dims(aspect_ratio: str) -> tuple[int, int]:
 def _hydrate_character(row: dict[str, Any]) -> dict[str, Any]:
     out = dict(row)
     out["style_tags"] = loads_or(row.get("style_tags_json"), [])
+    out["cutout_simulation_flags"] = loads_or(row.get("cutout_simulation_flags_json"), [])
     return out
 
 
@@ -198,29 +199,44 @@ def save_character_ref_image(
     return updated
 
 
-def remove_background_to_png(
+def remove_background_with_flag(
     paths: AppPaths,
     src_image_path: Path,
     dst_png_path: Path,
     *,
     key_color: str = "0x111827",
-) -> Path:
-    """Removes image background using rembg (if ready & installed) or FFmpeg colorkey RGBA PNG."""
+) -> tuple[Path, bool]:
+    """Removes image background via verified `rembg` (`u2net_custom`) on CPU, with tagged `colorkey` fallback."""
+    import gc
+
     if not src_image_path.exists():
         raise FileNotFoundError(f"Source image missing: {src_image_path}")
     dst_png_path.parent.mkdir(parents=True, exist_ok=True)
 
     rembg_info = get_local_model(paths, "rembg_u2net")
     used_rembg = False
-    if rembg_info and rembg_info["status"] == "ready":
+    if rembg_info and rembg_info.get("status") == "ready" and rembg_info.get("installed_on_disk"):
         try:
-            from rembg import remove as rembg_remove  # type: ignore[import-not-found]
+            from rembg import remove as rembg_remove
+            from rembg.session_factory import new_session
 
-            out_bytes = rembg_remove(src_image_path.read_bytes())
-            dst_png_path.write_bytes(out_bytes)
-            used_rembg = True
+            onnx_path = Path(str(rembg_info["local_path"]))
+            if onnx_path.is_dir():
+                onnx_path = next(onnx_path.glob("*.onnx"))
+            sess = new_session(
+                "u2net_custom",
+                providers=["CPUExecutionProvider"],
+                model_path=str(onnx_path),
+            )
+            try:
+                out_bytes = rembg_remove(src_image_path.read_bytes(), session=sess)
+                dst_png_path.write_bytes(out_bytes)
+                used_rembg = True
+            finally:
+                del sess
+                gc.collect()
         except Exception as exc:
-            logger.debug("rembg fallback to FFmpeg colorkey for %s: %s", src_image_path.name, exc)
+            logger.warning("rembg u2net_custom failed for %s; using colorkey fallback: %s", src_image_path.name, exc)
 
     if not used_rembg:
         run_ffmpeg(
@@ -237,7 +253,21 @@ def remove_background_to_png(
             ],
             allow_creative_filters=True,
         )
-    return dst_png_path
+    return dst_png_path, used_rembg
+
+
+def remove_background_to_png(
+    paths: AppPaths,
+    src_image_path: Path,
+    dst_png_path: Path,
+    *,
+    key_color: str = "0x111827",
+) -> Path:
+    """Removes image background using rembg (if ready & installed) or FFmpeg colorkey RGBA PNG."""
+    out_path, _used = remove_background_with_flag(
+        paths, src_image_path, dst_png_path, key_color=key_color
+    )
+    return out_path
 
 
 def cutout_character(paths: AppPaths, character_id: int) -> dict[str, Any]:
@@ -249,12 +279,13 @@ def cutout_character(paths: AppPaths, character_id: int) -> dict[str, Any]:
         raise ValueError(f"Character #{character_id} has no reference image")
     src = paths.media_dir / ref_rel
     dst = paths.media_dir / "characters" / f"char_{character_id}_cutout.png"
-    remove_background_to_png(paths, src, dst)
+    _, used_rembg = remove_background_with_flag(paths, src, dst)
+    flags = [] if used_rembg else ["cutout_colorkey_fallback"]
     rel_cut = f"characters/{dst.name}"
     with get_conn(paths.db_file) as conn:
         conn.execute(
-            "UPDATE characters SET cutout_image_path = ? WHERE id = ?",
-            (rel_cut, int(character_id)),
+            "UPDATE characters SET cutout_image_path = ?, cutout_simulation_flags_json = ? WHERE id = ?",
+            (rel_cut, json.dumps(flags), int(character_id)),
         )
     updated = get_character(paths.db_file, character_id)
     assert updated is not None
@@ -509,12 +540,15 @@ def cutout_ai_image(paths: AppPaths, image_id: int) -> dict[str, Any]:
     src = paths.media_dir / str(img["image_path"])
     dst = paths.media_dir / "characters" / f"ai_img_{image_id}_cutout.png"
     key_hex = _SEED_PALETTE[abs(int(img["seed"])) % len(_SEED_PALETTE)][0].replace("#", "0x")
-    remove_background_to_png(paths, src, dst, key_color=key_hex)
+    _, used_rembg = remove_background_with_flag(paths, src, dst, key_color=key_hex)
+    sim_flags = [f for f in (img.get("simulation_flags") or []) if f != "cutout_colorkey_fallback"]
+    if not used_rembg:
+        sim_flags.append("cutout_colorkey_fallback")
     rel = f"characters/{dst.name}"
     with get_conn(paths.db_file) as conn:
         conn.execute(
-            "UPDATE ai_images SET cutout_path = ? WHERE id = ?",
-            (rel, int(image_id)),
+            "UPDATE ai_images SET cutout_path = ?, simulation_flags_json = ? WHERE id = ?",
+            (rel, json.dumps(sim_flags), int(image_id)),
         )
     updated = get_ai_image(paths.db_file, image_id)
     assert updated is not None

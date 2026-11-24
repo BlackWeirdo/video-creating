@@ -1,4 +1,4 @@
-"""Podcast Audio-Spectrum Studio (16:9 / 9:16 / 1:1) with Multi-Host TTS & FFmpeg Visualizers (V2-STD-02)."""
+"""Podcast Audio-Spectrum Studio (16:9 / 9:16 / 1:1) with Real Multi-Host TTS, Channel Voices & Turn-Synced Host Avatars (Stage R4)."""
 from __future__ import annotations
 
 import json
@@ -9,11 +9,14 @@ import wave
 from pathlib import Path
 from typing import Any
 
+from PIL import Image, ImageDraw
+
 from videocreator.approvals import try_autopilot_approve
 from videocreator.config import load_settings
 from videocreator.db import get_conn, query_all, query_one, record_audit
 from videocreator.jsonutil import loads_or
 from videocreator.paths import AppPaths
+from videocreator.pipeline.channel_voices import resolve_voice_id_to_tts_spec
 from videocreator.pipeline.export import resolve_canvas_dimensions
 from videocreator.pipeline.ffmpeg import run_ffmpeg
 from videocreator.pipeline.probe import probe_duration
@@ -35,6 +38,11 @@ def _clean_hex_color(color: str, fallback: str = "#38bdf8") -> str:
     return raw if _HEX_COLOR_RE.match(raw) else fallback
 
 
+def _hex_to_rgb(hex_col: str) -> tuple[int, int, int]:
+    h = _clean_hex_color(hex_col).lstrip("#")
+    return int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+
+
 def synthesize_with_local_fallback(
     paths: AppPaths,
     *,
@@ -45,34 +53,42 @@ def synthesize_with_local_fallback(
     tts_provider: str | None = None,
     used_providers_out: list[str] | None = None,
 ) -> Path:
-    """Synthesizes mono 48kHz PCM WAV via configured provider with honest test_tone fallback."""
+    """Synthesizes mono 48kHz PCM WAV via Edge TTS, VieNeu CPU, or consented Channel Voice with honest test_tone fallback."""
     cfg = load_settings(paths.config_file)
-    chosen = (tts_provider or "").strip().lower()
-    if not chosen:
-        chosen = cfg.voice.en_provider if lang == "en" else cfg.voice.vi_provider
+    explicit = (tts_provider or "").strip().lower()
+    base_prov = explicit or (cfg.voice.en_provider if lang == "en" else cfg.voice.vi_provider)
 
     work_dir.mkdir(parents=True, exist_ok=True)
-    if chosen == "edge" and shutil.which("edge-tts"):
+    prov, resolved_voice, ref_audio = resolve_voice_id_to_tts_spec(
+        paths,
+        voice,
+        lang=lang,
+        default_provider=base_prov,
+    )
+
+    if prov in ("edge", "vieneu"):
         try:
             track, _ = synthesize_speech_segments(
                 lines,
                 lang=lang,
-                voice=voice,
-                provider_name="edge",
+                voice=resolved_voice,
+                provider_name=prov,
                 work_dir=work_dir,
                 max_atempo=1.15,
+                ref_audio=ref_audio,
+                paths=paths,
             )
             if used_providers_out is not None:
-                used_providers_out.append("edge")
+                used_providers_out.append(track.provider)
             return track.audio_path
         except TTSUnavailableError as exc:
-            logger.debug("Edge TTS unavailable, falling back to test_tone synthesis: %s", exc)
+            logger.warning("Podcast TTS (%s/%s) unavailable; falling back to test_tone: %s", prov, resolved_voice, exc)
 
-    tone_prov = chosen if chosen in ("test_tone", "local") else "test_tone"
+    tone_prov = explicit if explicit in ("test_tone", "local") else "test_tone"
     track, _ = synthesize_speech_segments(
         lines,
         lang=lang,
-        voice=voice,
+        voice=resolved_voice,
         provider_name=tone_prov,
         work_dir=work_dir,
         max_atempo=1.15,
@@ -82,16 +98,17 @@ def synthesize_with_local_fallback(
     return track.audio_path
 
 
-def _concat_wavs_padded(
-    turn_tracks: list[tuple[Path, str, str]],
+def _concat_podcast_turns_padded(
+    turn_tracks: list[tuple[Path, str, str, str]],
     dest_wav: Path,
     *,
     min_total_s: float = 5.4,
-) -> tuple[Path, list[SubtitleEvent], float]:
-    """Concatenates mono 48kHz PCM turn WAVs with sample-accurate subtitle timings."""
+) -> tuple[Path, list[SubtitleEvent], list[tuple[float, float, str]], float]:
+    """Concatenates mono 48kHz PCM turn WAVs with sample-accurate subtitle & host-turn timings."""
     dest_wav.parent.mkdir(parents=True, exist_ok=True)
     sample_rate = 48000
     events: list[SubtitleEvent] = []
+    turn_windows: list[tuple[float, float, str]] = []
     cursor_frames = 0
     gap_frames = int(0.18 * sample_rate)
 
@@ -100,7 +117,7 @@ def _concat_wavs_padded(
         out_wf.setsampwidth(2)
         out_wf.setframerate(sample_rate)
 
-        for idx, (wav_path, speaker, text) in enumerate(turn_tracks):
+        for idx, (wav_path, speaker, text, host_slot) in enumerate(turn_tracks):
             norm_wav = wav_path.with_name(f"{wav_path.stem}_48k.wav")
             run_ffmpeg(
                 [
@@ -123,6 +140,8 @@ def _concat_wavs_padded(
             start_s = cursor_frames / sample_rate
             cursor_frames += n_frames
             end_s = cursor_frames / sample_rate
+            if end_s > start_s:
+                turn_windows.append((round(start_s, 3), round(end_s, 3), host_slot))
             label = f"{speaker}: {text}" if speaker else text
             if label.strip() and end_s > start_s:
                 events.append(
@@ -143,7 +162,88 @@ def _concat_wavs_padded(
             out_wf.writeframes(b"\x00\x00" * pad_frames)
             total_frames = min_frames
 
-    return dest_wav, events, round(total_frames / sample_rate, 3)
+    return dest_wav, events, turn_windows, round(total_frames / sample_rate, 3)
+
+
+def _concat_wavs_padded(
+    turn_tracks: list[tuple[Path, str, str]],
+    dest_wav: Path,
+    *,
+    min_total_s: float = 5.4,
+) -> tuple[Path, list[SubtitleEvent], float]:
+    out_wav, events, _tw, dur = _concat_podcast_turns_padded(
+        [(w, spk, txt, "A") for w, spk, txt in turn_tracks],
+        dest_wav,
+        min_total_s=min_total_s,
+    )
+    return out_wav, events, dur
+
+
+def _render_host_avatar_pair(
+    out_dir: Path,
+    *,
+    slot: str,
+    host_name: str,
+    avatar_path: Path | None,
+    size: int,
+    accent_rgb: tuple[int, int, int],
+) -> tuple[Path, Path]:
+    """Renders `(dim_png, active_png)` avatar cards so the speaking host visibly illuminates."""
+    dim_png = out_dir / f"host_{slot}_dim.png"
+    act_png = out_dir / f"host_{slot}_active.png"
+
+    portrait: Image.Image | None = None
+    if avatar_path is not None and avatar_path.is_file():
+        try:
+            portrait = Image.open(avatar_path).convert("RGB").resize((size - 20, size - 20))
+        except Exception:
+            portrait = None
+
+    for is_active, dst in ((False, dim_png), (True, act_png)):
+        bg_col = (
+            (min(255, accent_rgb[0] // 2 + 35), min(255, accent_rgb[1] // 2 + 45), min(255, accent_rgb[2] // 2 + 65))
+            if is_active
+            else (18, 25, 40)
+        )
+        border_col = accent_rgb if is_active else (52, 65, 85)
+        border_w = 6 if is_active else 2
+
+        card = Image.new("RGB", (size, size), bg_col)
+        draw = ImageDraw.Draw(card)
+
+        if portrait is not None:
+            factor = 1.12 if is_active else 0.42
+            lit = portrait.point(lambda px: max(0, min(255, int(px * factor))))
+            card.paste(lit, (10, 10))
+        else:
+            # Draw clean geometric presenter silhouette when no custom avatar photo was uploaded
+            sil_col = (240, 248, 255) if is_active else (75, 90, 112)
+            cx, cy = size // 2, int(size * 0.38)
+            r_head = max(12, int(size * 0.17))
+            draw.ellipse((cx - r_head, cy - r_head, cx + r_head, cy + r_head), fill=sil_col)
+            r_body_x = max(20, int(size * 0.30))
+            r_body_y = max(16, int(size * 0.24))
+            by_top = cy + r_head + 6
+            draw.pieslice(
+                (cx - r_body_x, by_top, cx + r_body_x, by_top + r_body_y * 2),
+                start=180,
+                end=360,
+                fill=sil_col,
+            )
+
+        if is_active:
+            # Bright glowing outer frame + speaking indicator dot
+            draw.rectangle((2, 2, size - 3, size - 3), outline=border_col, width=border_w)
+            draw.rectangle((8, 8, size - 9, size - 9), outline=(255, 255, 255), width=2)
+            dot_r = max(5, size // 18)
+            draw.ellipse((size - dot_r * 3 - 6, 8, size - 8, 8 + dot_r * 2), fill=(52, 211, 153))
+        else:
+            draw.rectangle((1, 1, size - 2, size - 2), outline=border_col, width=border_w)
+
+        _ = host_name  # label is displayed in subtitles & UI
+        card.save(dst, format="PNG")
+
+    return dim_png, act_png
 
 
 def _hydrate_podcast(row: dict[str, Any]) -> dict[str, Any]:
@@ -181,6 +281,8 @@ def create_podcast_project(
     host_b_name: str = "Host B",
     host_a_voice: str = "vi-VN-HoaiMyNeural",
     host_b_voice: str = "vi-VN-NamMinhNeural",
+    host_a_avatar_path: str = "",
+    host_b_avatar_path: str = "",
     audio_source_path: str = "",
     aspect_ratio: str = "16:9",
     waveform_style: str = "cline",
@@ -196,13 +298,15 @@ def create_podcast_project(
 
     clean_turns: list[dict[str, Any]] = []
     if dialogue:
-        for turn in dialogue:
+        for idx, turn in enumerate(dialogue):
             txt = str(turn.get("text") or "").strip()
             if txt:
+                spk = str(turn.get("speaker") or (host_a_name if idx % 2 == 0 else host_b_name)).strip()
+                default_v = host_a_voice if spk == host_a_name or idx % 2 == 0 else host_b_voice
                 clean_turns.append(
                     {
-                        "speaker": str(turn.get("speaker") or host_a_name).strip(),
-                        "voice": str(turn.get("voice") or host_a_voice).strip(),
+                        "speaker": spk,
+                        "voice": str(turn.get("voice") or default_v).strip(),
                         "text": txt,
                     }
                 )
@@ -227,10 +331,11 @@ def create_podcast_project(
             """
             INSERT INTO podcast_projects (
                 workspace_id, title, host_a_name, host_b_name, host_a_voice, host_b_voice,
+                host_a_avatar_path, host_b_avatar_path,
                 dialogue_json, audio_source_path, aspect_ratio, waveform_style,
                 accent_color, style_preset, target_lang, status
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft')
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft')
             """,
             (
                 int(workspace_id),
@@ -239,6 +344,8 @@ def create_podcast_project(
                 host_b_name.strip() or "Host B",
                 host_a_voice.strip() or "vi-VN-HoaiMyNeural",
                 host_b_voice.strip() or "vi-VN-NamMinhNeural",
+                (host_a_avatar_path or "").strip(),
+                (host_b_avatar_path or "").strip(),
                 json.dumps(clean_turns, ensure_ascii=False),
                 (audio_source_path or "").strip(),
                 ratio,
@@ -284,7 +391,7 @@ def render_podcast_project(
     *,
     tts_provider: str | None = None,
 ) -> dict[str, Any]:
-    """Renders a Podcast episode with real FFmpeg waveform/spectrum visualizer, `-14 LUFS`, ASS & QC."""
+    """Renders a Podcast episode with real multi-host TTS, turn-synced illuminating avatars, spectrum, `-14 LUFS` & QC."""
     proj = get_podcast_project(paths.db_file, project_id)
     if proj is None:
         raise ValueError(f"Podcast project #{project_id} not found")
@@ -312,25 +419,36 @@ def render_podcast_project(
     try:
         speech_wav = work_dir / "podcast_speech.wav"
         sub_events: list[SubtitleEvent] = []
+        turn_windows: list[tuple[float, float, str]] = []
         used_tts_providers: list[str] = []
+        host_a_name = str(proj.get("host_a_name") or "Host A").strip()
+        host_b_name = str(proj.get("host_b_name") or "Host B").strip()
+
         audio_rel = str(proj.get("audio_source_path") or "").strip().lstrip("/")
         if audio_rel:
             src_audio = Path(audio_rel) if Path(audio_rel).is_absolute() else (paths.media_dir / audio_rel)
             if not src_audio.is_file():
                 raise FileNotFoundError(f"Podcast audio missing: {src_audio}")
-            _, sub_events, dur_s = _concat_wavs_padded(
-                [(src_audio, str(proj.get("host_a_name") or "Host"), str(proj["title"]))],
+            _, sub_events, turn_windows, dur_s = _concat_podcast_turns_padded(
+                [(src_audio, host_a_name, str(proj["title"]), "A")],
                 speech_wav,
             )
         else:
             turns = list(proj.get("dialogue") or [])
-            turn_wavs: list[tuple[Path, str, str]] = []
+            turn_wavs: list[tuple[Path, str, str, str]] = []
             for idx, turn in enumerate(turns):
                 txt = str(turn.get("text") or "").strip()
                 if not txt:
                     continue
-                speaker = str(turn.get("speaker") or proj["host_a_name"]).strip()
-                voice = str(turn.get("voice") or proj["host_a_voice"]).strip()
+                speaker = str(turn.get("speaker") or (host_a_name if idx % 2 == 0 else host_b_name)).strip()
+                if speaker.lower() == host_b_name.lower() and host_b_name.lower() != host_a_name.lower():
+                    slot = "B"
+                elif speaker.lower() == host_a_name.lower() and host_b_name.lower() != host_a_name.lower():
+                    slot = "A"
+                else:
+                    slot = "A" if idx % 2 == 0 else "B"
+                default_v = str(proj["host_a_voice"] if slot == "A" else proj["host_b_voice"])
+                voice = str(turn.get("voice") or default_v).strip()
                 est_dur = max(2.2, len(txt.split()) * 0.35)
                 wav_p = synthesize_with_local_fallback(
                     paths,
@@ -341,10 +459,10 @@ def render_podcast_project(
                     tts_provider=tts_provider,
                     used_providers_out=used_tts_providers,
                 )
-                turn_wavs.append((wav_p, speaker, txt))
+                turn_wavs.append((wav_p, speaker, txt, slot))
             if not turn_wavs:
                 raise ValueError("Không có lượt hội thoại hợp lệ để dựng Podcast")
-            _, sub_events, dur_s = _concat_wavs_padded(turn_wavs, speech_wav)
+            _, sub_events, turn_windows, dur_s = _concat_podcast_turns_padded(turn_wavs, speech_wav)
 
         sim_flags: list[str] = []
         if any(p in ("test_tone", "local") for p in used_tts_providers):
@@ -352,13 +470,46 @@ def render_podcast_project(
 
         dur_s = max(5.4, probe_duration(speech_wav))
         wave_w = int(width * 0.80)
-        wave_h = max(220, int(height * 0.30))
+        wave_h = max(180, int(height * 0.24))
         wave_x = (width - wave_w) // 2
-        wave_y = (height - wave_h) // 2
-        panel_pad = 24
+        wave_y = int(height * 0.46)
+        panel_pad = 20
+
+        av_size = max(96, min(int(width * 0.20), int(height * 0.22), 180))
+        av_y = max(28, wave_y - panel_pad - av_size - 24)
+        av_ax = wave_x + int(wave_w * 0.12)
+        av_bx = max(av_ax + av_size + 24, wave_x + wave_w - int(wave_w * 0.12) - av_size)
+
+        av_a_rel = str(proj.get("host_a_avatar_path") or "").strip().lstrip("/")
+        av_b_rel = str(proj.get("host_b_avatar_path") or "").strip().lstrip("/")
+        av_a_file = (paths.media_dir / av_a_rel) if av_a_rel else None
+        av_b_file = (paths.media_dir / av_b_rel) if av_b_rel else None
+
+        dim_a, act_a = _render_host_avatar_pair(
+            work_dir,
+            slot="a",
+            host_name=host_a_name,
+            avatar_path=av_a_file,
+            size=av_size,
+            accent_rgb=_hex_to_rgb(hex_col),
+        )
+        dim_b, act_b = _render_host_avatar_pair(
+            work_dir,
+            slot="b",
+            host_name=host_b_name,
+            avatar_path=av_b_file,
+            size=av_size,
+            accent_rgb=(192, 132, 252),
+        )
+
+        enable_a_terms = [f"between(t,{st:.3f},{en:.3f})" for st, en, sl in turn_windows if sl == "A"]
+        enable_b_terms = [f"between(t,{st:.3f},{en:.3f})" for st, en, sl in turn_windows if sl == "B"]
+        enable_a = "+".join(enable_a_terms) if enable_a_terms else "0"
+        enable_b = "+".join(enable_b_terms) if enable_b_terms else "0"
+
         spec_filter = _build_spectrum_filter(w_style, wave_w, wave_h, hex_col)
         col_ff = "0x" + hex_col.lstrip("#")
-        bar_y = wave_y + wave_h + 26
+        bar_y = wave_y + wave_h + 24
 
         visual_mp4 = work_dir / "podcast_visual.mp4"
         fc = (
@@ -366,9 +517,13 @@ def render_podcast_project(
             f"w={wave_w + panel_pad * 2}:h={wave_h + panel_pad * 2}:color=0x1e293b@0.85:t=fill,"
             f"drawbox=x={wave_x - panel_pad}:y={wave_y - panel_pad}:"
             f"w={wave_w + panel_pad * 2}:h={wave_h + panel_pad * 2}:color={col_ff}@0.55:t=3,"
-            f"drawbox=x={wave_x}:y={bar_y}:w={wave_w}:h=6:color=0x334155@0.9:t=fill[bg];"
+            f"drawbox=x={wave_x}:y={bar_y}:w={wave_w}:h=6:color=0x334155@0.9:t=fill[bg0];"
+            f"[bg0][3:v]overlay=x={av_ax}:y={av_y}[bg1];"
+            f"[bg1][4:v]overlay=x={av_bx}:y={av_y}[bg2];"
+            f"[bg2][5:v]overlay=x={av_ax}:y={av_y}:enable='{enable_a}'[bg3];"
+            f"[bg3][6:v]overlay=x={av_bx}:y={av_y}:enable='{enable_b}'[bg4];"
             f"[1:a]{spec_filter}[wave];"
-            f"[bg][wave]overlay=x={wave_x}:y={wave_y}:shortest=1[stage];"
+            f"[bg4][wave]overlay=x={wave_x}:y={wave_y}:shortest=1[stage];"
             f"[stage][2:v]overlay=x='{wave_x}+({wave_w}-44)*min(1,t/{dur_s:.3f})':y={bar_y - 2}:shortest=1,"
             f"format=yuv420p[vout]"
         )
@@ -384,6 +539,14 @@ def render_podcast_project(
                 "lavfi",
                 "-i",
                 f"color=c={col_ff}:s=44x10:r=30:d={dur_s:.3f}",
+                "-i",
+                str(dim_a.resolve()),
+                "-i",
+                str(dim_b.resolve()),
+                "-i",
+                str(act_a.resolve()),
+                "-i",
+                str(act_b.resolve()),
                 "-filter_complex",
                 fc,
                 "-map",
@@ -420,6 +583,15 @@ def render_podcast_project(
                             "podcast_project_id": project_id,
                             "title": proj["title"],
                             "waveform_style": w_style,
+                            "avatar_layout": {
+                                "size": av_size,
+                                "y": av_y,
+                                "host_a_x": av_ax,
+                                "host_b_x": av_bx,
+                            },
+                            "turn_windows": [
+                                {"start_s": s, "end_s": e, "slot": sl} for s, e, sl in turn_windows
+                            ],
                             "shots": [],
                         },
                         ensure_ascii=False,

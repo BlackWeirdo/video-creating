@@ -10,6 +10,8 @@ interface PodcastProject {
   title: string;
   host_a_name: string;
   host_b_name: string;
+  host_a_voice: string;
+  host_b_voice: string;
   aspect_ratio: string;
   waveform_style: string;
   accent_color: string;
@@ -20,12 +22,34 @@ interface PodcastProject {
   simulation_flags?: string[];
 }
 
+interface ChannelVoiceOption {
+  id: number;
+  name: string;
+  speaker_name: string;
+  voice_token: string;
+}
+
+const BASE_PODCAST_VOICES = [
+  { value: "vi-VN-HoaiMyNeural", label: "Edge TTS: Hoài My (Nữ)" },
+  { value: "vi-VN-NamMinhNeural", label: "Edge TTS: Nam Minh (Nam)" },
+  { value: "vieneu:Trúc Ly", label: "VieNeu CPU: Trúc Ly (Nữ Bắc)" },
+  { value: "vieneu:Minh Quân", label: "VieNeu CPU: Minh Quân (Nam Bắc)" },
+  { value: "vieneu:Ái Hân", label: "VieNeu CPU: Ái Hân (Nữ Nam)" },
+  { value: "vieneu:Adam", label: "VieNeu CPU: Adam (Nam Nam)" },
+  { value: "en-US-JennyNeural", label: "Edge TTS: Jenny (EN)" },
+  { value: "en-US-GuyNeural", label: "Edge TTS: Guy (EN)" },
+];
+
 export default function PodcastStudioPage() {
   const { activeWorkspaceId } = useWorkspace();
   const [projects, setProjects] = useState<PodcastProject[]>([]);
+  const [channelVoices, setChannelVoices] = useState<ChannelVoiceOption[]>([]);
+
   const [title, setTitle] = useState("");
   const [hostA, setHostA] = useState("Lan Anh");
   const [hostB, setHostB] = useState("Minh Quân");
+  const [hostAVoice, setHostAVoice] = useState("vi-VN-HoaiMyNeural");
+  const [hostBVoice, setHostBVoice] = useState("vi-VN-NamMinhNeural");
   const [aspectRatio, setAspectRatio] = useState("16:9");
   const [waveformStyle, setWaveformStyle] = useState("spectrum");
   const [accentColor, setAccentColor] = useState("#38bdf8");
@@ -36,10 +60,16 @@ export default function PodcastStudioPage() {
 
   const load = useCallback(async () => {
     try {
-      const res = await apiFetch<{ projects: PodcastProject[] }>(
-        `/api/v1/podcasts/projects?workspace_id=${activeWorkspaceId}`
-      );
+      const [res, cvRes] = await Promise.all([
+        apiFetch<{ projects: PodcastProject[] }>(
+          `/api/v1/podcasts/projects?workspace_id=${activeWorkspaceId}`
+        ),
+        apiFetch<{ channel_voices: ChannelVoiceOption[] }>(
+          `/api/v1/channel-voices?workspace_id=${activeWorkspaceId}`
+        ),
+      ]);
       setProjects(res.projects || []);
+      setChannelVoices(cvRes.channel_voices || []);
       setErr("");
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Lỗi tải Studio Podcast");
@@ -49,6 +79,14 @@ export default function PodcastStudioPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const voiceChoices = [
+    ...channelVoices.map((cv) => ({
+      value: cv.voice_token,
+      label: `Giọng Kênh: ${cv.name} (${cv.speaker_name})`,
+    })),
+    ...BASE_PODCAST_VOICES,
+  ];
 
   const createPodcast = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,6 +100,8 @@ export default function PodcastStudioPage() {
           title: title || "Podcast Audio Spectrum",
           host_a_name: hostA,
           host_b_name: hostB,
+          host_a_voice: hostAVoice,
+          host_b_voice: hostBVoice,
           aspect_ratio: aspectRatio,
           waveform_style: waveformStyle,
           accent_color: accentColor,
@@ -86,7 +126,7 @@ export default function PodcastStudioPage() {
         method: "POST",
         body: JSON.stringify({ sync: true }),
       });
-      setMsg(`Đã xuất video Sóng nhạc Podcast #${pid} (-14 LUFS + QC).`);
+      setMsg(`Đã xuất video Sóng nhạc Podcast #${pid} (Avatar sáng theo lượt nói + -14 LUFS + QC).`);
       await load();
     } catch (e2) {
       setErr(e2 instanceof Error ? e2.message : "Lỗi dựng Podcast");
@@ -102,7 +142,7 @@ export default function PodcastStudioPage() {
           <Mic className="w-6 h-6 text-sky-400" /> Studio Sóng nhạc Podcast (16:9 / 9:16 / 1:1)
         </h1>
         <p className="text-xs text-slate-400 mt-1">
-          Tạo hội thoại 2 Host hoặc dùng audio có sẵn, vẽ phổ âm thanh FFmpeg thật (`showfreqs` / `showwaves`) chuẩn -14 LUFS.
+          Hội thoại 2 Host bằng giọng thật Edge TTS / VieNeu / Giọng Kênh MC, ảnh đại diện sáng lên theo đúng lượt nói và phổ âm thanh chuẩn -14 LUFS.
         </p>
       </div>
 
@@ -142,6 +182,28 @@ export default function PodcastStudioPage() {
             className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
           />
           <select
+            value={hostAVoice}
+            onChange={(e) => setHostAVoice(e.target.value)}
+            className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
+          >
+            {voiceChoices.map((v) => (
+              <option key={`a-${v.value}`} value={v.value}>
+                Giọng Host A: {v.label}
+              </option>
+            ))}
+          </select>
+          <select
+            value={hostBVoice}
+            onChange={(e) => setHostBVoice(e.target.value)}
+            className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
+          >
+            {voiceChoices.map((v) => (
+              <option key={`b-${v.value}`} value={v.value}>
+                Giọng Host B: {v.label}
+              </option>
+            ))}
+          </select>
+          <select
             value={aspectRatio}
             onChange={(e) => setAspectRatio(e.target.value)}
             className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
@@ -153,7 +215,7 @@ export default function PodcastStudioPage() {
           <select
             value={waveformStyle}
             onChange={(e) => setWaveformStyle(e.target.value)}
-            className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
+            className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2 md:col-span-2"
           >
             <option value="spectrum">Phổ tần số AI Spectrum (showfreqs)</option>
             <option value="bars">Cột tần số Logarit (bars)</option>

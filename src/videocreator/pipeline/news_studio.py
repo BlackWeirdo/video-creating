@@ -415,11 +415,18 @@ def render_news_project(
         headline = str(facts.get("headline") or proj["title"])
         summary_caption = ". ".join(str(s.get("text") or "") for s in script).strip()
 
+        eff_voice_id = str(proj.get("voice_id") or "").strip()
+        if proj.get("character_id"):
+            ch_row = query_one(paths.db_file, "SELECT voice_id FROM characters WHERE id = ?", (int(proj["character_id"]),))
+            if ch_row and ch_row.get("voice_id") and eff_voice_id in ("", "vi-VN-HoaiMyNeural"):
+                eff_voice_id = str(ch_row["voice_id"])
+
         t_lang = str(proj.get("target_lang") or "vi")
         legacy_lang = "vi" if t_lang.strip().lower().startswith("vi") else "en"
         plan_payload = {
             "news_project_id": project_id,
             "title": headline,
+            "voice_id": eff_voice_id,
             "facts": facts,
             "shots": planned_shots,
             "caption_vi": summary_caption,
@@ -474,7 +481,9 @@ def render_news_project(
         if proj.get("character_id"):
             sim_flags.append("ai_image_canvas_placeholder")
         cfg_v = load_settings(paths.config_file).voice.vi_provider
-        if cfg_v in ("test_tone", "local") or (cfg_v == "edge" and not shutil.which("edge-tts")):
+        q_row = query_one(paths.db_file, "SELECT quality_notes FROM videos WHERE id = ?", (video_id,))
+        q_notes = str((q_row or {}).get("quality_notes") or "")
+        if cfg_v in ("test_tone", "local") or "test_tone" in q_notes or "Không lồng tiếng được" in q_notes:
             sim_flags.append("tts_tone_placeholder")
 
         with get_conn(paths.db_file) as conn:

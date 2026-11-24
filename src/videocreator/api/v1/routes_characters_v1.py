@@ -1,12 +1,17 @@
 """Characters & AI Image Studio endpoints for `/api/v1`."""
 from __future__ import annotations
 
-from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from videocreator.api.v1.deps import resolve_workspace_id
 from videocreator.paths import AppPaths
+from videocreator.pipeline.channel_voices import (
+    create_channel_voice,
+    delete_channel_voice,
+    list_channel_voices,
+)
 from videocreator.pipeline.characters import (
     animate_image_to_shot,
     create_character,
@@ -206,3 +211,57 @@ async def api_v1_animate_image(request: Request, image_id: int) -> JSONResponse:
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return JSONResponse({"image": img})
+
+
+@router.get("/channel-voices")
+async def api_v1_list_channel_voices(
+    request: Request,
+    workspace_id: int | None = Query(default=None),
+) -> JSONResponse:
+    paths: AppPaths = request.app.state.paths
+    ws_id = resolve_workspace_id(paths.db_file, workspace_id)
+    return JSONResponse(
+        {
+            "channel_voices": list_channel_voices(paths.db_file, workspace_id=ws_id),
+            "workspace_id": ws_id,
+        }
+    )
+
+
+@router.post("/channel-voices", status_code=201)
+async def api_v1_create_channel_voice(
+    request: Request,
+    file: UploadFile = File(...),
+    name: str = Form(...),
+    speaker_name: str = Form(...),
+    consent_confirmed: bool = Form(False),
+    workspace_id: int | None = Form(default=None),
+    character_id: int | None = Form(default=None),
+) -> JSONResponse:
+    paths: AppPaths = request.app.state.paths
+    ws_id = resolve_workspace_id(paths.db_file, workspace_id)
+    raw = await file.read()
+    try:
+        cv = create_channel_voice(
+            paths,
+            workspace_id=ws_id,
+            name=name,
+            speaker_name=speaker_name,
+            consent_confirmed=bool(consent_confirmed),
+            raw_audio_bytes=raw,
+            filename=file.filename or "sample.wav",
+            character_id=character_id,
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return JSONResponse({"channel_voice": cv}, status_code=201)
+
+
+@router.delete("/channel-voices/{voice_id}")
+async def api_v1_delete_channel_voice(request: Request, voice_id: int) -> JSONResponse:
+    paths: AppPaths = request.app.state.paths
+    if not delete_channel_voice(paths, voice_id):
+        raise HTTPException(status_code=404, detail=f"Channel voice #{voice_id} not found")
+    return JSONResponse({"ok": True, "deleted_id": voice_id})

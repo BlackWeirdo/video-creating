@@ -270,6 +270,7 @@ def _render_to_master(
         if voice_sub_events:
             sub_events = voice_sub_events
     elif row_vlang in ("vi", "en"):
+        plan_voice_id = str(plan.get("voice_id") or "").strip() or None
         voice_track, voice_sub_events, tts_notes = add_internal_voice_over(
             paths,
             video_id,
@@ -277,6 +278,7 @@ def _render_to_master(
             voice_lang=row_vlang,
             work_dir=work_dir,
             video_duration_s=cut_duration_s,
+            voice_name=plan_voice_id,
         )
         if voice_sub_events:
             sub_events = voice_sub_events

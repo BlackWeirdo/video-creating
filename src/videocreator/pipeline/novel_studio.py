@@ -323,6 +323,11 @@ def render_novel_project(
     legacy_lang = "vi" if t_lang.strip().lower().startswith("vi") else "en"
     style = resolve_style_preset(paths.db_file, str(proj.get("style_preset") or "tiktok_karaoke"))["id"]
     ratio = str(proj.get("aspect_ratio") or "9:16")
+    eff_voice_id = str(proj.get("voice_id") or "").strip()
+    if proj.get("character_id"):
+        ch_row = query_one(paths.db_file, "SELECT voice_id FROM characters WHERE id = ?", (int(proj["character_id"]),))
+        if ch_row and ch_row.get("voice_id") and eff_voice_id in ("", "vi-VN-HoaiMyNeural"):
+            eff_voice_id = str(ch_row["voice_id"])
 
     with get_conn(paths.db_file) as conn:
         conn.execute(
@@ -362,6 +367,7 @@ def render_novel_project(
                 "novel_project_id": project_id,
                 "novel_chapter_id": ch_id,
                 "title": caption,
+                "voice_id": eff_voice_id,
                 "shots": planned_shots,
                 "caption_vi": caption,
                 "caption_en": caption,
@@ -441,11 +447,20 @@ def render_novel_project(
     if proj.get("character_id"):
         sim_flags.append("ai_image_canvas_placeholder")
     from videocreator.config import load_settings
-    import shutil as _shutil
 
     cfg_v = load_settings(paths.config_file).voice.vi_provider
-    if cfg_v in ("test_tone", "local") or (cfg_v == "edge" and not _shutil.which("edge-tts")):
+    if cfg_v in ("test_tone", "local"):
         sim_flags.append("tts_tone_placeholder")
+    else:
+        ch_vid_ids = [int(c["video_id"]) for c in chapters_now if c.get("video_id")]
+        if ch_vid_ids:
+            q_rows = query_all(
+                paths.db_file,
+                f"SELECT quality_notes FROM videos WHERE id IN ({','.join('?' * len(ch_vid_ids))})",
+                ch_vid_ids,
+            )
+            if any("test_tone" in str(r.get("quality_notes") or "") or "Không lồng tiếng được" in str(r.get("quality_notes") or "") for r in q_rows):
+                sim_flags.append("tts_tone_placeholder")
 
     with get_conn(paths.db_file) as conn:
         conn.execute(

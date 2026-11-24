@@ -21,6 +21,7 @@ interface NovelProject {
   title: string;
   aspect_ratio: string;
   style_preset: string;
+  voice_id?: string;
   status: string;
   total_chapters: number;
   ready_chapters: number;
@@ -28,12 +29,39 @@ interface NovelProject {
   simulation_flags?: string[];
 }
 
+interface CharacterOption {
+  id: number;
+  name: string;
+  voice_id: string;
+}
+
+interface ChannelVoiceOption {
+  id: number;
+  name: string;
+  speaker_name: string;
+  voice_token: string;
+}
+
+const BASE_NOVEL_VOICES = [
+  { value: "vi-VN-HoaiMyNeural", label: "Edge TTS: Hoài My (Nữ)" },
+  { value: "vi-VN-NamMinhNeural", label: "Edge TTS: Nam Minh (Nam)" },
+  { value: "vieneu:Mỹ Duyên", label: "VieNeu CPU: Mỹ Duyên (Nữ đọc truyện)" },
+  { value: "vieneu:Đức Trí", label: "VieNeu CPU: Đức Trí (Nam đọc truyện)" },
+  { value: "vieneu:Anh Khôi", label: "VieNeu CPU: Anh Khôi (Nam kể chuyện)" },
+  { value: "vieneu:Trúc Ly", label: "VieNeu CPU: Trúc Ly (Nữ tự nhiên)" },
+];
+
 export default function NovelStudioPage() {
   const { activeWorkspaceId } = useWorkspace();
   const [projects, setProjects] = useState<NovelProject[]>([]);
+  const [characters, setCharacters] = useState<CharacterOption[]>([]);
+  const [channelVoices, setChannelVoices] = useState<ChannelVoiceOption[]>([]);
+
   const [title, setTitle] = useState("");
   const [sourceText, setSourceText] = useState("");
   const [aspectRatio, setAspectRatio] = useState("9:16");
+  const [characterId, setCharacterId] = useState<number>(0);
+  const [voiceId, setVoiceId] = useState("vi-VN-HoaiMyNeural");
   const [previewChapters, setPreviewChapters] = useState<
     Array<{ chapter_index: number; title: string; word_count: number }>
   >([]);
@@ -43,10 +71,20 @@ export default function NovelStudioPage() {
 
   const load = useCallback(async () => {
     try {
-      const res = await apiFetch<{ projects: NovelProject[] }>(
-        `/api/v1/novels/projects?workspace_id=${activeWorkspaceId}`
-      );
+      const [res, cRes, cvRes] = await Promise.all([
+        apiFetch<{ projects: NovelProject[] }>(
+          `/api/v1/novels/projects?workspace_id=${activeWorkspaceId}`
+        ),
+        apiFetch<{ characters: CharacterOption[] }>(
+          `/api/v1/characters?workspace_id=${activeWorkspaceId}`
+        ),
+        apiFetch<{ channel_voices: ChannelVoiceOption[] }>(
+          `/api/v1/channel-voices?workspace_id=${activeWorkspaceId}`
+        ),
+      ]);
       setProjects(res.projects || []);
+      setCharacters(cRes.characters || []);
+      setChannelVoices(cvRes.channel_voices || []);
       setErr("");
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Lỗi tải Studio Tiểu thuyết");
@@ -56,6 +94,14 @@ export default function NovelStudioPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const voiceChoices = [
+    ...channelVoices.map((cv) => ({
+      value: cv.voice_token,
+      label: `Giọng Kênh: ${cv.name} (${cv.speaker_name})`,
+    })),
+    ...BASE_NOVEL_VOICES,
+  ];
 
   const previewSplit = async () => {
     if (!sourceText.trim()) return;
@@ -80,6 +126,8 @@ export default function NovelStudioPage() {
           title,
           source_text: sourceText,
           aspect_ratio: aspectRatio,
+          character_id: characterId > 0 ? characterId : null,
+          voice_id: voiceId,
         }),
       });
       setTitle("");
@@ -117,7 +165,7 @@ export default function NovelStudioPage() {
           <BookOpen className="w-6 h-6 text-emerald-400" /> Studio Tiểu thuyết Đa chương → Video
         </h1>
         <p className="text-xs text-slate-400 mt-1">
-          Tự động tách chương, dựng video hàng loạt theo nhân vật cố định và phục hồi từ đúng chương còn thiếu.
+          Tự động tách chương, đọc truyện bằng giọng thật Edge TTS / VieNeu CPU / Giọng Kênh MC và phục hồi từ đúng chương còn thiếu.
         </p>
       </div>
 
@@ -136,13 +184,24 @@ export default function NovelStudioPage() {
         onSubmit={createNovel}
         className="bg-[#111827] border border-slate-800 rounded-xl p-5 space-y-3 text-xs"
       >
-        <div className="grid md:grid-cols-3 gap-3">
+        <div className="grid md:grid-cols-4 gap-3">
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Tên bộ truyện / tiểu thuyết"
             className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2 md:col-span-2"
           />
+          <select
+            value={voiceId}
+            onChange={(e) => setVoiceId(e.target.value)}
+            className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
+          >
+            {voiceChoices.map((v) => (
+              <option key={v.value} value={v.value}>
+                {v.label}
+              </option>
+            ))}
+          </select>
           <select
             value={aspectRatio}
             onChange={(e) => setAspectRatio(e.target.value)}
@@ -151,6 +210,20 @@ export default function NovelStudioPage() {
             <option value="9:16">9:16 Reels / Shorts</option>
             <option value="16:9">16:9 YouTube Ngang</option>
             <option value="1:1">1:1 Vuông</option>
+          </select>
+        </div>
+        <div className="grid md:grid-cols-2 gap-3">
+          <select
+            value={characterId}
+            onChange={(e) => setCharacterId(Number(e.target.value))}
+            className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
+          >
+            <option value={0}>Không gắn nhân vật dẫn truyện</option>
+            {characters.map((c) => (
+              <option key={c.id} value={c.id}>
+                Nhân vật: {c.name} ({c.voice_id})
+              </option>
+            ))}
           </select>
         </div>
         <textarea
