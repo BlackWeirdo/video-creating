@@ -16,6 +16,11 @@ from videocreator.ai.base import (
     T,
 )
 from videocreator.ai.budget import check_budget, estimate_token_cost, record_usage
+from videocreator.ai.key_pool import (
+    acquire_api_key,
+    mark_pooled_key_cooldown,
+    mark_pooled_key_ok,
+)
 from videocreator.config import load_settings
 from videocreator.secrets_store import SecretsStore
 
@@ -54,68 +59,84 @@ class MuseAPIProvider:
         raise AIError("muse_api does not support video vision description")
 
     def generate_json(self, prompt: str, schema: type[T]) -> T:
-        api_key = self.secrets_store.get("MUSE_API_KEY")
-        if not api_key:
-            raise ProviderAuthError(
-                self.name,
-                "MUSE_API_KEY is not configured in Settings / secrets.enc",
-            )
         settings = load_settings(self.config_file)
         check_budget(self.db_file, settings, kind=self.role, model=self.model)
 
-        for attempt in range(2):
-            resp = httpx.post(
-                f"{self.base_url}/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": self.model,
-                    "messages": [
-                        {
-                            "role": "system",
-                            "content": f"Return strictly valid JSON matching schema: {json.dumps(schema.model_json_schema())}",
-                        },
-                        {"role": "user", "content": prompt},
-                    ],
-                    "response_format": {"type": "json_object"},
-                },
-                timeout=90.0,
-            )
-            if resp.status_code in (401, 403):
-                raise ProviderAuthError(self.name, f"Muse API auth failed ({resp.status_code})")
-            if resp.status_code == 429:
-                raise ProviderQuotaExhausted(
-                    self.name, "Muse API rate limit (429)", retry_after_s=1800
-                )
-            if resp.status_code >= 400:
-                raise AIError(f"Muse API HTTP {resp.status_code}: {resp.text[:300]}")
-
-            data = resp.json()
-            usage = data.get("usage") or {}
-            units_in = int(usage.get("prompt_tokens") or 0)
-            units_out = int(usage.get("completion_tokens") or 0)
-            cost_usd = estimate_token_cost(settings, self.model, units_in, units_out)
-            record_usage(
+        for key_attempt in range(2):
+            api_key, key_id = acquire_api_key(
                 self.db_file,
-                provider=self.name,
-                model=self.model,
-                kind=self.role,
-                route="api",
-                units_in=units_in,
-                units_out=units_out,
-                cost_usd=cost_usd,
+                "muse",
+                legacy_secret_name="MUSE_API_KEY",
+                secrets_store=self.secrets_store,
             )
-
-            content = (
-                ((data.get("choices") or [{}])[0].get("message") or {}).get("content") or "{}"
-            )
+            if not api_key:
+                raise ProviderAuthError(
+                    self.name,
+                    "MUSE_API_KEY is not configured in Settings / secrets.enc",
+                )
             try:
-                return schema.model_validate_json(content)
-            except ValidationError as exc:
-                if attempt == 0:
+                for attempt in range(2):
+                    resp = httpx.post(
+                        f"{self.base_url}/chat/completions",
+                        headers={
+                            "Authorization": f"Bearer {api_key}",
+                            "Content-Type": "application/json",
+                        },
+                        json={
+                            "model": self.model,
+                            "messages": [
+                                {
+                                    "role": "system",
+                                    "content": f"Return strictly valid JSON matching schema: {json.dumps(schema.model_json_schema())}",
+                                },
+                                {"role": "user", "content": prompt},
+                            ],
+                            "response_format": {"type": "json_object"},
+                        },
+                        timeout=90.0,
+                    )
+                    if resp.status_code in (401, 403):
+                        raise ProviderAuthError(
+                            self.name, f"Muse API auth failed ({resp.status_code})"
+                        )
+                    if resp.status_code == 429:
+                        raise ProviderQuotaExhausted(
+                            self.name, "Muse API rate limit (429)", retry_after_s=1800
+                        )
+                    if resp.status_code >= 400:
+                        raise AIError(f"Muse API HTTP {resp.status_code}: {resp.text[:300]}")
+
+                    mark_pooled_key_ok(self.db_file, key_id)
+                    data = resp.json()
+                    usage = data.get("usage") or {}
+                    units_in = int(usage.get("prompt_tokens") or 0)
+                    units_out = int(usage.get("completion_tokens") or 0)
+                    cost_usd = estimate_token_cost(settings, self.model, units_in, units_out)
+                    record_usage(
+                        self.db_file,
+                        provider=self.name,
+                        model=self.model,
+                        kind=self.role,
+                        route="api",
+                        units_in=units_in,
+                        units_out=units_out,
+                        cost_usd=cost_usd,
+                    )
+
+                    content = (
+                        ((data.get("choices") or [{}])[0].get("message") or {}).get("content")
+                        or "{}"
+                    )
+                    try:
+                        return schema.model_validate_json(content)
+                    except ValidationError as exc:
+                        if attempt == 0:
+                            continue
+                        raise SchemaValidationError(f"Muse API invalid schema: {exc}") from exc
+            except (ProviderQuotaExhausted, ProviderAuthError) as exc:
+                mark_pooled_key_cooldown(self.db_file, key_id, str(exc))
+                if key_id is not None and key_attempt == 0:
                     continue
-                raise SchemaValidationError(f"Muse API invalid schema: {exc}") from exc
+                raise
 
         raise SchemaValidationError("Muse API failed validation")

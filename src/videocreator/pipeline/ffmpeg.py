@@ -41,6 +41,32 @@ ALLOWED_FILTERS: frozenset[str] = frozenset(
     }
 )
 
+# Creative & analysis-only FFmpeg filters used outside BR-PRD-01 product shots
+# (local audio DSP separation, reup hardsub removal/anti-dup, synthetic AI canvases).
+CREATIVE_REMIX_FILTERS: frozenset[str] = frozenset(
+    {
+        "pan",
+        "highpass",
+        "lowpass",
+        "hflip",
+        "vflip",
+        "eq",
+        "delogo",
+        "drawbox",
+        "drawgrid",
+        "zoompan",
+        "color",
+        "silencedetect",
+        "nullsink",
+        "concat",
+        "trim",
+        "setpts",
+        "hue",
+        "unsharp",
+        "vignette",
+    }
+)
+
 
 class RenderError(RuntimeError):
     """Raised when an FFmpeg render step fails."""
@@ -61,21 +87,33 @@ def extract_filter_names(filtergraph: str) -> list[str]:
     return names
 
 
-def validate_filtergraph_allowed(filtergraph: str) -> None:
-    """Raises `ValueError` if `filtergraph` contains any filter outside `ALLOWED_FILTERS` (`BR-PRD-01`)."""
+def validate_filtergraph_allowed(
+    filtergraph: str,
+    *,
+    allow_creative_filters: bool = False,
+) -> None:
+    """Raises `ValueError` if `filtergraph` contains any filter outside allowed whitelist (`BR-PRD-01`)."""
+    allowed = ALLOWED_FILTERS | CREATIVE_REMIX_FILTERS if allow_creative_filters else ALLOWED_FILTERS
     for fname in extract_filter_names(filtergraph):
-        if fname not in ALLOWED_FILTERS:
+        if fname not in allowed:
             raise ValueError(
                 f"Forbidden FFmpeg filter '{fname}' violates BR-PRD-01 product accuracy rules. "
-                f"Allowed filters: {sorted(ALLOWED_FILTERS)}"
+                f"Allowed filters: {sorted(allowed)}"
             )
 
 
-def validate_command_filters(args: list[str]) -> None:
+def validate_command_filters(
+    args: list[str],
+    *,
+    allow_creative_filters: bool = False,
+) -> None:
     """Inspects an FFmpeg argument list and validates all `-vf`, `-af`, and `-filter_complex` values."""
     for idx, arg in enumerate(args):
         if arg in ("-vf", "-af", "-filter_complex", "-filter:v", "-filter:a") and idx + 1 < len(args):
-            validate_filtergraph_allowed(args[idx + 1])
+            validate_filtergraph_allowed(
+                args[idx + 1],
+                allow_creative_filters=allow_creative_filters,
+            )
 
 
 def check_libass_available() -> bool:
@@ -99,9 +137,10 @@ def run_ffmpeg(
     *,
     cwd: Path | None = None,
     timeout_s: int = 300,
+    allow_creative_filters: bool = False,
 ) -> str:
     """Validates filter whitelist and executes `ffmpeg -y <args>` in `cwd`."""
-    validate_command_filters(args)
+    validate_command_filters(args, allow_creative_filters=allow_creative_filters)
     ffmpeg_bin = find_ffmpeg_binary("ffmpeg")
     cmd = [ffmpeg_bin, "-hide_banner", "-y", *args]
     try:

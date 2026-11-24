@@ -82,6 +82,10 @@ class AppPaths:
         return self.media_dir / "assets"
 
     @property
+    def models_dir(self) -> Path:
+        return self.data_dir / "models"
+
+    @property
     def migrations_dir(self) -> Path:
         return PACKAGE_DIR / "migrations"
 
@@ -107,6 +111,7 @@ class AppPaths:
             self.reference_dir,
             self.studio_dir,
             self.assets_dir,
+            self.models_dir,
         ):
             directory.mkdir(parents=True, exist_ok=True)
 

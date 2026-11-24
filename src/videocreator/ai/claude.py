@@ -7,8 +7,20 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from videocreator.ai.base import AIError, ProviderAuthError, RouteKind, SchemaValidationError, T
+from videocreator.ai.base import (
+    AIError,
+    ProviderAuthError,
+    ProviderQuotaExhausted,
+    RouteKind,
+    SchemaValidationError,
+    T,
+)
 from videocreator.ai.budget import check_budget, estimate_token_cost, record_usage
+from videocreator.ai.key_pool import (
+    acquire_api_key,
+    mark_pooled_key_cooldown,
+    mark_pooled_key_ok,
+)
 from videocreator.ai.retry import call_api_with_retry
 from videocreator.config import load_settings
 from videocreator.pipeline.probe import probe_video
@@ -36,9 +48,16 @@ class ClaudeAPIProvider:
         self.secrets_store = secrets_store
         self.role = role
         self.model = model
+        self._last_key_id: int | None = None
 
     def _get_client(self):  # type: ignore[no-untyped-def]
-        api_key = self.secrets_store.get("ANTHROPIC_API_KEY")
+        api_key, key_id = acquire_api_key(
+            self.db_file,
+            "claude",
+            legacy_secret_name="ANTHROPIC_API_KEY",
+            secrets_store=self.secrets_store,
+        )
+        self._last_key_id = key_id
         if not api_key:
             raise ProviderAuthError(
                 self.name,
@@ -69,61 +88,74 @@ class ClaudeAPIProvider:
     def _call_messages(self, content_blocks: list[dict[str, Any]], schema: type[T]) -> T:
         settings = load_settings(self.config_file)
         check_budget(self.db_file, settings, kind=self.role, model=self.model)
-        client = self._get_client()
 
         last_val_err: Exception | None = None
-        for val_attempt in range(2):
-            resp = call_api_with_retry(
-                lambda: self._send_messages(client, content_blocks, schema),
-                provider=self.name,
-                label="Claude API",
-                auth_markers=("401", "403", "authentication"),
-                quota_markers=("429", "rate_limit", "overloaded"),
-                quota_label="rate limit",
-                server_codes=("500", "502", "503", "529"),
-            )
-            if resp is None:
-                raise AIError("Claude API returned no response")
-
-            stop_reason = getattr(resp, "stop_reason", None)
-            if stop_reason == "refusal":
-                raise AIError("Claude API refused the request (stop_reason='refusal')")
-
-            usage = getattr(resp, "usage", None)
-            units_in = int(getattr(usage, "input_tokens", 0) or 0)
-            units_out = int(getattr(usage, "output_tokens", 0) or 0)
-            cost_usd = estimate_token_cost(settings, self.model, units_in, units_out)
-
-            record_usage(
-                self.db_file,
-                provider=self.name,
-                model=self.model,
-                kind=self.role,
-                route="api",
-                units_in=units_in,
-                units_out=units_out,
-                cost_usd=cost_usd,
-            )
-
+        for key_attempt in range(2):
+            client = self._get_client()
+            key_id = self._last_key_id
             try:
-                parsed = getattr(resp, "parsed_output", None)
-                if isinstance(parsed, schema):
-                    return parsed
-                text_parts = [
-                    getattr(b, "text", "")
-                    for b in getattr(resp, "content", [])
-                    if getattr(b, "type", "") == "text"
-                ]
-                raw_text = "\n".join(text_parts).strip()
-                return schema.model_validate_json(raw_text)
-            except ValidationError as val_exc:
-                last_val_err = val_exc
-                if val_attempt == 0:
-                    check_budget(self.db_file, settings, kind=self.role, model=self.model)
+                for val_attempt in range(2):
+                    resp = call_api_with_retry(
+                        lambda: self._send_messages(client, content_blocks, schema),
+                        provider=self.name,
+                        label="Claude API",
+                        auth_markers=("401", "403", "authentication"),
+                        quota_markers=("429", "rate_limit", "overloaded"),
+                        quota_label="rate limit",
+                        server_codes=("500", "502", "503", "529"),
+                    )
+                    if resp is None:
+                        raise AIError("Claude API returned no response")
+
+                    mark_pooled_key_ok(self.db_file, key_id)
+                    stop_reason = getattr(resp, "stop_reason", None)
+                    if stop_reason == "refusal":
+                        raise AIError("Claude API refused the request (stop_reason='refusal')")
+
+                    usage = getattr(resp, "usage", None)
+                    units_in = int(getattr(usage, "input_tokens", 0) or 0)
+                    units_out = int(getattr(usage, "output_tokens", 0) or 0)
+                    cost_usd = estimate_token_cost(settings, self.model, units_in, units_out)
+
+                    record_usage(
+                        self.db_file,
+                        provider=self.name,
+                        model=self.model,
+                        kind=self.role,
+                        route="api",
+                        units_in=units_in,
+                        units_out=units_out,
+                        cost_usd=cost_usd,
+                    )
+
+                    try:
+                        parsed = getattr(resp, "parsed_output", None)
+                        if isinstance(parsed, schema):
+                            return parsed
+                        text_parts = [
+                            getattr(b, "text", "")
+                            for b in getattr(resp, "content", [])
+                            if getattr(b, "type", "") == "text"
+                        ]
+                        raw_text = "\n".join(text_parts).strip()
+                        return schema.model_validate_json(raw_text)
+                    except ValidationError as val_exc:
+                        last_val_err = val_exc
+                        if val_attempt == 0:
+                            check_budget(
+                                self.db_file, settings, kind=self.role, model=self.model
+                            )
+                            continue
+                        raise SchemaValidationError(
+                            f"Claude API output failed schema validation after 2 attempts: {val_exc}"
+                        ) from val_exc
+            except (ProviderQuotaExhausted, ProviderAuthError) as exc:
+                mark_pooled_key_cooldown(self.db_file, key_id, str(exc))
+                if key_id is not None and key_attempt == 0:
                     continue
-                raise SchemaValidationError(
-                    f"Claude API output failed schema validation after 2 attempts: {val_exc}"
-                ) from val_exc
+                raise
+
+        raise SchemaValidationError(f"Claude API validation failed: {last_val_err}")
 
         raise SchemaValidationError(f"Claude API validation failed: {last_val_err}")
 

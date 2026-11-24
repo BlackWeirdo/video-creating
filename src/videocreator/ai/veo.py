@@ -4,6 +4,7 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
+from videocreator.ai.key_pool import acquire_api_key
 from videocreator.config import Settings
 from videocreator.secrets_store import SecretsStore
 
@@ -31,7 +32,13 @@ class VeoVideoGenProvider:
         seconds: int = 6,
         image: Path | None = None,
     ) -> Path:
-        api_key = self.secrets.get("GEMINI_API_KEY")
+        db_file = self.secrets.secrets_file.parent / "app.db"
+        api_key, _ = acquire_api_key(
+            db_file,
+            "gemini",
+            legacy_secret_name="GEMINI_API_KEY",
+            secrets_store=self.secrets,
+        )
         if not api_key:
             raise RuntimeError("Missing GEMINI_API_KEY in SecretsStore for Veo video generation")
 

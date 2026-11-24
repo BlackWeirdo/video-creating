@@ -6,8 +6,20 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from videocreator.ai.base import AIError, ProviderAuthError, RouteKind, SchemaValidationError, T
+from videocreator.ai.base import (
+    AIError,
+    ProviderAuthError,
+    ProviderQuotaExhausted,
+    RouteKind,
+    SchemaValidationError,
+    T,
+)
 from videocreator.ai.budget import check_budget, estimate_token_cost, record_usage
+from videocreator.ai.key_pool import (
+    acquire_api_key,
+    mark_pooled_key_cooldown,
+    mark_pooled_key_ok,
+)
 from videocreator.ai.retry import call_api_with_retry
 from videocreator.config import load_settings
 from videocreator.secrets_store import SecretsStore
@@ -33,9 +45,16 @@ class GeminiAPIProvider:
         self.secrets_store = secrets_store
         self.role = role
         self.model = model
+        self._last_key_id: int | None = None
 
     def _get_client(self):  # type: ignore[no-untyped-def]
-        api_key = self.secrets_store.get("GEMINI_API_KEY")
+        api_key, key_id = acquire_api_key(
+            self.db_file,
+            "gemini",
+            legacy_secret_name="GEMINI_API_KEY",
+            secrets_store=self.secrets_store,
+        )
+        self._last_key_id = key_id
         if not api_key:
             raise ProviderAuthError(
                 self.name,
@@ -50,59 +69,68 @@ class GeminiAPIProvider:
 
         settings = load_settings(self.config_file)
         check_budget(self.db_file, settings, kind=self.role, model=self.model)
-        client = self._get_client()
 
         last_val_err: Exception | None = None
-        for val_attempt in range(2):
-            resp = call_api_with_retry(
-                lambda: client.models.generate_content(
-                    model=self.model,
-                    contents=contents,
-                    config=types.GenerateContentConfig(
-                        response_mime_type="application/json",
-                        response_schema=schema,
-                    ),
-                ),
-                provider=self.name,
-                label="Gemini API",
-                auth_markers=("401", "403", "api_key_invalid"),
-                quota_markers=("429", "quota", "resource_exhausted"),
-                quota_label="rate/quota limit",
-                server_codes=("500", "502", "503", "504"),
-            )
-            if resp is None:
-                raise AIError("Gemini API returned no response")
-
-            usage_meta = getattr(resp, "usage_metadata", None)
-            units_in = int(getattr(usage_meta, "prompt_token_count", 0) or 0)
-            units_out = int(getattr(usage_meta, "candidates_token_count", 0) or 0)
-            cost_usd = estimate_token_cost(settings, self.model, units_in, units_out)
-
-            record_usage(
-                self.db_file,
-                provider=self.name,
-                model=self.model,
-                kind=self.role,
-                route="api",
-                units_in=units_in,
-                units_out=units_out,
-                cost_usd=cost_usd,
-            )
-
+        for key_attempt in range(2):
+            client = self._get_client()
+            key_id = self._last_key_id
             try:
-                parsed = getattr(resp, "parsed", None)
-                if isinstance(parsed, schema):
-                    return parsed
-                text_out = str(getattr(resp, "text", "") or "")
-                return schema.model_validate_json(text_out)
-            except ValidationError as val_exc:
-                last_val_err = val_exc
-                if val_attempt == 0:
-                    check_budget(self.db_file, settings, kind=self.role, model=self.model)
+                for val_attempt in range(2):
+                    resp = call_api_with_retry(
+                        lambda: client.models.generate_content(
+                            model=self.model,
+                            contents=contents,
+                            config=types.GenerateContentConfig(
+                                response_mime_type="application/json",
+                                response_schema=schema,
+                            ),
+                        ),
+                        provider=self.name,
+                        label="Gemini API",
+                        auth_markers=("401", "403", "api_key_invalid"),
+                        quota_markers=("429", "quota", "resource_exhausted"),
+                        quota_label="rate/quota limit",
+                        server_codes=("500", "502", "503", "504"),
+                    )
+                    if resp is None:
+                        raise AIError("Gemini API returned no response")
+
+                    mark_pooled_key_ok(self.db_file, key_id)
+                    usage_meta = getattr(resp, "usage_metadata", None)
+                    units_in = int(getattr(usage_meta, "prompt_token_count", 0) or 0)
+                    units_out = int(getattr(usage_meta, "candidates_token_count", 0) or 0)
+                    cost_usd = estimate_token_cost(settings, self.model, units_in, units_out)
+
+                    record_usage(
+                        self.db_file,
+                        provider=self.name,
+                        model=self.model,
+                        kind=self.role,
+                        route="api",
+                        units_in=units_in,
+                        units_out=units_out,
+                        cost_usd=cost_usd,
+                    )
+
+                    try:
+                        parsed = getattr(resp, "parsed", None)
+                        if isinstance(parsed, schema):
+                            return parsed
+                        text_out = str(getattr(resp, "text", "") or "")
+                        return schema.model_validate_json(text_out)
+                    except ValidationError as val_exc:
+                        last_val_err = val_exc
+                        if val_attempt == 0:
+                            check_budget(self.db_file, settings, kind=self.role, model=self.model)
+                            continue
+                        raise SchemaValidationError(
+                            f"Gemini API output failed schema validation after 2 attempts: {val_exc}"
+                        ) from val_exc
+            except (ProviderQuotaExhausted, ProviderAuthError) as exc:
+                mark_pooled_key_cooldown(self.db_file, key_id, str(exc))
+                if key_id is not None and key_attempt == 0:
                     continue
-                raise SchemaValidationError(
-                    f"Gemini API output failed schema validation after 2 attempts: {val_exc}"
-                ) from val_exc
+                raise
 
         raise SchemaValidationError(f"Gemini API validation failed: {last_val_err}")
 

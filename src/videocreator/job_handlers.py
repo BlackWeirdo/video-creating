@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from videocreator.jobs import JobRegistry
+from videocreator.models_manager import run_download_model_job
 from videocreator.paths import AppPaths
 from videocreator.pipeline.broll_suggest import BROLL_SUGGEST_JOB_KIND, run_broll_suggest_job
 from videocreator.pipeline.describe import run_describe_footage
@@ -61,4 +62,8 @@ def register_job_handlers(job_registry: JobRegistry, paths: AppPaths) -> None:
     job_registry.register(
         ANALYSE_TREND_JOB_KIND,
         lambda ref_id: run_analyse_trend_job(paths, int(ref_id or 0)),
+    )
+    job_registry.register(
+        "download_model",
+        lambda ref_id: run_download_model_job(paths, int(ref_id or 0)),
     )
