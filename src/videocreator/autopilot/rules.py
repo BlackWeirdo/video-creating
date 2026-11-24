@@ -1,27 +1,20 @@
-"""Channel Autopilot Engine: scheduled content generation, RSS/Trends ingestion & auto-publish (V2-AUT-01..04)."""
+"""Channel Autopilot rule CRUD, policy checks, and scheduled tick execution (V2-AUT-01..04)."""
 from __future__ import annotations
 
-import hashlib
-import html
 import json
 import logging
-import re
-import urllib.request
-import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlsplit
 
 from videocreator.approvals import try_autopilot_approve
+from videocreator.autopilot.sources import parse_rss_or_atom_items
 from videocreator.db import get_conn, query_all, query_one, record_audit
+from videocreator.job_store import report_active_job_progress
 from videocreator.jsonutil import loads_or
 from videocreator.paths import AppPaths
-from videocreator.pipeline.batch_studio import (
-    _count_workspace_shots,
-    create_batch_run,
-    run_batch_run,
-)
+from videocreator.pipeline.assembly import count_workspace_shots
+from videocreator.pipeline.batch_studio import create_batch_run, run_batch_run
 from videocreator.pipeline.localize import (
     create_localize_project,
     run_localize_extract,
@@ -36,13 +29,6 @@ logger = logging.getLogger("videocreator.autopilot")
 VALID_AUTOPILOT_MODES: frozenset[str] = frozenset(
     {"suggestions", "products_ab", "rss_feed", "localize_trends"}
 )
-_TAG_RE = re.compile(r"<[^>]+>")
-
-
-def _strip_html(raw: str) -> str:
-    txt = html.unescape(raw or "")
-    txt = _TAG_RE.sub(" ", txt)
-    return " ".join(txt.split()).strip()
 
 
 def validate_autopilot_policy(
@@ -58,14 +44,18 @@ def validate_autopilot_policy(
         raise PermissionError(
             "Workspace 'strict_footage' không cho phép Autopilot chế độ 'localize_trends'."
         )
-    if policy == "strict_footage" and clean_mode == "rss_feed" and _count_workspace_shots(db_file, workspace_id) == 0:
+    if (
+        policy == "strict_footage"
+        and clean_mode == "rss_feed"
+        and count_workspace_shots(db_file, workspace_id) == 0
+    ):
         raise PermissionError(
             "Workspace 'strict_footage' cần ít nhất 1 shot footage thật để chạy Autopilot 'rss_feed'."
         )
     return ws
 
 
-def _hydrate_rule(row: dict[str, Any]) -> dict[str, Any]:
+def hydrate_rule(row: dict[str, Any]) -> dict[str, Any]:
     out = dict(row)
     out["enabled"] = bool(row.get("enabled", 1))
     out["target_account_ids"] = [
@@ -84,13 +74,15 @@ def list_autopilot_rules(
             (int(workspace_id),),
         )
     else:
-        rows = query_all(db_file, "SELECT * FROM autopilot_rules ORDER BY workspace_id ASC, id DESC")
-    return [_hydrate_rule(r) for r in rows]
+        rows = query_all(
+            db_file, "SELECT * FROM autopilot_rules ORDER BY workspace_id ASC, id DESC"
+        )
+    return [hydrate_rule(r) for r in rows]
 
 
 def get_autopilot_rule(db_file: Path, rule_id: int) -> dict[str, Any] | None:
     row = query_one(db_file, "SELECT * FROM autopilot_rules WHERE id = ?", (int(rule_id),))
-    return _hydrate_rule(row) if row else None
+    return hydrate_rule(row) if row else None
 
 
 def list_autopilot_runs(
@@ -257,68 +249,6 @@ def delete_autopilot_rule(paths: AppPaths, rule_id: int) -> bool:
     return True
 
 
-def _local_tag(tag: str) -> str:
-    return tag.split("}", 1)[-1].lower() if tag else ""
-
-
-def parse_rss_or_atom_items(feed_url_or_path: str) -> list[dict[str, str]]:
-    """Parses RSS 2.0 or Atom XML from HTTP URL, `file://` URI, or local XML file path."""
-    raw_src = (feed_url_or_path or "").strip()
-    if not raw_src:
-        return []
-
-    xml_bytes: bytes
-    if raw_src.lower().startswith("file://"):
-        parsed_uri = urlsplit(raw_src)
-        local_path = Path(urllib.request.url2pathname(parsed_uri.path))
-        xml_bytes = local_path.read_bytes()
-    elif Path(raw_src).is_file():
-        xml_bytes = Path(raw_src).read_bytes()
-    else:
-        req = urllib.request.Request(raw_src, headers={"User-Agent": "VideoCreator/2.0"})
-        with urllib.request.urlopen(req, timeout=20.0) as resp:
-            xml_bytes = resp.read()
-
-    root = ET.fromstring(xml_bytes)
-    items: list[dict[str, str]] = []
-    for elem in root.iter():
-        ltag = _local_tag(elem.tag)
-        if ltag not in ("item", "entry"):
-            continue
-        title = ""
-        summary = ""
-        link = ""
-        guid = ""
-        for child in elem:
-            ctag = _local_tag(child.tag)
-            ctext = (child.text or "").strip()
-            if ctag == "title" and not title:
-                title = _strip_html(ctext)
-            elif ctag in ("description", "summary", "content") and not summary:
-                summary = _strip_html(ctext)
-            elif ctag == "guid" and not guid:
-                guid = ctext
-            elif ctag == "id" and not guid:
-                guid = ctext
-            elif ctag == "link" and not link:
-                href = str(child.attrib.get("href") or "").strip()
-                link = href or ctext
-
-        ident = guid or link or title
-        if not ident:
-            continue
-        key_hash = hashlib.sha1(ident.encode("utf-8")).hexdigest()[:12]
-        items.append(
-            {
-                "source_key": f"rss:{key_hash}",
-                "title": title or link or ident,
-                "summary": summary,
-                "link": link,
-            }
-        )
-    return items
-
-
 def _already_processed_key(db_file: Path, rule_id: int, source_key: str) -> bool:
     row = query_one(
         db_file,
@@ -397,7 +327,9 @@ def _execute_single_rule(
         return {"rule_id": rule_id, "status": "cooldown", "video_id": None}
 
     if _count_today_runs(paths.db_file, rule_id, cur_now) >= int(rule["daily_cap"]):
-        _record_rule_result(paths.db_file, rule_id, now_iso=now_iso, status="daily_cap_reached")
+        _record_rule_result(
+            paths.db_file, rule_id, now_iso=now_iso, status="daily_cap_reached"
+        )
         return {"rule_id": rule_id, "status": "daily_cap_reached", "video_id": None}
 
     mode = str(rule["source_mode"])
@@ -413,14 +345,21 @@ def _execute_single_rule(
     localize_id: int | None = None
 
     try:
+        report_active_job_progress(0.15, f"Autopilot #{rule_id}: đang quét nguồn {mode}...")
         if mode == "rss_feed":
             feed_items = parse_rss_or_atom_items(str(rule.get("feed_url") or ""))
             picked = next(
-                (it for it in feed_items if not _already_processed_key(paths.db_file, rule_id, it["source_key"])),
+                (
+                    it
+                    for it in feed_items
+                    if not _already_processed_key(paths.db_file, rule_id, it["source_key"])
+                ),
                 None,
             )
             if picked is None:
-                _record_rule_result(paths.db_file, rule_id, now_iso=now_iso, status="no_new_items")
+                _record_rule_result(
+                    paths.db_file, rule_id, now_iso=now_iso, status="no_new_items"
+                )
                 return {"rule_id": rule_id, "status": "no_new_items", "video_id": None}
             source_key = picked["source_key"]
             source_summary = picked["title"][:120]
@@ -451,14 +390,24 @@ def _execute_single_rule(
                 (ws_id,),
             )
             picked_prod = next(
-                (p for p in prods if not _already_processed_key(paths.db_file, rule_id, f"prod:{p['id']}")),
+                (
+                    p
+                    for p in prods
+                    if not _already_processed_key(paths.db_file, rule_id, f"prod:{p['id']}")
+                ),
                 prods[0] if prods else None,
             )
             if picked_prod is None:
-                _record_rule_result(paths.db_file, rule_id, now_iso=now_iso, status="no_new_items")
+                _record_rule_result(
+                    paths.db_file, rule_id, now_iso=now_iso, status="no_new_items"
+                )
                 return {"rule_id": rule_id, "status": "no_new_items", "video_id": None}
             pid = int(picked_prod["id"])
-            source_key = f"prod:{pid}:{cur_now.strftime('%Y%m%d%H%M')}" if _already_processed_key(paths.db_file, rule_id, f"prod:{pid}") else f"prod:{pid}"
+            source_key = (
+                f"prod:{pid}:{cur_now.strftime('%Y%m%d%H%M')}"
+                if _already_processed_key(paths.db_file, rule_id, f"prod:{pid}")
+                else f"prod:{pid}"
+            )
             source_summary = str(picked_prod["name"])
             batch = create_batch_run(
                 paths,
@@ -486,11 +435,17 @@ def _execute_single_rule(
                 (ws_id,),
             )
             picked_sug = next(
-                (s for s in sugs if not _already_processed_key(paths.db_file, rule_id, f"sug:{s['id']}")),
+                (
+                    s
+                    for s in sugs
+                    if not _already_processed_key(paths.db_file, rule_id, f"sug:{s['id']}")
+                ),
                 None,
             )
             if picked_sug is None:
-                _record_rule_result(paths.db_file, rule_id, now_iso=now_iso, status="no_new_items")
+                _record_rule_result(
+                    paths.db_file, rule_id, now_iso=now_iso, status="no_new_items"
+                )
                 return {"rule_id": rule_id, "status": "no_new_items", "video_id": None}
             sid = int(picked_sug["id"])
             source_key = f"sug:{sid}"
@@ -514,7 +469,9 @@ def _execute_single_rule(
             if done_batch["items"] and done_batch["items"][0].get("video_id"):
                 video_id = int(done_batch["items"][0]["video_id"])
             with get_conn(paths.db_file) as conn:
-                conn.execute("UPDATE suggestions SET status = 'accepted' WHERE id = ?", (sid,))
+                conn.execute(
+                    "UPDATE suggestions SET status = 'accepted' WHERE id = ?", (sid,)
+                )
 
         elif mode == "localize_trends":
             trends = query_all(
@@ -529,15 +486,27 @@ def _execute_single_rule(
                 (ws_id,),
             )
             picked_tr = next(
-                (t for t in trends if not _already_processed_key(paths.db_file, rule_id, f"trend_loc:{t['id']}")),
+                (
+                    t
+                    for t in trends
+                    if not _already_processed_key(
+                        paths.db_file, rule_id, f"trend_loc:{t['id']}"
+                    )
+                ),
                 None,
             )
             if picked_tr is None:
-                _record_rule_result(paths.db_file, rule_id, now_iso=now_iso, status="no_new_items")
+                _record_rule_result(
+                    paths.db_file, rule_id, now_iso=now_iso, status="no_new_items"
+                )
                 return {"rule_id": rule_id, "status": "no_new_items", "video_id": None}
             tid = int(picked_tr["id"])
             ws = require_workspace(paths.db_file, ws_id)
-            loc_mode = "reup_vi" if str(ws.get("content_policy")) == "full_ai" else "hybrid_remix"
+            loc_mode = (
+                "reup_vi"
+                if str(ws.get("content_policy")) == "full_ai"
+                else "hybrid_remix"
+            )
             source_key = f"trend_loc:{tid}"
             source_summary = str(picked_tr.get("caption") or f"Trend #{tid}")[:120]
             proj = create_localize_project(
@@ -655,7 +624,12 @@ def _execute_single_rule(
             status="failed",
             error=str(exc)[:400],
         )
-        return {"rule_id": rule_id, "status": "failed", "video_id": video_id, "error": str(exc)}
+        return {
+            "rule_id": rule_id,
+            "status": "failed",
+            "video_id": video_id,
+            "error": str(exc),
+        }
 
 
 def run_autopilot_tick(
@@ -666,7 +640,7 @@ def run_autopilot_tick(
     score_override: float | None = None,
     now_dt: datetime | None = None,
 ) -> list[dict[str, Any]]:
-    """Executes one Autopilot tick for a single rule (`rule_id`) or all enabled rules."""
+    """Execute one Autopilot tick for a single rule (`rule_id`) or all enabled rules."""
     if rule_id is not None:
         rule = get_autopilot_rule(paths.db_file, rule_id)
         if rule is None:
@@ -684,7 +658,7 @@ def run_autopilot_tick(
         ]
 
     rules = [
-        _hydrate_rule(r)
+        hydrate_rule(r)
         for r in query_all(
             paths.db_file, "SELECT * FROM autopilot_rules WHERE enabled = 1 ORDER BY id ASC"
         )

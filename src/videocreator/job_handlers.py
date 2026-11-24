@@ -8,6 +8,7 @@ from videocreator.paths import AppPaths
 from videocreator.pipeline.broll_suggest import BROLL_SUGGEST_JOB_KIND, run_broll_suggest_job
 from videocreator.pipeline.batch_studio import run_batch_run_job
 from videocreator.pipeline.describe import run_describe_footage
+from videocreator.pipeline.editor import run_editor_render_job
 from videocreator.pipeline.footage_analyse import run_analyse_footage
 from videocreator.pipeline.lipsync_studio import run_lipsync_render_job
 from videocreator.pipeline.localize import run_localize_extract_job, run_localize_render_job
@@ -98,6 +99,10 @@ def register_job_handlers(job_registry: JobRegistry, paths: AppPaths) -> None:
     job_registry.register(
         "lipsync_render",
         lambda ref_id: run_lipsync_render_job(paths, int(ref_id or 0)),
+    )
+    job_registry.register(
+        "editor_render",
+        lambda ref_id: run_editor_render_job(paths, int(ref_id or 0)),
     )
     job_registry.register(
         "workflow_run",

@@ -173,6 +173,19 @@ async def api_v1_render_novel(
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return JSONResponse({"project": done})
 
+    if body.force:
+        with get_conn(paths.db_file) as conn:
+            if body.chapter_ids:
+                placeholders = ",".join("?" * len(body.chapter_ids))
+                conn.execute(
+                    f"UPDATE novel_chapters SET status = 'pending', error = NULL WHERE project_id = ? AND id IN ({placeholders})",
+                    (int(project_id), *[int(c) for c in body.chapter_ids]),
+                )
+            else:
+                conn.execute(
+                    "UPDATE novel_chapters SET status = 'pending', error = NULL WHERE project_id = ?",
+                    (int(project_id),),
+                )
     job_id = enqueue_job(
         paths.db_file,
         "novel_render",

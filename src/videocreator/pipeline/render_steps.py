@@ -9,6 +9,7 @@ from typing import Any
 from videocreator.config import Settings
 from videocreator.db import query_one
 from videocreator.paths import AppPaths
+from videocreator.pipeline.assembly import load_shot_source
 from videocreator.pipeline.ffmpeg import RenderError, run_ffmpeg
 from videocreator.pipeline.probe import probe_duration, probe_video
 from videocreator.pipeline.render_inputs import build_segment_filter_args
@@ -21,32 +22,7 @@ from videocreator.pipeline.subtitles import (
 )
 
 SUBTITLE_FILENAME = "sub.ass"
-
-
-def _load_shot_source(paths: AppPaths, shot_id: int) -> tuple[dict[str, Any], Path]:
-    """The shot row (with footage framing columns) and its backing video file."""
-    shot_row = query_one(
-        paths.db_file,
-        """
-        SELECT s.*, f.path AS footage_path, f.orientation, f.width, f.height, f.crop_json,
-               a.path AS asset_path
-        FROM shots s
-        LEFT JOIN footage f ON s.footage_id = f.id
-        LEFT JOIN assets a ON s.asset_id = a.id
-        WHERE s.id = ?
-        """,
-        (shot_id,),
-    )
-    if shot_row is None:
-        raise RenderError(f"Shot #{shot_id} does not exist in shots library")
-
-    rel_src = shot_row.get("footage_path") or shot_row.get("asset_path")
-    if not rel_src:
-        raise RenderError(f"Shot #{shot_id} has no backing video file")
-    src_file = paths.media_dir / str(rel_src)
-    if not src_file.exists():
-        raise RenderError(f"Backing video file missing on disk: {src_file}")
-    return shot_row, src_file
+_load_shot_source = load_shot_source
 
 
 SEGMENT_AUDIO_ARGS: tuple[str, ...] = ("-c:a", "aac", "-ar", "48000", "-ac", "2", "-b:a", "128k")

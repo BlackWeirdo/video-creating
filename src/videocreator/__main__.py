@@ -20,7 +20,13 @@ import uvicorn
 
 from videocreator.app import create_app
 from videocreator.config import load_settings
-from videocreator.paths import REPO_ROOT, find_node_runtime, get_paths
+from videocreator.paths import (
+    REPO_ROOT,
+    find_node_runtime,
+    get_paths,
+    is_port_available,
+    pick_available_port,
+)
 from videocreator.secrets_store import SecretsStore
 
 ERROR_ALREADY_EXISTS = 183
@@ -110,50 +116,7 @@ def wait_for_health(
     return False
 
 
-# `find_node_runtime` is imported from `videocreator.paths` for re-export compatibility.
-
-
-def is_port_available(host: str, port: int) -> bool:
-    """Return True only if nothing is listening on `(host, port)` and it can be bound exclusively."""
-    bind_host = "127.0.0.1" if host in ("0.0.0.0", "::", "") else host
-    family = socket.AF_INET6 if ":" in bind_host else socket.AF_INET
-    with socket.socket(family, socket.SOCK_STREAM) as probe:
-        probe.settimeout(0.25)
-        if probe.connect_ex((bind_host, int(port))) == 0:
-            return False
-    with socket.socket(family, socket.SOCK_STREAM) as sock:
-        excl_opt = getattr(socket, "SO_EXCLUSIVEADDRUSE", None)
-        if excl_opt is not None:
-            try:
-                sock.setsockopt(socket.SOL_SOCKET, excl_opt, 1)
-            except OSError:
-                pass
-        try:
-            sock.bind((bind_host, int(port)))
-            return True
-        except OSError:
-            return False
-
-
-def pick_available_port(
-    host: str,
-    preferred_port: int,
-    *,
-    exclude_ports: set[int] | None = None,
-    max_tries: int = 30,
-) -> int:
-    """Pick `preferred_port` if free, otherwise scan upward for an available local TCP port."""
-    excluded = exclude_ports or set()
-    for offset in range(max(1, max_tries)):
-        cand = int(preferred_port) + offset
-        if cand in excluded or cand > 65535:
-            continue
-        if is_port_available(host, cand):
-            return cand
-    bind_host = "127.0.0.1" if host in ("0.0.0.0", "::", "") else host
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.bind((bind_host, 0))
-        return int(sock.getsockname()[1])
+# `find_node_runtime`, `is_port_available`, and `pick_available_port` live in `videocreator.paths`.
 
 
 def _verify_videocreator_ui(ui_base_url: str, timeout_s: float = 5.0) -> bool:

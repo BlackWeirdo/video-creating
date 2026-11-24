@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { AudioWaveform, Play, Plus, Upload } from "lucide-react";
 import { apiFetch, useWorkspace } from "@/lib/api";
+import { JobProgressBanner, useJobProgress } from "@/components/JobProgressBanner";
 import { SimulationBadge } from "@/components/SimulationBadge";
 
 interface CharacterOption {
@@ -33,6 +34,7 @@ export default function LipsyncStudioPage() {
   const [aspectRatio, setAspectRatio] = useState("9:16");
   const [scriptText, setScriptText] = useState("");
   const [renderingId, setRenderingId] = useState<number | null>(null);
+  const [activeJobId, setActiveJobId] = useState<number | null>(null);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
 
@@ -57,6 +59,19 @@ export default function LipsyncStudioPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const { job: activeJob, isRunning: jobRunning } = useJobProgress(activeJobId, {
+    onCompleted: () => {
+      setMsg(`Đã render xong video Lip-sync #${renderingId ?? ""}.`);
+      setRenderingId(null);
+      void load();
+    },
+    onFailed: (j) => {
+      setErr(j.error || "Lỗi dựng Lip-sync");
+      setRenderingId(null);
+      void load();
+    },
+  });
 
   const createProject = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -99,15 +114,15 @@ export default function LipsyncStudioPage() {
     setErr("");
     setMsg("");
     try {
-      await apiFetch(`/api/v1/lipsync/projects/${pid}/render`, {
+      const res = await apiFetch<{ job_id: number }>(`/api/v1/lipsync/projects/${pid}/render`, {
         method: "POST",
-        body: JSON.stringify({ sync: true }),
+        body: JSON.stringify({ sync: false }),
       });
-      setMsg(`Đã render xong video Lip-sync #${pid}.`);
+      setActiveJobId(res.job_id);
+      setMsg(`Đã xếp hàng dựng Lip-sync #${pid} (Job #${res.job_id}).`);
       await load();
     } catch (e2) {
       setErr(e2 instanceof Error ? e2.message : "Lỗi dựng Lip-sync");
-    } finally {
       setRenderingId(null);
     }
   };
@@ -133,6 +148,12 @@ export default function LipsyncStudioPage() {
           {err}
         </div>
       )}
+      <JobProgressBanner
+        job={activeJob}
+        jobId={activeJobId}
+        label={renderingId ? `Lip-sync #${renderingId}` : "Lip-sync Studio"}
+        onDismiss={() => setActiveJobId(null)}
+      />
 
       <form
         onSubmit={createProject}
@@ -211,11 +232,12 @@ export default function LipsyncStudioPage() {
                 </label>
                 <button
                   type="button"
-                  disabled={renderingId === p.id}
+                  disabled={jobRunning && renderingId === p.id}
                   onClick={() => void renderProject(p.id)}
                   className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold cursor-pointer disabled:opacity-50"
                 >
-                  <Play className="w-3.5 h-3.5" /> {renderingId === p.id ? "Đang dựng..." : "Render"}
+                  <Play className="w-3.5 h-3.5" />{" "}
+                  {jobRunning && renderingId === p.id ? "Đang dựng..." : "Render"}
                 </button>
               </div>
             </div>

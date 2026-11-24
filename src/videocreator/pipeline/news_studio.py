@@ -14,9 +14,10 @@ from urllib.parse import urlsplit
 from videocreator.approvals import try_autopilot_approve
 from videocreator.autopilot import parse_rss_or_atom_items
 from videocreator.db import get_conn, query_all, query_one, record_audit
+from videocreator.job_store import report_active_job_progress
 from videocreator.jsonutil import loads_or
 from videocreator.paths import AppPaths
-from videocreator.pipeline.batch_studio import _ensure_full_ai_canvas_shot
+from videocreator.pipeline.assembly import ensure_full_ai_canvas_shot
 from videocreator.pipeline.characters import generate_ai_image
 from videocreator.pipeline.render import render_video
 from videocreator.pipeline.styles import resolve_style_preset
@@ -370,7 +371,7 @@ def _resolve_news_shots(
             raise PermissionError(
                 "Workspace 'strict_footage' cần ít nhất 1 shot footage thật hoặc gắn Nhân vật presenter."
             )
-        shot_ids.append(_ensure_full_ai_canvas_shot(paths, ws_id, aspect_ratio))
+        shot_ids.append(ensure_full_ai_canvas_shot(paths, ws_id, aspect_ratio))
 
     planned: list[dict[str, Any]] = []
     for idx, seg in enumerate(script):
@@ -410,6 +411,7 @@ def render_news_project(
         )
 
     try:
+        report_active_job_progress(0.15, f"Đang chọn phân cảnh bản tin #{project_id}...")
         planned_shots = _resolve_news_shots(paths, proj, script)
         facts = dict(proj.get("facts") or {})
         headline = str(facts.get("headline") or proj["title"])
@@ -454,7 +456,8 @@ def render_news_project(
             )
             video_id = int(cur.lastrowid)
 
-        render_video(paths, video_id, auto_score=False)
+        report_active_job_progress(0.45, f"Đang dựng video & lồng tiếng bản tin #{project_id}...")
+        render_video(paths, video_id, auto_score=False, report_progress=False)
         v_row = query_one(
             paths.db_file, "SELECT qc_json, quality_score FROM videos WHERE id = ?", (video_id,)
         )
@@ -469,6 +472,7 @@ def render_news_project(
 
         rel_pack = ""
         if build_pack:
+            report_active_job_progress(0.82, "Đang đóng gói bộ đăng 5 nền tảng (.zip)...")
             raw_zip = build_publish_pack_zip(paths, video_id, cover_title=headline[:70])
             dest_zip = paths.output_dir / f"news_pack_{project_id}.zip"
             dest_zip.parent.mkdir(parents=True, exist_ok=True)

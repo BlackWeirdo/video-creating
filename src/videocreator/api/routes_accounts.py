@@ -15,47 +15,18 @@ from videocreator.logging_setup import redact_text
 from videocreator.paths import AppPaths
 from videocreator.posting.accounts import upsert_account
 from videocreator.posting.meta_auth import list_pages_and_instagram
-from videocreator.posting.slots import _account_slot_override, _parse_hhmm
+from videocreator.posting.slots import account_slot_override, parse_slots_input
 from videocreator.secrets_store import SecretsStore
 from videocreator.templating import get_templates
 
 router = APIRouter()
 
 
-def _parse_slots_input(raw_slots: str) -> list[str]:
-    clean = raw_slots.strip()
-    if not clean or clean == "[]":
-        return []
-    tokens: list[str]
-    if clean.startswith("["):
-        try:
-            loaded = json.loads(clean)
-        except Exception as exc:
-            raise HTTPException(
-                status_code=400,
-                detail="Khung giờ không hợp lệ (định dạng HH:MM, ví dụ: 09:00, 18:30)",
-            ) from exc
-        if not isinstance(loaded, list):
-            raise HTTPException(
-                status_code=400,
-                detail="Khung giờ không hợp lệ (định dạng HH:MM, ví dụ: 09:00, 18:30)",
-            )
-        tokens = [str(item).strip() for item in loaded if str(item).strip()]
-    else:
-        tokens = [s.strip().strip("\"'") for s in clean.replace(",", " ").split() if s.strip()]
-
-    normalized: list[str] = []
-    for tok in tokens:
-        t = _parse_hhmm(tok)
-        if t is None:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Khung giờ '{tok}' không hợp lệ (định dạng HH:MM, ví dụ: 09:00, 18:30)",
-            )
-        hhmm = f"{t.hour:02d}:{t.minute:02d}"
-        if hhmm not in normalized:
-            normalized.append(hhmm)
-    return sorted(normalized)
+def _parse_slots_or_400(raw_slots: str) -> list[str]:
+    try:
+        return parse_slots_input(raw_slots)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/accounts", response_class=HTMLResponse)
@@ -76,7 +47,7 @@ async def accounts_page(
             {
                 **r,
                 "has_token": secrets.has(str(r["secret_key"])),
-                "slots_display": ", ".join(_account_slot_override(r)),
+                "slots_display": ", ".join(account_slot_override(r)),
             }
         )
 
@@ -179,7 +150,7 @@ async def update_account_slots(
     slots: str = Form(""),
 ) -> RedirectResponse:
     paths: AppPaths = request.app.state.paths
-    parts = _parse_slots_input(slots)
+    parts = _parse_slots_or_400(slots)
     slots_val = json.dumps(parts) if parts else None
     with get_conn(paths.db_file) as conn:
         conn.execute(

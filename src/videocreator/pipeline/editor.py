@@ -8,13 +8,15 @@ from pathlib import Path
 from typing import Any
 
 from videocreator.db import get_conn, query_all, query_one, record_audit
+from videocreator.job_store import report_active_job_progress
 from videocreator.jsonutil import loads_or
 from videocreator.paths import AppPaths
+from videocreator.pipeline.assembly import load_shot_source, save_render_cache
 from videocreator.pipeline.export import resolve_canvas_dimensions
 from videocreator.pipeline.ffmpeg import RenderError, run_ffmpeg
 from videocreator.pipeline.probe import probe_duration, probe_video
-from videocreator.pipeline.render import _save_render_cache, finalize_master_export
-from videocreator.pipeline.render_steps import _load_shot_source, concat_segments
+from videocreator.pipeline.render import finalize_master_export
+from videocreator.pipeline.render_steps import concat_segments
 from videocreator.pipeline.styles import resolve_style_preset
 from videocreator.pipeline.subtitles import SubtitleEvent
 from videocreator.state import transition
@@ -229,10 +231,15 @@ def render_editor_project(
         seg_files: list[str] = []
         cut_times: list[float] = []
         cursor_s = 0.0
+        total_clips = max(1, len(video_clips))
         for idx, clip in enumerate(video_clips, start=1):
+            report_active_job_progress(
+                0.1 + 0.55 * ((idx - 1) / total_clips),
+                f"Đang cắt clip timeline {idx}/{total_clips}...",
+            )
             shot_id = int(clip.get("shot_id") or 0)
             if shot_id > 0:
-                shot_row, src_file = _load_shot_source(paths, shot_id)
+                shot_row, src_file = load_shot_source(paths, shot_id)
                 st = max(0.0, float(clip.get("start_s", shot_row.get("start_s") or 0.0)))
             else:
                 rel_p = str(clip.get("source_path") or "").strip().lstrip("/")
@@ -339,6 +346,7 @@ def render_editor_project(
             video_id = int(cur.lastrowid)
 
         transition(paths.db_file, video_id, "rendering", expected_from="planned")
+        report_active_job_progress(0.75, "Đang ghép timeline master -14 LUFS & kiểm định QC...")
         rel_out, rel_cover, actual_dur, preflight_map, qc_report = finalize_master_export(
             paths,
             video_id=video_id,
@@ -352,7 +360,7 @@ def render_editor_project(
             cut_times_s=cut_times,
             mix_source_audio=True,
         )
-        render_cache = _save_render_cache(
+        render_cache = save_render_cache(
             paths,
             video_id=video_id,
             cut_mp4=cut_mp4,
@@ -414,3 +422,11 @@ def render_editor_project(
         raise
     finally:
         shutil.rmtree(work_dir, ignore_errors=True)
+
+
+def run_editor_render_job(paths: AppPaths, project_id: int) -> str:
+    proj = get_editor_project(paths.db_file, project_id)
+    tracks = dict((proj or {}).get("tracks") or {})
+    style_preset = str(tracks.get("style_preset") or "tiktok_karaoke")
+    done = render_editor_project(paths, project_id, style_preset=style_preset)
+    return str(done.get("status") or "completed")

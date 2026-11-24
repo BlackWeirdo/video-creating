@@ -44,7 +44,7 @@ _ALREADY_DECIDED_PAIRS: set[tuple[str, str]] = {
 }
 
 
-def _run_with_conn(
+def run_with_conn(
     db_or_conn: Path | sqlite3.Connection,
     fn: Any,
 ) -> Any:
@@ -52,6 +52,9 @@ def _run_with_conn(
         return fn(db_or_conn)
     with get_write_conn(db_or_conn) as conn:
         return fn(conn)
+
+
+_run_with_conn = run_with_conn
 
 
 def transition(

@@ -14,13 +14,19 @@ from PIL import Image, ImageDraw
 from videocreator.approvals import try_autopilot_approve
 from videocreator.config import load_settings
 from videocreator.db import get_conn, query_all, query_one, record_audit
+from videocreator.job_store import report_active_job_progress
 from videocreator.jsonutil import loads_or
 from videocreator.paths import AppPaths
+from videocreator.pipeline.assembly import (
+    concat_podcast_turns_padded,
+    concat_wavs_padded,
+    save_render_cache,
+)
 from videocreator.pipeline.channel_voices import resolve_voice_id_to_tts_spec
 from videocreator.pipeline.export import resolve_canvas_dimensions
 from videocreator.pipeline.ffmpeg import run_ffmpeg
 from videocreator.pipeline.probe import probe_duration
-from videocreator.pipeline.render import _save_render_cache, finalize_master_export
+from videocreator.pipeline.render import finalize_master_export
 from videocreator.pipeline.styles import resolve_style_preset
 from videocreator.pipeline.subtitles import SubtitleEvent
 from videocreator.state import transition
@@ -98,85 +104,8 @@ def synthesize_with_local_fallback(
     return track.audio_path
 
 
-def _concat_podcast_turns_padded(
-    turn_tracks: list[tuple[Path, str, str, str]],
-    dest_wav: Path,
-    *,
-    min_total_s: float = 5.4,
-) -> tuple[Path, list[SubtitleEvent], list[tuple[float, float, str]], float]:
-    """Concatenates mono 48kHz PCM turn WAVs with sample-accurate subtitle & host-turn timings."""
-    dest_wav.parent.mkdir(parents=True, exist_ok=True)
-    sample_rate = 48000
-    events: list[SubtitleEvent] = []
-    turn_windows: list[tuple[float, float, str]] = []
-    cursor_frames = 0
-    gap_frames = int(0.18 * sample_rate)
-
-    with wave.open(str(dest_wav), "wb") as out_wf:
-        out_wf.setnchannels(1)
-        out_wf.setsampwidth(2)
-        out_wf.setframerate(sample_rate)
-
-        for idx, (wav_path, speaker, text, host_slot) in enumerate(turn_tracks):
-            norm_wav = wav_path.with_name(f"{wav_path.stem}_48k.wav")
-            run_ffmpeg(
-                [
-                    "-i",
-                    str(wav_path.resolve()),
-                    "-ar",
-                    str(sample_rate),
-                    "-ac",
-                    "1",
-                    "-c:a",
-                    "pcm_s16le",
-                    str(norm_wav.resolve()),
-                ]
-            )
-            with wave.open(str(norm_wav), "rb") as in_wf:
-                frames = in_wf.readframes(in_wf.getnframes())
-                n_frames = len(frames) // 2
-                out_wf.writeframes(frames)
-
-            start_s = cursor_frames / sample_rate
-            cursor_frames += n_frames
-            end_s = cursor_frames / sample_rate
-            if end_s > start_s:
-                turn_windows.append((round(start_s, 3), round(end_s, 3), host_slot))
-            label = f"{speaker}: {text}" if speaker else text
-            if label.strip() and end_s > start_s:
-                events.append(
-                    SubtitleEvent(
-                        start_s=round(start_s, 3),
-                        end_s=round(end_s, 3),
-                        text=label.strip(),
-                    )
-                )
-            if idx < len(turn_tracks) - 1:
-                out_wf.writeframes(b"\x00\x00" * gap_frames)
-                cursor_frames += gap_frames
-
-        total_frames = cursor_frames
-        min_frames = int(round(min_total_s * sample_rate))
-        if total_frames < min_frames:
-            pad_frames = min_frames - total_frames
-            out_wf.writeframes(b"\x00\x00" * pad_frames)
-            total_frames = min_frames
-
-    return dest_wav, events, turn_windows, round(total_frames / sample_rate, 3)
-
-
-def _concat_wavs_padded(
-    turn_tracks: list[tuple[Path, str, str]],
-    dest_wav: Path,
-    *,
-    min_total_s: float = 5.4,
-) -> tuple[Path, list[SubtitleEvent], float]:
-    out_wav, events, _tw, dur = _concat_podcast_turns_padded(
-        [(w, spk, txt, "A") for w, spk, txt in turn_tracks],
-        dest_wav,
-        min_total_s=min_total_s,
-    )
-    return out_wav, events, dur
+_concat_podcast_turns_padded = concat_podcast_turns_padded
+_concat_wavs_padded = concat_wavs_padded
 
 
 def _render_host_avatar_pair(
@@ -435,12 +364,17 @@ def render_podcast_project(
             )
         else:
             turns = list(proj.get("dialogue") or [])
+            total_turns = max(1, len(turns))
             turn_wavs: list[tuple[Path, str, str, str]] = []
             for idx, turn in enumerate(turns):
                 txt = str(turn.get("text") or "").strip()
                 if not txt:
                     continue
                 speaker = str(turn.get("speaker") or (host_a_name if idx % 2 == 0 else host_b_name)).strip()
+                report_active_job_progress(
+                    0.10 + 0.45 * (idx / total_turns),
+                    f"Đang tổng hợp giọng lượt {idx + 1}/{total_turns} ({speaker})...",
+                )
                 if speaker.lower() == host_b_name.lower() and host_b_name.lower() != host_a_name.lower():
                     slot = "B"
                 elif speaker.lower() == host_a_name.lower() and host_b_name.lower() != host_a_name.lower():
@@ -511,6 +445,7 @@ def render_podcast_project(
         col_ff = "0x" + hex_col.lstrip("#")
         bar_y = wave_y + wave_h + 24
 
+        report_active_job_progress(0.62, "Đang dựng phổ sóng nhạc & avatar phát sáng theo lượt nói...")
         visual_mp4 = work_dir / "podcast_visual.mp4"
         fc = (
             f"[0:v]drawbox=x={wave_x - panel_pad}:y={wave_y - panel_pad}:"
@@ -606,6 +541,7 @@ def render_podcast_project(
             video_id = int(cur.lastrowid)
 
         transition(paths.db_file, video_id, "rendering", expected_from="planned")
+        report_active_job_progress(0.84, "Đang chuẩn hóa âm lượng -14 LUFS & kiểm định QC...")
         rel_out, rel_cover, actual_dur, preflight_map, qc_report = finalize_master_export(
             paths,
             video_id=video_id,
@@ -617,7 +553,7 @@ def render_podcast_project(
             voice_path=speech_wav,
             mix_source_audio=False,
         )
-        render_cache = _save_render_cache(
+        render_cache = save_render_cache(
             paths,
             video_id=video_id,
             cut_mp4=visual_mp4,

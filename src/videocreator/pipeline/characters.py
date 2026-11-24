@@ -11,20 +11,14 @@ from videocreator.db import get_conn, query_all, query_one, record_audit
 from videocreator.jsonutil import loads_or
 from videocreator.models_manager import get_local_model
 from videocreator.paths import AppPaths
+from videocreator.pipeline.assembly import SEED_PALETTE, render_styled_still_png
 from videocreator.pipeline.ffmpeg import run_ffmpeg
 from videocreator.pipeline.probe import probe_duration
 from videocreator.workspaces import require_workspace
 
 logger = logging.getLogger("videocreator.pipeline.characters")
 
-_SEED_PALETTE: tuple[tuple[str, str], ...] = (
-    ("#0f172a", "#38bdf8"),
-    ("#1e1b4b", "#a855f7"),
-    ("#132a13", "#34d399"),
-    ("#31102f", "#f472b6"),
-    ("#1c1917", "#fbbf24"),
-    ("#0c4a6e", "#22d3ee"),
-)
+_SEED_PALETTE = SEED_PALETTE
 
 
 def _image_dims(aspect_ratio: str) -> tuple[int, int]:
@@ -292,72 +286,7 @@ def cutout_character(paths: AppPaths, character_id: int) -> dict[str, Any]:
     return updated
 
 
-def _render_styled_still_png(
-    dest_png: Path,
-    *,
-    w: int,
-    h: int,
-    seed: int,
-    overlay_image: Path | None = None,
-) -> Path:
-    dest_png.parent.mkdir(parents=True, exist_ok=True)
-    bg_hex, fg_hex = _SEED_PALETTE[abs(int(seed)) % len(_SEED_PALETTE)]
-    box_w = max(80, int(w * 0.72))
-    box_h = max(80, int(h * 0.56))
-    bx = (w - box_w) // 2
-    by = (h - box_h) // 2
-
-    if overlay_image is not None and overlay_image.exists():
-        ov_w = max(80, int(w * 0.58))
-        ov_h = max(80, int(h * 0.52))
-        fc = (
-            f"[0:v]drawbox=x={bx}:y={by}:w={box_w}:h={box_h}:color={fg_hex}@0.22:t=fill[bg];"
-            f"[1:v]scale={ov_w}:{ov_h}:force_original_aspect_ratio=decrease[char];"
-            f"[bg][char]overlay=(W-w)/2:(H-h)/2,format=rgb24[vout]"
-        )
-        run_ffmpeg(
-            [
-                "-f",
-                "lavfi",
-                "-i",
-                f"color=c={bg_hex}:s={w}x{h}:d=1",
-                "-i",
-                str(overlay_image.resolve()),
-                "-filter_complex",
-                fc,
-                "-map",
-                "[vout]",
-                "-frames:v",
-                "1",
-                "-c:v",
-                "png",
-                str(dest_png.resolve()),
-            ],
-            allow_creative_filters=True,
-        )
-    else:
-        vf = (
-            f"drawbox=x={bx}:y={by}:w={box_w}:h={box_h}:color={fg_hex}@0.28:t=fill,"
-            f"drawbox=x={bx + 24}:y={by + 24}:w={max(20, box_w - 48)}:h={max(20, box_h - 48)}:color={fg_hex}@0.65:t=4,"
-            f"format=rgb24"
-        )
-        run_ffmpeg(
-            [
-                "-f",
-                "lavfi",
-                "-i",
-                f"color=c={bg_hex}:s={w}x{h}:d=1",
-                "-vf",
-                vf,
-                "-frames:v",
-                "1",
-                "-c:v",
-                "png",
-                str(dest_png.resolve()),
-            ],
-            allow_creative_filters=True,
-        )
-    return dest_png
+_render_styled_still_png = render_styled_still_png
 
 
 def animate_image_to_shot(

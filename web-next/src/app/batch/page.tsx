@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Layers, RefreshCw } from "lucide-react";
 import { apiFetch, useWorkspace } from "@/lib/api";
+import { JobProgressBanner, useJobProgress } from "@/components/JobProgressBanner";
 
 interface ProductOption {
   id: number;
@@ -49,6 +50,7 @@ export default function BatchStudioPage() {
   const [abCount, setAbCount] = useState(2);
   const [styleA, setStyleA] = useState("tiktok_karaoke");
   const [styleB, setStyleB] = useState("box_highlight");
+  const [activeJobId, setActiveJobId] = useState<number | null>(null);
 
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
@@ -75,6 +77,20 @@ export default function BatchStudioPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const { job: activeJob } = useJobProgress(activeJobId, {
+    onStepChange: () => {
+      void load();
+    },
+    onCompleted: () => {
+      setMsg("Đã hoàn tất chạy Batch A/B!");
+      void load();
+    },
+    onFailed: (j) => {
+      setErr(j.error || "Batch gặp lỗi");
+      void load();
+    },
+  });
 
   const inspectBatch = async (id: number) => {
     const detail = await apiFetch<{ batch: BatchRunRow }>(`/api/v1/batches/${id}`);
@@ -107,6 +123,7 @@ export default function BatchStudioPage() {
       });
       setTitle("");
       setPromptsText("");
+      setActiveJobId(res.job_id);
       setMsg(`Đã khởi chạy Batch #${res.batch.id} (Job #${res.job_id}).`);
       await load();
     } catch (e2) {
@@ -119,6 +136,7 @@ export default function BatchStudioPage() {
       method: "POST",
       body: JSON.stringify({ failed_only: true, sync: false }),
     });
+    setActiveJobId(res.job_id);
     setMsg(`Đã chạy lại các mục lỗi từ checkpoint của Batch #${id} (Job #${res.job_id}).`);
   };
 
@@ -143,6 +161,12 @@ export default function BatchStudioPage() {
           {err}
         </div>
       )}
+      <JobProgressBanner
+        job={activeJob}
+        jobId={activeJobId}
+        label="Batch A/B Studio"
+        onDismiss={() => setActiveJobId(null)}
+      />
 
       <form
         onSubmit={createBatch}

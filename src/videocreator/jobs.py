@@ -12,11 +12,15 @@ from typing import Any
 from videocreator.db import get_conn
 from videocreator.job_store import (
     VALID_LANES,
+    bind_active_job_context,
     claim_next_queued_job,
     complete_job,
     is_queue_paused,
     recover_interrupted_jobs,
+    report_active_job_progress,
+    reset_active_job_context,
     set_queue_paused,
+    update_job_progress,
     wake_expired_quota_jobs,
 )
 from videocreator.workspaces import DEFAULT_WORKSPACE_ID, require_workspace
@@ -37,6 +41,7 @@ COMPUTE_JOB_KINDS: frozenset[str] = frozenset(
         "novel_render",
         "podcast_render",
         "lipsync_render",
+        "editor_render",
         "workflow_run",
         "audio_separate",
         "whisper_asr",
@@ -92,7 +97,24 @@ PRIORITY_PINNED = 5  # a trend video the owner pasted by hand
 PRIORITY_BACKGROUND = 0
 # `analyse`/`describe` are footage the owner has just imported, so they also jump the trend batch.
 USER_FACING_KINDS = frozenset(
-    {"plan", "render", "replan", "studio", "analyse", "describe"}
+    {
+        "plan",
+        "render",
+        "replan",
+        "restyle_video",
+        "studio",
+        "analyse",
+        "describe",
+        "localize_extract",
+        "localize_render",
+        "news_render",
+        "novel_render",
+        "podcast_render",
+        "lipsync_render",
+        "editor_render",
+        "workflow_run",
+        "batch_run",
+    }
 )
 
 
@@ -161,7 +183,10 @@ async def run_one_job(
         job.get("lane", "io"),
         ref_id,
     )
+    token = bind_active_job_context(db_file, job_id)
     try:
+        if float(job.get("progress") or 0.0) <= 0.0 and not str(job.get("step") or "").strip():
+            update_job_progress(db_file, job_id, progress=0.05, step=f"Đang khởi chạy {kind}...")
         if inspect.iscoroutinefunction(handler):
             result = await handler(ref_id)
         else:
@@ -182,6 +207,8 @@ async def run_one_job(
             error=str(exc)[:500],
             log_tail=tb_tail,
         )
+    finally:
+        reset_active_job_context(token)
     return True
 
 

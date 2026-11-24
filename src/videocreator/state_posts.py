@@ -5,7 +5,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
-from videocreator.state import InvalidTransitionError, _run_with_conn
+from videocreator.state import InvalidTransitionError, run_with_conn
 
 POST_TRANSITIONS: dict[str, set[str]] = {
     "scheduled": {"publishing", "missed"},
@@ -81,7 +81,7 @@ def transition_post(
         recompute_video_status_from_posts(conn, video_id)
         return True
 
-    return bool(_run_with_conn(db_or_conn, _apply_transition))
+    return bool(run_with_conn(db_or_conn, _apply_transition))
 
 
 def recompute_video_status_from_posts(

@@ -12,18 +12,21 @@ from typing import Any
 
 from videocreator.approvals import try_autopilot_approve
 from videocreator.db import get_conn, query_all, query_one, record_audit
+from videocreator.job_store import report_active_job_progress
 from videocreator.jsonutil import loads_or
 from videocreator.models_manager import get_local_model
 from videocreator.paths import AppPaths
-from videocreator.pipeline.characters import _render_styled_still_png, get_character
+from videocreator.pipeline.assembly import (
+    concat_wavs_padded,
+    render_styled_still_png,
+    save_render_cache,
+)
+from videocreator.pipeline.characters import get_character
 from videocreator.pipeline.export import resolve_canvas_dimensions
 from videocreator.pipeline.ffmpeg import run_ffmpeg
-from videocreator.pipeline.podcast_studio import (
-    _concat_wavs_padded,
-    synthesize_with_local_fallback,
-)
+from videocreator.pipeline.podcast_studio import synthesize_with_local_fallback
 from videocreator.pipeline.probe import probe_duration
-from videocreator.pipeline.render import _save_render_cache, finalize_master_export
+from videocreator.pipeline.render import finalize_master_export
 from videocreator.pipeline.styles import resolve_style_preset
 from videocreator.state import transition
 from videocreator.workspaces import require_workspace
@@ -188,6 +191,7 @@ def render_lipsync_project(
         )
 
     try:
+        report_active_job_progress(0.15, "Đang tổng hợp giọng đọc cho Lip-sync Studio...")
         speech_wav = work_dir / "lipsync_speech.wav"
         used_tts_providers: list[str] = []
         audio_rel = str(proj.get("audio_path") or "").strip().lstrip("/")
@@ -196,7 +200,7 @@ def render_lipsync_project(
             src_audio = Path(audio_rel) if Path(audio_rel).is_absolute() else (paths.media_dir / audio_rel)
             if not src_audio.is_file():
                 raise FileNotFoundError(f"Lip-sync audio missing: {src_audio}")
-            _, sub_events, dur_s = _concat_wavs_padded(
+            _, sub_events, dur_s = concat_wavs_padded(
                 [(src_audio, "", script_txt or str(proj["title"]))], speech_wav
             )
         else:
@@ -210,7 +214,7 @@ def render_lipsync_project(
                 tts_provider=tts_provider,
                 used_providers_out=used_tts_providers,
             )
-            _, sub_events, dur_s = _concat_wavs_padded([(raw_wav, "", script_txt)], speech_wav)
+            _, sub_events, dur_s = concat_wavs_padded([(raw_wav, "", script_txt)], speech_wav)
 
         dur_s = max(5.4, probe_duration(speech_wav))
         rms_metrics = compute_pcm_rms_envelope(speech_wav)
@@ -230,8 +234,9 @@ def render_lipsync_project(
                 if c_rel and (paths.media_dir / c_rel).is_file():
                     portrait_src = paths.media_dir / c_rel
 
+        report_active_job_progress(0.50, "Đang dựng chân dung & sóng biên độ khẩu hình...")
         avatar_png = work_dir / "portrait_stage.png"
-        _render_styled_still_png(
+        render_styled_still_png(
             avatar_png,
             w=width,
             h=height,
@@ -319,6 +324,7 @@ def render_lipsync_project(
             video_id = int(cur.lastrowid)
 
         transition(paths.db_file, video_id, "rendering", expected_from="planned")
+        report_active_job_progress(0.82, "Đang chuẩn hóa âm lượng -14 LUFS & kiểm định QC...")
         rel_out, rel_cover, actual_dur, preflight_map, qc_report = finalize_master_export(
             paths,
             video_id=video_id,
@@ -330,7 +336,7 @@ def render_lipsync_project(
             voice_path=speech_wav,
             mix_source_audio=False,
         )
-        render_cache = _save_render_cache(
+        render_cache = save_render_cache(
             paths,
             video_id=video_id,
             cut_mp4=visual_mp4,

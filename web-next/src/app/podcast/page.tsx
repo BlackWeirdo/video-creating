@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Mic, Play, Plus } from "lucide-react";
 import { apiFetch, useWorkspace } from "@/lib/api";
+import { JobProgressBanner, useJobProgress } from "@/components/JobProgressBanner";
 import { SimulationBadge } from "@/components/SimulationBadge";
 
 interface PodcastProject {
@@ -55,6 +56,7 @@ export default function PodcastStudioPage() {
   const [accentColor, setAccentColor] = useState("#38bdf8");
   const [scriptText, setScriptText] = useState("");
   const [renderingId, setRenderingId] = useState<number | null>(null);
+  const [activeJobId, setActiveJobId] = useState<number | null>(null);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
 
@@ -79,6 +81,21 @@ export default function PodcastStudioPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const { job: activeJob, isRunning: jobRunning } = useJobProgress(activeJobId, {
+    onCompleted: () => {
+      setMsg(
+        `Đã xuất xong video Sóng nhạc Podcast #${renderingId ?? ""} (Avatar sáng theo lượt nói + -14 LUFS + QC).`
+      );
+      setRenderingId(null);
+      void load();
+    },
+    onFailed: (j) => {
+      setErr(j.error || "Lỗi dựng Podcast trong hàng đợi");
+      setRenderingId(null);
+      void load();
+    },
+  });
 
   const voiceChoices = [
     ...channelVoices.map((cv) => ({
@@ -122,15 +139,15 @@ export default function PodcastStudioPage() {
     setErr("");
     setMsg("");
     try {
-      await apiFetch(`/api/v1/podcasts/projects/${pid}/render`, {
+      const res = await apiFetch<{ job_id: number }>(`/api/v1/podcasts/projects/${pid}/render`, {
         method: "POST",
-        body: JSON.stringify({ sync: true }),
+        body: JSON.stringify({ sync: false }),
       });
-      setMsg(`Đã xuất video Sóng nhạc Podcast #${pid} (Avatar sáng theo lượt nói + -14 LUFS + QC).`);
+      setActiveJobId(res.job_id);
+      setMsg(`Đã xếp hàng dựng Podcast #${pid} (Job #${res.job_id}) — đang theo dõi trực tiếp qua SSE.`);
       await load();
     } catch (e2) {
       setErr(e2 instanceof Error ? e2.message : "Lỗi dựng Podcast");
-    } finally {
       setRenderingId(null);
     }
   };
@@ -156,6 +173,12 @@ export default function PodcastStudioPage() {
           {err}
         </div>
       )}
+      <JobProgressBanner
+        job={activeJob}
+        jobId={activeJobId}
+        label={renderingId ? `Podcast #${renderingId}` : "Podcast Studio"}
+        onDismiss={() => setActiveJobId(null)}
+      />
 
       <form
         onSubmit={createPodcast}
@@ -262,11 +285,12 @@ export default function PodcastStudioPage() {
               </div>
               <button
                 type="button"
-                disabled={renderingId === p.id}
+                disabled={jobRunning && renderingId === p.id}
                 onClick={() => void renderPodcast(p.id)}
                 className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold cursor-pointer disabled:opacity-50"
               >
-                <Play className="w-3.5 h-3.5" /> {renderingId === p.id ? "Đang dựng..." : "Render"}
+                <Play className="w-3.5 h-3.5" />{" "}
+                {jobRunning && renderingId === p.id ? "Đang dựng..." : "Render"}
               </button>
             </div>
             {p.video_url && (

@@ -76,7 +76,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     workspaces,
     activeWorkspaceId,
     activeWorkspace,
-    refreshWorkspaces,
     activateWorkspace,
   } = useWorkspace();
 
@@ -114,6 +113,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           const snap = JSON.parse((ev as MessageEvent<string>).data);
           if (snap?.queue) setQueue(snap.queue);
           if (Array.isArray(snap?.recent_jobs)) setRecentJobs(snap.recent_jobs);
+          window.dispatchEvent(new CustomEvent("vc:queue-snapshot", { detail: snap }));
         } catch {
           // ignore malformed heartbeat
         }

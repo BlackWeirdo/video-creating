@@ -59,7 +59,7 @@ class ModelPriceConfig(BaseModel):
     per_second_usd: float = 0.0
 
 
-def _default_prices() -> dict[str, ModelPriceConfig]:
+def default_prices() -> dict[str, ModelPriceConfig]:
     return {
         "claude-opus-5-5": ModelPriceConfig(input_per_million_usd=4.0, output_per_million_usd=20.0),
         "claude-sonnet-5-5": ModelPriceConfig(input_per_million_usd=2.0, output_per_million_usd=10.0),
@@ -67,6 +67,9 @@ def _default_prices() -> dict[str, ModelPriceConfig]:
         "gemini-2.5-flash": ModelPriceConfig(input_per_million_usd=0.15, output_per_million_usd=0.60),
         "gemini-3.8-flash": ModelPriceConfig(input_per_million_usd=0.15, output_per_million_usd=0.60),
     }
+
+
+_default_prices = default_prices
 
 
 class StudioConfig(BaseModel):

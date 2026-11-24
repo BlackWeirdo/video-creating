@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, Eye, Languages, Play, Scissors, Upload, Users, Volume2 } from "lucide-react";
 import { apiFetch, useWorkspace } from "@/lib/api";
+import { JobProgressBanner, useJobProgress } from "@/components/JobProgressBanner";
 import { SimulationBadge } from "@/components/SimulationBadge";
 
 interface LocalizeSegment {
@@ -98,6 +99,7 @@ export default function LocalizePage() {
   const [previewLoadingKey, setPreviewLoadingKey] = useState<string | null>(null);
   const [showBoxPreview, setShowBoxPreview] = useState(false);
   const [cloneModalOpen, setCloneModalOpen] = useState(false);
+  const [activeJobId, setActiveJobId] = useState<number | null>(null);
 
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
@@ -136,6 +138,21 @@ export default function LocalizePage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const { job: activeJob } = useJobProgress(activeJobId, {
+    onCompleted: (j) => {
+      setMsg(
+        j.kind === "localize_extract"
+          ? "Đã hoàn tất tách giọng, OCR chữ cứng, phân biệt người nói & dịch kịch bản!"
+          : "Đã hoàn tất xuất video Việt hóa / Remix!"
+      );
+      void load();
+    },
+    onFailed: (j) => {
+      setErr(j.error || "Tác vụ Việt hóa thất bại");
+      void load();
+    },
+  });
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -191,6 +208,7 @@ export default function LocalizePage() {
         `/api/v1/localize/projects/${id}/${action}`,
         { method: "POST", body: JSON.stringify({ sync: false, tts_provider: "auto" }) }
       );
+      if (res.job_id) setActiveJobId(res.job_id);
       setMsg(
         action === "extract"
           ? `Đã xếp hàng tách nhạc MDX-Net, OCR chữ cứng, phân biệt người nói & dịch (Job #${res.job_id}).`
@@ -315,6 +333,12 @@ export default function LocalizePage() {
           {err}
         </div>
       )}
+      <JobProgressBanner
+        job={activeJob}
+        jobId={activeJobId}
+        label="Localize AI Studio"
+        onDismiss={() => setActiveJobId(null)}
+      />
 
       <form
         onSubmit={createProject}

@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import os
 import shutil
+import socket
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -188,4 +190,106 @@ def find_rea_video_binary() -> str:
     if found:
         return found
     raise FileNotFoundError("rea-video CLI binary not found in tools/rea, spikes/.venv-rea, or PATH")
+
+
+def find_yt_dlp_command() -> list[str]:
+    """Locate `yt-dlp`: `VIDEOCREATOR_YTDLP_BIN` -> `{app}/runtime/yt-dlp` -> `.venv` -> `PATH` -> `python -m yt_dlp`."""
+    env_override = (os.environ.get("VIDEOCREATOR_YTDLP_BIN") or "").strip()
+    if env_override and Path(env_override).is_file():
+        return [str(Path(env_override).resolve())]
+
+    exe_name = "yt-dlp.exe" if os.name == "nt" else "yt-dlp"
+    bundled = REPO_ROOT / "runtime" / "yt-dlp" / exe_name
+    if bundled.is_file():
+        return [str(bundled)]
+
+    venv_exe = Path(sys.executable).parent / exe_name
+    if venv_exe.is_file():
+        return [str(venv_exe)]
+
+    which_exe = shutil.which("yt-dlp")
+    if which_exe:
+        return [which_exe]
+    return [sys.executable, "-m", "yt_dlp"]
+
+
+def find_uv_binary() -> str | None:
+    """Locate `uv`: `VIDEOCREATOR_UV_BIN` -> `{app}/runtime/uv` -> `PATH`."""
+    env_override = (os.environ.get("VIDEOCREATOR_UV_BIN") or "").strip()
+    if env_override and Path(env_override).is_file():
+        return str(Path(env_override).resolve())
+
+    exe_name = "uv.exe" if os.name == "nt" else "uv"
+    bundled = REPO_ROOT / "runtime" / "uv" / exe_name
+    if bundled.is_file():
+        return str(bundled)
+
+    found = shutil.which("uv")
+    return found if found else None
+
+
+def find_python_runtime() -> str:
+    """Locate bundled Python or current interpreter: `VIDEOCREATOR_PYTHON_BIN` -> `{app}/.venv` -> `{app}/runtime/python` -> `sys.executable`."""
+    env_override = (os.environ.get("VIDEOCREATOR_PYTHON_BIN") or "").strip()
+    if env_override and Path(env_override).is_file():
+        return str(Path(env_override).resolve())
+
+    py_exe = "python.exe" if os.name == "nt" else "python3"
+    venv_py = (
+        REPO_ROOT / ".venv" / "Scripts" / "python.exe"
+        if os.name == "nt"
+        else REPO_ROOT / ".venv" / "bin" / "python"
+    )
+    if venv_py.is_file():
+        return str(venv_py)
+
+    bundled = REPO_ROOT / "runtime" / "python" / py_exe
+    if bundled.is_file():
+        return str(bundled)
+
+    return sys.executable
+
+
+def is_port_available(host: str, port: int) -> bool:
+    """Return True only if nothing is listening on `(host, port)` and it can be bound exclusively."""
+    bind_host = "127.0.0.1" if host in ("0.0.0.0", "::", "") else host
+    family = socket.AF_INET6 if ":" in bind_host else socket.AF_INET
+    with socket.socket(family, socket.SOCK_STREAM) as probe:
+        probe.settimeout(0.25)
+        if probe.connect_ex((bind_host, int(port))) == 0:
+            return False
+    with socket.socket(family, socket.SOCK_STREAM) as sock:
+        excl_opt = getattr(socket, "SO_EXCLUSIVEADDRUSE", None)
+        if excl_opt is not None:
+            try:
+                sock.setsockopt(socket.SOL_SOCKET, excl_opt, 1)
+            except OSError:
+                pass
+        try:
+            sock.bind((bind_host, int(port)))
+            return True
+        except OSError:
+            return False
+
+
+def pick_available_port(
+    host: str,
+    preferred_port: int,
+    *,
+    exclude_ports: set[int] | None = None,
+    max_tries: int = 30,
+) -> int:
+    """Pick `preferred_port` if free, otherwise scan upward for an available local TCP port."""
+    excluded = exclude_ports or set()
+    for offset in range(max(1, max_tries)):
+        cand = int(preferred_port) + offset
+        if cand in excluded or cand > 65535:
+            continue
+        if is_port_available(host, cand):
+            return cand
+    bind_host = "127.0.0.1" if host in ("0.0.0.0", "::", "") else host
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind((bind_host, 0))
+        return int(sock.getsockname()[1])
+
 

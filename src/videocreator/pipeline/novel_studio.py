@@ -9,9 +9,10 @@ from typing import Any
 
 from videocreator.approvals import try_autopilot_approve
 from videocreator.db import get_conn, query_all, query_one, record_audit
+from videocreator.job_store import report_active_job_progress
 from videocreator.jsonutil import loads_or
 from videocreator.paths import AppPaths
-from videocreator.pipeline.batch_studio import _ensure_full_ai_canvas_shot
+from videocreator.pipeline.assembly import ensure_full_ai_canvas_shot
 from videocreator.pipeline.characters import generate_ai_image
 from videocreator.pipeline.export import resolve_canvas_dimensions
 from videocreator.pipeline.render import render_video
@@ -285,7 +286,7 @@ def _resolve_novel_chapter_shots(
     shot_ids.extend(int(r["id"]) for r in ws_shots if int(r["id"]) not in shot_ids)
 
     if not shot_ids:
-        shot_ids.append(_ensure_full_ai_canvas_shot(paths, ws_id, aspect_ratio))
+        shot_ids.append(ensure_full_ai_canvas_shot(paths, ws_id, aspect_ratio))
 
     planned: list[dict[str, Any]] = []
     for idx, seg in enumerate(lines):
@@ -339,7 +340,9 @@ def render_novel_project(
     skipped_checkpoint = 0
     failed_count = 0
 
-    for ch in proj.get("chapters") or []:
+    chapters_list = list(proj.get("chapters") or [])
+    total_ch = max(1, len(chapters_list))
+    for ch_pos, ch in enumerate(chapters_list, start=1):
         ch_id = int(ch["id"])
         if target_set is not None and ch_id not in target_set:
             continue
@@ -351,8 +354,16 @@ def render_novel_project(
             and (paths.media_dir / existing_rel).is_file()
         ):
             skipped_checkpoint += 1
+            report_active_job_progress(
+                0.08 + 0.85 * (ch_pos / total_ch),
+                f"Bỏ qua chương {ch_pos}/{total_ch} (đã có checkpoint): {str(ch['title'])[:48]}",
+            )
             continue
 
+        report_active_job_progress(
+            0.08 + 0.85 * ((ch_pos - 1) / total_ch),
+            f"Đang dựng chương {ch_pos}/{total_ch}: {str(ch['title'])[:48]}",
+        )
         with get_conn(paths.db_file) as conn:
             conn.execute(
                 "UPDATE novel_chapters SET status = 'rendering', error = NULL WHERE id = ?",
@@ -393,7 +404,7 @@ def render_novel_project(
                 )
                 video_id = int(cur.lastrowid)
 
-            render_video(paths, video_id, auto_score=False)
+            render_video(paths, video_id, auto_score=False, report_progress=False)
             v_row = query_one(
                 paths.db_file,
                 "SELECT output_path, qc_json, quality_score FROM videos WHERE id = ?",

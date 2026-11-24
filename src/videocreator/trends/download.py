@@ -12,7 +12,7 @@ from urllib.parse import urlsplit
 
 from videocreator.config import load_settings
 from videocreator.db import get_conn, query_all, query_one
-from videocreator.paths import AppPaths, find_ffmpeg_binary
+from videocreator.paths import AppPaths, find_ffmpeg_binary, find_yt_dlp_command
 from videocreator.ai.budget import app_timezone
 from videocreator.timeutil import UTC_ISO_FORMAT, local_day_start_utc_iso, utc_now
 
@@ -43,14 +43,7 @@ def _is_safe_public_http_url(url: str) -> bool:
     )
 
 
-def find_yt_dlp_command() -> list[str]:
-    venv_exe = Path(sys.executable).parent / ("yt-dlp.exe" if sys.platform == "win32" else "yt-dlp")
-    if venv_exe.exists():
-        return [str(venv_exe)]
-    which_exe = shutil.which("yt-dlp")
-    if which_exe:
-        return [which_exe]
-    return [sys.executable, "-m", "yt_dlp"]
+# `find_yt_dlp_command` is consolidated in `videocreator.paths` and re-exported here.
 
 
 def _default_yt_dlp_download(url: str, dest_path: Path) -> bool:

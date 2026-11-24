@@ -1,6 +1,7 @@
 """Job rows in SQLite: claiming, lane routing, progress, pause/resume, recovery, and quota waits."""
 from __future__ import annotations
 
+import contextvars
 import logging
 from pathlib import Path
 from typing import Any
@@ -8,6 +9,26 @@ from typing import Any
 from videocreator.db import get_conn, get_setting, get_write_conn, query_all, set_setting
 
 logger = logging.getLogger("videocreator.jobs")
+
+_ACTIVE_JOB_CTX: contextvars.ContextVar[tuple[Path, int] | None] = contextvars.ContextVar(
+    "videocreator_active_job", default=None
+)
+
+
+def bind_active_job_context(
+    db_file: Path, job_id: int
+) -> contextvars.Token[tuple[Path, int] | None]:
+    return _ACTIVE_JOB_CTX.set((Path(db_file), int(job_id)))
+
+
+def reset_active_job_context(
+    token: contextvars.Token[tuple[Path, int] | None],
+) -> None:
+    _ACTIVE_JOB_CTX.reset(token)
+
+
+def get_active_job_context() -> tuple[Path, int] | None:
+    return _ACTIVE_JOB_CTX.get()
 
 # The owner's subscription-backed provider (no per-call cost); see `ai/claude_cli.py`.
 SUBSCRIPTION_PROVIDER = "claude_cli"
@@ -150,6 +171,24 @@ def update_job_progress(
         )
 
 
+def report_active_job_progress(
+    progress: float, step: str = "", *, db_file: Path | None = None
+) -> bool:
+    """Updates `(progress, step)` of the currently executing worker job if inside `run_one_job`."""
+    ctx = _ACTIVE_JOB_CTX.get()
+    if ctx is None:
+        return False
+    ctx_db, ctx_job_id = ctx
+    if db_file is not None and Path(db_file).resolve() != ctx_db.resolve():
+        return False
+    try:
+        update_job_progress(ctx_db, ctx_job_id, progress=progress, step=step)
+        return True
+    except Exception as exc:
+        logger.debug("Ignored progress update error on job #%d: %s", ctx_job_id, exc)
+        return False
+
+
 def complete_job(
     db_file: Path,
     job_id: int,
@@ -169,6 +208,7 @@ def complete_job(
                     error = ?,
                     log_tail = COALESCE(?, log_tail),
                     progress = 1.0,
+                    step = CASE WHEN step = '' THEN 'Hoàn tất' ELSE step END,
                     finished_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
                 WHERE id = ?
                 """,

@@ -8,7 +8,6 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 
-from videocreator.api.routes_accounts import _parse_slots_input
 from videocreator.api.v1.deps import resolve_workspace_id, serialize_v1_video
 from videocreator.approvals import approve, bulk_approve, post_now, reject
 from videocreator.db import get_conn, query_all, query_one, record_audit
@@ -18,7 +17,7 @@ from videocreator.posting.oauth import build_authorize_url
 from videocreator.posting.performance import list_performance_rows
 from videocreator.posting.post_actions import cancel_scheduled_post, retry_failed_post
 from videocreator.posting.publish_pack import build_publish_pack_zip
-from videocreator.posting.slots import _account_slot_override
+from videocreator.posting.slots import account_slot_override, parse_slots_input
 from videocreator.products import product_name_map
 from videocreator.secrets_store import SecretsStore
 from videocreator.state import InvalidTransitionError
@@ -218,7 +217,7 @@ def _serialize_account(row: dict[str, Any], secrets: SecretsStore) -> dict[str, 
         "external_id": str(row.get("external_id") or ""),
         "name": str(row.get("name") or ""),
         "lang": str(row.get("lang") or "vi"),
-        "slots": _account_slot_override(row),
+        "slots": account_slot_override(row),
         "has_token": secrets.has(secret_key) if secret_key else False,
         "token_expires_at": row.get("token_expires_at"),
         "enabled": bool(row.get("enabled")),
@@ -279,7 +278,10 @@ async def api_v1_create_account(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     if body.slots is not None:
-        normalized = _parse_slots_input(",".join(body.slots))
+        try:
+            normalized = parse_slots_input(",".join(body.slots))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         with get_conn(paths.db_file) as conn:
             conn.execute(
                 "UPDATE accounts SET slots_json = ? WHERE id = ?",
@@ -305,7 +307,10 @@ async def api_v1_patch_account(
 
     next_slots = row.get("slots_json")
     if body.slots is not None:
-        normalized = _parse_slots_input(",".join(body.slots))
+        try:
+            normalized = parse_slots_input(",".join(body.slots))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         next_slots = json.dumps(normalized) if normalized else None
 
     with get_conn(paths.db_file) as conn:

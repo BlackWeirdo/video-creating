@@ -9,7 +9,9 @@ from typing import Any
 
 from videocreator.config import load_settings
 from videocreator.db import get_conn, query_all, query_one, record_audit
+from videocreator.job_store import report_active_job_progress
 from videocreator.paths import AppPaths
+from videocreator.pipeline.assembly import save_render_cache
 from videocreator.pipeline.audio_beats import snap_shots_to_beats
 from videocreator.pipeline.export import (
     extract_cover_frame,
@@ -147,46 +149,7 @@ def _resolve_video_style_row(paths: AppPaths, video_row: dict[str, Any]) -> dict
     return resolve_style_preset(paths.db_file, ws_style)
 
 
-def _save_render_cache(
-    paths: AppPaths,
-    *,
-    video_id: int,
-    cut_mp4: Path,
-    voice_path: Path | None,
-    sub_events: list[SubtitleEvent],
-    cut_times_s: list[float],
-    music_asset_id: int | None,
-    aspect_ratio: str,
-    mix_source_audio: bool,
-) -> dict[str, Any]:
-    from videocreator.pipeline.render_steps import subtitle_events_to_json
-
-    cache_dir = paths.media_dir / "render_cache" / f"video_{video_id}"
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    cached_cut = cache_dir / "cut.mp4"
-    shutil.copy2(cut_mp4, cached_cut)
-    rel_cut = f"render_cache/video_{video_id}/cut.mp4"
-
-    rel_voice = ""
-    if voice_path is not None and voice_path.exists():
-        cached_voice = cache_dir / "voice.wav"
-        shutil.copy2(voice_path, cached_voice)
-        rel_voice = f"render_cache/video_{video_id}/voice.wav"
-
-    subs_file = cache_dir / "sub_events.json"
-    subs_file.write_text(
-        json.dumps(subtitle_events_to_json(sub_events), ensure_ascii=False),
-        encoding="utf-8",
-    )
-    return {
-        "cut_mp4": rel_cut,
-        "voice_wav": rel_voice,
-        "sub_events_file": f"render_cache/video_{video_id}/sub_events.json",
-        "cut_times_s": cut_times_s,
-        "music_asset_id": music_asset_id,
-        "aspect_ratio": aspect_ratio,
-        "mix_source_audio": bool(mix_source_audio),
-    }
+_save_render_cache = save_render_cache
 
 
 def _render_to_master(
@@ -197,9 +160,12 @@ def _render_to_master(
     preset: str,
     music_asset_id: int | None,
     mpt_client: Any,
+    report_progress: bool = True,
 ) -> tuple[str, float]:
     """Runs the render steps and saves the output on the video row. Returns `(rel_out, duration_s)`."""
     video_id = int(video_row["id"])
+    if report_progress:
+        report_active_job_progress(0.15, f"Đang cắt các phân cảnh video #{video_id}...")
     settings = load_settings(paths.config_file)
     try:
         plan = json.loads(video_row.get("plan_json") or "{}")
@@ -253,6 +219,8 @@ def _render_to_master(
     )
     cut_mp4 = concat_segments(seg_files, work_dir)
     cut_times_s = _shot_cut_timestamps(planned_shots)
+    if report_progress:
+        report_active_job_progress(0.45, f"Đang lồng tiếng & căn nhịp phụ đề video #{video_id}...")
 
     engine_mode = str(video_row.get("engine") or "ffmpeg")
     voice_track = None
@@ -287,6 +255,8 @@ def _render_to_master(
     music_file = music_rec["path"] if music_rec is not None else None
     use_style_row = None if (hook_layout in ("big_center_title", "top_banner", "kinetic_words") and not str(video_row.get("style_preset") or "").strip()) else style_row
 
+    if report_progress:
+        report_active_job_progress(0.75, f"Đang xuất master -14 LUFS & kiểm định QC video #{video_id}...")
     rel_out, rel_cover, actual_duration_s, preflight_map, qc_report = finalize_master_export(
         paths,
         video_id=video_id,
@@ -373,6 +343,7 @@ def render_video(
     auto_score: bool = False,
     score_provider: Any = None,
     score_override: float | None = None,
+    report_progress: bool = True,
 ) -> str:
     """Executes the 5-step FFmpeg (or MPT + FFmpeg fallback) render pipeline for `video_id`."""
     video_row = query_one(paths.db_file, "SELECT * FROM videos WHERE id = ?", (video_id,))
@@ -388,10 +359,18 @@ def render_video(
     try:
         try:
             rel_out, actual_duration_s = _render_to_master(
-                paths, video_row, work_dir, preset=preset, music_asset_id=music_asset_id, mpt_client=mpt_client
+                paths,
+                video_row,
+                work_dir,
+                preset=preset,
+                music_asset_id=music_asset_id,
+                mpt_client=mpt_client,
+                report_progress=report_progress,
             )
         finally:
             shutil.rmtree(work_dir, ignore_errors=True)
+        if report_progress:
+            report_active_job_progress(0.95, f"Hoàn tất xuất video #{video_id}")
 
         should_score = (
             auto_score

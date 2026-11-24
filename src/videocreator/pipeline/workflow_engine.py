@@ -10,13 +10,14 @@ from typing import Any
 
 from videocreator.approvals import try_autopilot_approve
 from videocreator.db import get_conn, query_all, query_one, record_audit
+from videocreator.job_store import report_active_job_progress
 from videocreator.jsonutil import loads_or
 from videocreator.paths import AppPaths
-from videocreator.pipeline.batch_studio import _ensure_full_ai_canvas_shot
+from videocreator.pipeline.assembly import ensure_full_ai_canvas_shot, save_render_cache
 from videocreator.pipeline.characters import create_character, generate_ai_image, get_character
 from videocreator.pipeline.export import resolve_canvas_dimensions
 from videocreator.pipeline.news_studio import extract_article_facts
-from videocreator.pipeline.render import _save_render_cache, finalize_master_export
+from videocreator.pipeline.render import finalize_master_export
 from videocreator.pipeline.render_steps import concat_segments, cut_shot_segments
 from videocreator.pipeline.styles import resolve_style_preset
 from videocreator.pipeline.subtitles import SubtitleEvent
@@ -279,9 +280,14 @@ def execute_workflow(
     final_video_id: int | None = None
 
     try:
-        for node in ordered:
+        total_nodes = max(1, len(ordered))
+        for n_idx, node in enumerate(ordered, start=1):
             nid = str(node["id"])
             kind = _node_kind(node)
+            report_active_job_progress(
+                0.08 + 0.85 * ((n_idx - 1) / total_nodes),
+                f"Đang chạy nút {n_idx}/{total_nodes}: {kind} ({nid})",
+            )
             data = dict(node.get("data") or {})
             upstream = [node_outputs[p] for p in parents_map[nid] if p in node_outputs]
 
@@ -389,7 +395,7 @@ def execute_workflow(
                         raise PermissionError(
                             "Workspace 'strict_footage' cần ít nhất 1 shot thật hoặc character_node."
                         )
-                    collected_shots = [_ensure_full_ai_canvas_shot(paths, ws_id, aspect_ratio)]
+                    collected_shots = [ensure_full_ai_canvas_shot(paths, ws_id, aspect_ratio)]
 
                 prompt_txt = str(data.get("prompt") or "").strip()
                 if prompt_txt:
@@ -508,7 +514,7 @@ def execute_workflow(
                     music_path=None,
                     voice_path=voice_wav,
                 )
-                render_cache = _save_render_cache(
+                render_cache = save_render_cache(
                     paths,
                     video_id=video_id,
                     cut_mp4=cut_mp4,

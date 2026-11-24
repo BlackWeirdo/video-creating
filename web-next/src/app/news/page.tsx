@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Download, Newspaper, Play, Sparkles } from "lucide-react";
 import { apiFetch, useWorkspace } from "@/lib/api";
+import { JobProgressBanner, useJobProgress } from "@/components/JobProgressBanner";
 import { SimulationBadge } from "@/components/SimulationBadge";
 
 interface NewsProject {
@@ -26,6 +27,7 @@ export default function NewsPage() {
   const [title, setTitle] = useState("");
   const [sourceUrl, setSourceUrl] = useState("");
   const [rawText, setRawText] = useState("");
+  const [activeJobId, setActiveJobId] = useState<number | null>(null);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
 
@@ -44,6 +46,17 @@ export default function NewsPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const { job: activeJob } = useJobProgress(activeJobId, {
+    onCompleted: () => {
+      setMsg("Đã xuất xong video Bản tin & gói .zip!");
+      void load();
+    },
+    onFailed: (j) => {
+      setErr(j.error || "Lỗi render Bản tin");
+      void load();
+    },
+  });
 
   const createNews = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,6 +104,12 @@ export default function NewsPage() {
           {err}
         </div>
       )}
+      <JobProgressBanner
+        job={activeJob}
+        jobId={activeJobId}
+        label="News Studio"
+        onDismiss={() => setActiveJobId(null)}
+      />
 
       <form
         onSubmit={createNews}
@@ -172,6 +191,7 @@ export default function NewsPage() {
                       `/api/v1/news/projects/${p.id}/render`,
                       { method: "POST", body: JSON.stringify({ sync: false, build_pack: true }) }
                     );
+                    setActiveJobId(res.job_id);
                     setMsg(`Đã xếp hàng render Bản tin #${p.id} (Job #${res.job_id}).`);
                   }}
                   className="px-2.5 py-1 rounded bg-emerald-500/20 text-emerald-300 cursor-pointer"

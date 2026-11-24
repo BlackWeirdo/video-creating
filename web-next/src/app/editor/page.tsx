@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Film, Play, Plus, Scissors, Trash2 } from "lucide-react";
 import { apiFetch, useWorkspace } from "@/lib/api";
+import { JobProgressBanner, useJobProgress } from "@/components/JobProgressBanner";
 
 interface MediaClip {
   id: number;
@@ -41,6 +42,7 @@ export default function EditorPage() {
   const [clips, setClips] = useState<TimelineClip[]>([]);
   const [subText, setSubText] = useState("Tiêu đề Timeline Editor");
   const [projTitle, setProjTitle] = useState("Bản dựng Đa track mới");
+  const [activeJobId, setActiveJobId] = useState<number | null>(null);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
 
@@ -71,6 +73,17 @@ export default function EditorPage() {
     void load();
   }, [load]);
 
+  const { job: activeJob, isRunning: jobRunning } = useJobProgress(activeJobId, {
+    onCompleted: () => {
+      setMsg("Đã xuất xong video Timeline Đa track!");
+      void load();
+    },
+    onFailed: (j) => {
+      setErr(j.error || "Lỗi render Timeline");
+      void load();
+    },
+  });
+
   const renderTimeline = async (e: React.FormEvent) => {
     e.preventDefault();
     setErr("");
@@ -90,11 +103,12 @@ export default function EditorPage() {
           },
         }),
       });
-      const rn = await apiFetch<{ project: EditorProject }>(
+      const rn = await apiFetch<{ job_id: number }>(
         `/api/v1/editor/projects/${cr.project.id}/render`,
-        { method: "POST", body: JSON.stringify({ style_preset: "tiktok_karaoke" }) }
+        { method: "POST", body: JSON.stringify({ style_preset: "tiktok_karaoke", sync: false }) }
       );
-      setMsg(`Đã xuất video Timeline #${rn.project.output_video_id}!`);
+      setActiveJobId(rn.job_id);
+      setMsg(`Đã xếp hàng xuất video Timeline #${cr.project.id} (Job #${rn.job_id}).`);
       await load();
     } catch (e2) {
       setErr(e2 instanceof Error ? e2.message : "Lỗi render Timeline");
@@ -150,6 +164,12 @@ export default function EditorPage() {
           {err}
         </div>
       )}
+      <JobProgressBanner
+        job={activeJob}
+        jobId={activeJobId}
+        label="Timeline FFmpeg"
+        onDismiss={() => setActiveJobId(null)}
+      />
 
       {tab === "freecut" ? (
         <div className="space-y-3 text-xs">
@@ -261,10 +281,11 @@ export default function EditorPage() {
             />
             <button
               type="submit"
-              disabled={clips.length === 0}
+              disabled={clips.length === 0 || jobRunning}
               className="px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold cursor-pointer disabled:opacity-40"
             >
-              <Play className="w-3.5 h-3.5 inline mr-1" /> Xuất Video Đa Track
+              <Play className="w-3.5 h-3.5 inline mr-1" />{" "}
+              {jobRunning ? "Đang xuất..." : "Xuất Video Đa Track"}
             </button>
             {projects.slice(0, 3).map((p) => (
               <div key={p.id} className="text-[11px] text-slate-400 flex justify-between pt-1">

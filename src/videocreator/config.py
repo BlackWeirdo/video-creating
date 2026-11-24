@@ -15,7 +15,7 @@ from videocreator.config_ai import (
     ModelPriceConfig,
     StudioConfig,
     VideoGenConfig,
-    _default_prices,
+    default_prices,
 )
 
 
@@ -158,7 +158,7 @@ class Settings(BaseModel):
 
     ai: AIConfig = Field(default_factory=AIConfig)
     budget: BudgetConfig = Field(default_factory=BudgetConfig)
-    prices: dict[str, ModelPriceConfig] = Field(default_factory=_default_prices)
+    prices: dict[str, ModelPriceConfig] = Field(default_factory=default_prices)
     quality: QualityConfig = Field(default_factory=QualityConfig)
     schedule: ScheduleConfig = Field(default_factory=ScheduleConfig)
     telegram: TelegramConfig = Field(default_factory=TelegramConfig)

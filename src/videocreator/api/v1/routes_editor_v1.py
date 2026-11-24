@@ -8,7 +8,9 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from videocreator.api.v1.deps import resolve_workspace_id
+from videocreator.db import get_conn
 from videocreator.editor_bridge import find_freecut_dist_dir
+from videocreator.jobs import enqueue_job
 from videocreator.paths import AppPaths
 from videocreator.pipeline.editor import (
     create_editor_project,
@@ -39,6 +41,7 @@ class EditorPatchBody(BaseModel):
 
 class EditorRenderBody(BaseModel):
     style_preset: str = "tiktok_karaoke"
+    sync: bool = True
 
 
 @router.get("/editor/media")
@@ -117,6 +120,29 @@ async def api_v1_render_editor_project(
 ) -> JSONResponse:
     paths: AppPaths = request.app.state.paths
     payload = body or EditorRenderBody()
+    proj = get_editor_project(paths.db_file, project_id)
+    if proj is None:
+        raise HTTPException(status_code=404, detail=f"Editor project #{project_id} not found")
+    if not payload.sync:
+        tracks = {**dict(proj.get("tracks") or {}), "style_preset": payload.style_preset}
+        with get_conn(paths.db_file) as conn:
+            conn.execute(
+                "UPDATE editor_projects SET tracks_json = ?, status = 'rendering', error = NULL WHERE id = ?",
+                (
+                    __import__("json").dumps(tracks, ensure_ascii=False),
+                    int(project_id),
+                ),
+            )
+        job_id = enqueue_job(
+            paths.db_file,
+            "editor_render",
+            ref_id=int(project_id),
+            workspace_id=int(proj["workspace_id"]),
+        )
+        return JSONResponse(
+            {"job_id": job_id, "project_id": int(project_id), "status": "queued"},
+            status_code=202,
+        )
     try:
         done = render_editor_project(paths, project_id, style_preset=payload.style_preset)
     except ValueError as exc:

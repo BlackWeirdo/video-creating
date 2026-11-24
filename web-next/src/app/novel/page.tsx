@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { BookOpen, Play, Plus, RefreshCw } from "lucide-react";
 import { apiFetch, useWorkspace } from "@/lib/api";
+import { JobProgressBanner, useJobProgress } from "@/components/JobProgressBanner";
 import { SimulationBadge } from "@/components/SimulationBadge";
 
 interface NovelChapter {
@@ -66,6 +67,7 @@ export default function NovelStudioPage() {
     Array<{ chapter_index: number; title: string; word_count: number }>
   >([]);
   const [renderingId, setRenderingId] = useState<number | null>(null);
+  const [activeJobId, setActiveJobId] = useState<number | null>(null);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
 
@@ -94,6 +96,22 @@ export default function NovelStudioPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const { job: activeJob, isRunning: jobRunning } = useJobProgress(activeJobId, {
+    onStepChange: () => {
+      void load();
+    },
+    onCompleted: () => {
+      setMsg(`Đã render xong các chương cho dự án #${renderingId ?? ""}.`);
+      setRenderingId(null);
+      void load();
+    },
+    onFailed: (j) => {
+      setErr(j.error || "Lỗi render chương tiểu thuyết");
+      setRenderingId(null);
+      void load();
+    },
+  });
 
   const voiceChoices = [
     ...channelVoices.map((cv) => ({
@@ -145,15 +163,15 @@ export default function NovelStudioPage() {
     setErr("");
     setMsg("");
     try {
-      await apiFetch(`/api/v1/novels/projects/${pid}/render`, {
+      const res = await apiFetch<{ job_id: number }>(`/api/v1/novels/projects/${pid}/render`, {
         method: "POST",
-        body: JSON.stringify({ sync: true, force }),
+        body: JSON.stringify({ sync: false, force }),
       });
-      setMsg(`Đã render xong các chương cho dự án #${pid}.`);
+      setActiveJobId(res.job_id);
+      setMsg(`Đã xếp hàng dựng các chương truyện #${pid} (Job #${res.job_id}) — theo dõi từng chương trực tiếp.`);
       await load();
     } catch (e2) {
       setErr(e2 instanceof Error ? e2.message : "Lỗi render chương tiểu thuyết");
-    } finally {
       setRenderingId(null);
     }
   };
@@ -179,6 +197,12 @@ export default function NovelStudioPage() {
           {err}
         </div>
       )}
+      <JobProgressBanner
+        job={activeJob}
+        jobId={activeJobId}
+        label={renderingId ? `Tiểu thuyết #${renderingId}` : "Novel Studio"}
+        onDismiss={() => setActiveJobId(null)}
+      />
 
       <form
         onSubmit={createNovel}
@@ -283,18 +307,18 @@ export default function NovelStudioPage() {
               <div className="flex gap-2">
                 <button
                   type="button"
-                  disabled={renderingId === p.id}
+                  disabled={jobRunning && renderingId === p.id}
                   onClick={() => void renderProject(p.id, false)}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold cursor-pointer disabled:opacity-50"
                 >
                   <Play className="w-3.5 h-3.5" />{" "}
-                  {renderingId === p.id ? "Đang render..." : "Render tiếp (Checkpoint)"}
+                  {jobRunning && renderingId === p.id ? "Đang render..." : "Render tiếp (Checkpoint)"}
                 </button>
                 <button
                   type="button"
-                  disabled={renderingId === p.id}
+                  disabled={jobRunning && renderingId === p.id}
                   onClick={() => void renderProject(p.id, true)}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 cursor-pointer"
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 cursor-pointer disabled:opacity-50"
                 >
                   <RefreshCw className="w-3.5 h-3.5" /> Render lại tất cả
                 </button>

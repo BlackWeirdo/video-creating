@@ -12,7 +12,7 @@ from videocreator.state import transition
 from videocreator.timeutil import UTC_ISO_FORMAT, utc_now
 
 
-def _parse_hhmm(slot_str: str) -> time | None:
+def parse_hhmm(slot_str: str) -> time | None:
     parts = slot_str.strip().split(":")
     if len(parts) != 2:
         return None
@@ -26,7 +26,10 @@ def _parse_hhmm(slot_str: str) -> time | None:
     return None
 
 
-def _account_slot_override(account_row: dict | None) -> list[str]:
+_parse_hhmm = parse_hhmm
+
+
+def account_slot_override(account_row: dict | None) -> list[str]:
     """Valid `HH:MM` slots of the account's own `slots_json`; empty when it has none."""
     if not account_row or not account_row.get("slots_json"):
         return []
@@ -36,7 +39,44 @@ def _account_slot_override(account_row: dict | None) -> list[str]:
         return []
     if not isinstance(parsed, list):
         return []
-    return [str(s).strip() for s in parsed if _parse_hhmm(str(s)) is not None]
+    return [str(s).strip() for s in parsed if parse_hhmm(str(s)) is not None]
+
+
+_account_slot_override = account_slot_override
+
+
+def parse_slots_input(raw_slots: str) -> list[str]:
+    """Validate and normalize comma/space/JSON `HH:MM` slot strings, raising `ValueError` on bad format."""
+    clean = raw_slots.strip()
+    if not clean or clean == "[]":
+        return []
+    tokens: list[str]
+    if clean.startswith("["):
+        try:
+            loaded = json.loads(clean)
+        except Exception as exc:
+            raise ValueError(
+                "Khung giờ không hợp lệ (định dạng HH:MM, ví dụ: 09:00, 18:30)"
+            ) from exc
+        if not isinstance(loaded, list):
+            raise ValueError(
+                "Khung giờ không hợp lệ (định dạng HH:MM, ví dụ: 09:00, 18:30)"
+            )
+        tokens = [str(item).strip() for item in loaded if str(item).strip()]
+    else:
+        tokens = [s.strip().strip("\"'") for s in clean.replace(",", " ").split() if s.strip()]
+
+    normalized: list[str] = []
+    for tok in tokens:
+        t = parse_hhmm(tok)
+        if t is None:
+            raise ValueError(
+                f"Khung giờ '{tok}' không hợp lệ (định dạng HH:MM, ví dụ: 09:00, 18:30)"
+            )
+        hhmm = f"{t.hour:02d}:{t.minute:02d}"
+        if hhmm not in normalized:
+            normalized.append(hhmm)
+    return sorted(normalized)
 
 
 def get_account_slots(

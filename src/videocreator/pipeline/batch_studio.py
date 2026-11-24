@@ -9,8 +9,10 @@ from typing import Any
 
 from videocreator.approvals import try_autopilot_approve
 from videocreator.db import get_conn, query_all, query_one, record_audit
+from videocreator.job_store import report_active_job_progress
 from videocreator.jsonutil import loads_or
 from videocreator.paths import AppPaths
+from videocreator.pipeline.assembly import count_workspace_shots, ensure_full_ai_canvas_shot
 from videocreator.pipeline.ffmpeg import run_ffmpeg
 from videocreator.pipeline.render import render_video
 from videocreator.pipeline.styles import resolve_style_preset
@@ -27,19 +29,7 @@ HOOK_ANGLES: tuple[tuple[str, str], ...] = (
 )
 
 
-def _count_workspace_shots(db_file: Path, workspace_id: int) -> int:
-    row = query_one(
-        db_file,
-        """
-        SELECT COUNT(*) AS c
-        FROM shots s
-        LEFT JOIN footage f ON s.footage_id = f.id
-        LEFT JOIN assets a ON s.asset_id = a.id
-        WHERE COALESCE(f.workspace_id, a.workspace_id, 1) = ?
-        """,
-        (int(workspace_id),),
-    )
-    return int(row["c"]) if row else 0
+_count_workspace_shots = count_workspace_shots
 
 
 def create_batch_run(
@@ -204,56 +194,7 @@ def get_batch_run(db_file: Path, batch_id: int) -> dict[str, Any] | None:
     return out
 
 
-def _ensure_full_ai_canvas_shot(paths: AppPaths, workspace_id: int, aspect_ratio: str) -> int:
-    existing = query_one(
-        paths.db_file,
-        """
-        SELECT s.id, a.path
-        FROM shots s
-        JOIN assets a ON s.asset_id = a.id
-        WHERE a.workspace_id = ? AND a.kind = 'broll'
-        ORDER BY s.id ASC LIMIT 1
-        """,
-        (int(workspace_id),),
-    )
-    if existing and existing.get("path") and (paths.media_dir / str(existing["path"])).exists():
-        return int(existing["id"])
-
-    ratio_tag = aspect_ratio.replace(":", "x")
-    w, h = (640, 360) if aspect_ratio == "16:9" else ((480, 480) if aspect_ratio == "1:1" else (360, 640))
-    rel_path = f"assets/ai_canvas_ws{workspace_id}_{ratio_tag}.mp4"
-    dest = paths.media_dir / rel_path
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    run_ffmpeg(
-        [
-            "-f",
-            "lavfi",
-            "-i",
-            f"testsrc2=s={w}x{h}:r=30:d=5.6",
-            "-c:v",
-            "libx264",
-            "-preset",
-            "veryfast",
-            "-pix_fmt",
-            "yuv420p",
-            "-an",
-            str(dest),
-        ]
-    )
-    with get_conn(paths.db_file) as conn:
-        a_id = int(
-            conn.execute(
-                "INSERT INTO assets (workspace_id, kind, path, duration_s, meta_json) VALUES (?, 'broll', ?, 5.6, '{}')",
-                (int(workspace_id), rel_path),
-            ).lastrowid
-        )
-        s_id = int(
-            conn.execute(
-                "INSERT INTO shots (asset_id, idx, start_s, end_s, description, has_product, quality) VALUES (?, 0, 0.0, 5.4, 'AI Canvas Motion', 0, 4)",
-                (a_id,),
-            ).lastrowid
-        )
-    return s_id
+_ensure_full_ai_canvas_shot = ensure_full_ai_canvas_shot
 
 
 def _pick_shots_for_batch_item(
@@ -461,11 +402,16 @@ def run_batch_run(
         (int(batch_id),),
     )
 
+    total_pending = max(1, len(pending_items))
     for idx, item in enumerate(pending_items):
         item_id = int(item["id"])
+        report_active_job_progress(
+            0.08 + 0.85 * (idx / total_pending),
+            f"Đang dựng biến thể {idx + 1}/{total_pending} ({item.get('variant_label', 'A')})...",
+        )
         try:
             video_id = int(item["video_id"]) if item.get("video_id") is not None else _plan_batch_item(paths, run_row, item)
-            render_video(paths, video_id, auto_score=False)
+            render_video(paths, video_id, auto_score=False, report_progress=False)
 
             v_after = query_one(
                 paths.db_file,
