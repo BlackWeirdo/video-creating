@@ -22,6 +22,17 @@ dependencies = [
     "tzdata>=2024.2",
     "yt-dlp==2026.10.26",
     "cryptography>=43.0.0",
+    "faster-whisper>=1.1.0",
+    "onnxruntime>=1.20.0,<1.21.0",
+    "rapidocr-onnxruntime>=1.4.0",
+    "edge-tts>=6.1.12",
+    "ctranslate2>=4.5.0",
+    "sentencepiece>=0.2.0",
+    "soundfile>=0.12.1",
+    "scipy>=1.13.0",
+    "rembg>=2.0.60",
+    "vieneu>=3.8.0",
+    "numpy>=1.26.0,<2.3.0",
 ]
 
 [project.optional-dependencies]

@@ -53,6 +53,53 @@ def _make_av_clip(dest: Path, *, channels: int = 2, duration_s: float = 2.4) -> 
     return dest
 
 
+def _make_minimal_identity_onnx(
+    input_name: str = "input",
+    output_name: str = "output",
+    dims: tuple[int, ...] = (1, 4, 16, 16),
+) -> bytes:
+    def _varint(v: int) -> bytes:
+        out = bytearray()
+        while True:
+            b = v & 0x7F
+            v >>= 7
+            if v:
+                out.append(b | 0x80)
+            else:
+                out.append(b)
+                break
+        return bytes(out)
+
+    def _f_varint(fnum: int, val: int) -> bytes:
+        return _varint((fnum << 3) | 0) + _varint(val)
+
+    def _f_bytes(fnum: int, data: bytes) -> bytes:
+        return _varint((fnum << 3) | 2) + _varint(len(data)) + data
+
+    def _f_str(fnum: int, s: str) -> bytes:
+        return _f_bytes(fnum, s.encode("utf-8"))
+
+    shape_bytes = b"".join(_f_bytes(1, _f_varint(1, d)) for d in dims)
+    tensor_type = _f_varint(1, 1) + _f_bytes(2, shape_bytes)
+    type_proto = _f_bytes(1, tensor_type)
+    vi_in = _f_str(1, input_name) + _f_bytes(2, type_proto)
+    vi_out = _f_str(1, output_name) + _f_bytes(2, type_proto)
+    node = (
+        _f_str(1, input_name)
+        + _f_str(2, output_name)
+        + _f_str(3, "id0")
+        + _f_str(4, "Identity")
+    )
+    graph = (
+        _f_bytes(1, node)
+        + _f_str(2, "g")
+        + _f_bytes(11, vi_in)
+        + _f_bytes(12, vi_out)
+    )
+    opset = _f_str(1, "") + _f_varint(2, 13)
+    return _f_varint(1, 7) + _f_bytes(7, graph) + _f_bytes(8, opset)
+
+
 def test_local_models_catalog_offline_install_and_delete_api(tmp_path: Path) -> None:
     paths = get_paths(tmp_path / "data")
     assert paths.models_dir.is_dir()
@@ -65,24 +112,28 @@ def test_local_models_catalog_offline_install_and_delete_api(tmp_path: Path) -> 
         ids = {m["model_id"] for m in models}
         assert {
             "faster_whisper_small",
+            "faster_whisper_medium",
+            "speaker_embedding_onnx",
             "uvr_mdx_kim_vocal2",
             "vieneu_tts_vi",
             "paddle_lama_inpaint",
+            "nllb_200_distilled_600m_ct2",
             "rembg_u2net",
-            "wav2lip_gan",
         }.issubset(ids)
+        assert "wav2lip_gan" not in ids
         assert all(m["status"] == "not_installed" for m in models)
 
         # Bad SHA-256 should fail cleanly without marking ready
-        weights = tmp_path / "kim_vocal_2.onnx"
-        weights.write_bytes(b"real-onnx-payload-v2")
+        onnx_payload = _make_minimal_identity_onnx()
+        weights = tmp_path / "Kim_Vocal_2.onnx"
+        weights.write_bytes(onnx_payload)
         bad = client.post(
             "/api/v1/models/uvr_mdx_kim_vocal2/install",
             json={"local_source_path": str(weights), "expected_sha256": "0" * 64},
         )
         assert bad.status_code == 400
 
-        digest = hashlib.sha256(b"real-onnx-payload-v2").hexdigest()
+        digest = hashlib.sha256(onnx_payload).hexdigest()
         ok = client.post(
             "/api/v1/models/uvr_mdx_kim_vocal2/install",
             json={"local_source_path": str(weights), "expected_sha256": digest},
@@ -90,6 +141,7 @@ def test_local_models_catalog_offline_install_and_delete_api(tmp_path: Path) -> 
         assert ok.status_code == 200
         installed = ok.json()["model"]
         assert installed["status"] == "ready"
+        assert installed["smoke_tested"] is True
         assert installed["installed_on_disk"] is True
         assert installed["sha256"] == digest
         assert Path(installed["local_path"]).is_file()

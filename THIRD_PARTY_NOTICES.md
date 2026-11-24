@@ -25,3 +25,13 @@ Video Creator V2 bundles or integrates the following open-source projects and ex
 
 7. **Node.js 24 LTS & Be Vietnam Pro Font**
    - Licenses: MIT (`Node.js`), SIL Open Font License 1.1 (`Be Vietnam Pro` in `src/videocreator/assets/fonts/`).
+
+8. **On-Demand AI Models & CPU Inference Libraries**
+   - **Faster-Whisper** (`Systran/faster-whisper`): MIT License.
+   - **UVR MDX-Net (`Kim_Vocal_2.onnx`)**: MIT License.
+   - **VieNeu-TTS v3 Nano ONNX** (`pnnbao97/VieNeu-TTS` / `pnnbao-ump/VieNeu-TTS-v3-Nano`): Apache-2.0 License.
+   - **RapidOCR / PaddleOCR PP-OCRv4 & LaMa ONNX** (`RapidAI/RapidOCR`, `Carve/LaMa-ONNX`): Apache-2.0 License.
+   - **3D-Speaker CAM++ ONNX** (`modelscope/3D-Speaker`): Apache-2.0 License.
+   - **Rembg U2Net** (`danielgatis/rembg`): MIT / Apache-2.0 License.
+   - **NLLB-200 Distilled 600M (`JustFrederik/nllb-200-distilled-600M-ct2-int8` / Meta AI)**: **CC-BY-NC-4.0 (Non-Commercial)** — optional on-demand offline fallback model only; commercial channels should configure primary AI translator routes (Gemini/Claude).
+

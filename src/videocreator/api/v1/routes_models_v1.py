@@ -17,6 +17,7 @@ from videocreator.models_manager import (
     install_local_model,
     list_local_models,
     remove_local_model,
+    verify_model_smoke_test,
 )
 from videocreator.paths import AppPaths
 
@@ -26,6 +27,7 @@ router = APIRouter()
 class ModelInstallBody(BaseModel):
     local_source_path: str | None = None
     expected_sha256: str | None = None
+    verify_smoke: bool = True
     sync: bool = False
 
 
@@ -72,10 +74,13 @@ async def api_v1_install_model(
                 model_id,
                 local_source_path=payload.local_source_path,
                 expected_sha256=payload.expected_sha256,
+                verify_smoke=payload.verify_smoke,
             )
             return JSONResponse({"model": model, "job_id": None})
         except (FileNotFoundError, ValueError) as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
         except Exception as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -86,6 +91,21 @@ async def api_v1_install_model(
         lane="io",
     )
     return JSONResponse({"model": info, "job_id": job_id}, status_code=202)
+
+
+@router.post("/models/{model_id}/verify")
+async def api_v1_verify_model(request: Request, model_id: str) -> JSONResponse:
+    paths: AppPaths = request.app.state.paths
+    info = get_local_model(paths, model_id)
+    if info is None:
+        raise HTTPException(status_code=404, detail=f"Model '{model_id}' not found")
+    try:
+        verified = verify_model_smoke_test(paths, model_id)
+    except (FileNotFoundError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return JSONResponse({"model": verified})
 
 
 @router.delete("/models/{model_id}")

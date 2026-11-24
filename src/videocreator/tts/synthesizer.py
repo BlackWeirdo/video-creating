@@ -39,15 +39,14 @@ class TTSUnavailableError(RuntimeError):
 
 
 def trim_voice_silence(src_audio: Path, dst_audio: Path) -> Path:
-    """Strips leading/trailing near-silence using FFmpeg `silenceremove`."""
+    """Decodes `src_audio` to 48kHz mono PCM WAV and strips only outer leading/trailing silence."""
+    import numpy as np
+
     dst_audio.parent.mkdir(parents=True, exist_ok=True)
     run_ffmpeg(
         [
             "-i",
             str(src_audio.resolve()),
-            "-af",
-            "silenceremove=start_periods=1:start_duration=0.04:start_threshold=-45dB:"
-            "stop_periods=1:stop_duration=0.08:stop_threshold=-45dB",
             "-c:a",
             "pcm_s16le",
             "-ar",
@@ -58,11 +57,25 @@ def trim_voice_silence(src_audio: Path, dst_audio: Path) -> Path:
         ]
     )
     try:
-        trimmed_dur = probe_duration(dst_audio)
+        with wave.open(str(dst_audio), "rb") as wf:
+            sr = wf.getframerate()
+            raw = wf.readframes(wf.getnframes())
+        samples = np.frombuffer(raw, dtype=np.int16)
+        # -45 dBFS threshold (~184 on int16); never touches internal pauses between words
+        voiced = np.flatnonzero(np.abs(samples) > 184)
+        if voiced.size > 0:
+            start_idx = max(0, int(voiced[0]) - int(0.03 * sr))
+            end_idx = min(int(samples.size), int(voiced[-1]) + int(0.06 * sr))
+            if (end_idx - start_idx) >= int(0.12 * sr):
+                trimmed = samples[start_idx:end_idx]
+                with wave.open(str(dst_audio), "wb") as wf_out:
+                    wf_out.setnchannels(1)
+                    wf_out.setsampwidth(2)
+                    wf_out.setframerate(sr)
+                    wf_out.writeframes(trimmed.tobytes())
     except Exception:
-        trimmed_dur = 0.0
-    if trimmed_dur < 0.12:
-        shutil.copy2(src_audio, dst_audio)
+        if not dst_audio.exists():
+            shutil.copy2(src_audio, dst_audio)
     return dst_audio
 
 

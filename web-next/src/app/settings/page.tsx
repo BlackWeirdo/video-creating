@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Archive, Cpu, Download, KeyRound, Plus, Rocket, Save, Settings, Trash2, Upload } from "lucide-react";
+import { Archive, CheckCircle2, Cpu, Download, KeyRound, Plus, Rocket, Save, Settings, Trash2, Upload } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 
 interface LocalModelRow {
@@ -13,6 +13,10 @@ interface LocalModelRow {
   status: string;
   progress: number;
   installed_on_disk: boolean;
+  license?: string;
+  smoke_tested?: boolean;
+  missing_python_pkgs?: string[];
+  error?: string | null;
 }
 
 interface PooledKeyRow {
@@ -56,6 +60,7 @@ export default function SettingsPage() {
   const [dailyUsd, setDailyUsd] = useState(5.0);
   const [apiFallback, setApiFallback] = useState("ask");
   const [timezone, setTimezone] = useState("Asia/Ho_Chi_Minh");
+  const [mirrorBaseUrl, setMirrorBaseUrl] = useState("");
 
   const [viProvider, setViProvider] = useState("edge");
   const [viVoice, setViVoice] = useState("vi-VN-HoaiMyNeural-Female");
@@ -85,6 +90,7 @@ export default function SettingsPage() {
             budget: { daily_usd: number };
             ai: { policy: { api_fallback: string } };
             schedule: { timezone: string };
+            models?: { mirror_base_url?: string };
           };
         }>("/api/v1/settings"),
         apiFetch<{
@@ -103,6 +109,7 @@ export default function SettingsPage() {
       setDailyUsd(s.budget?.daily_usd ?? 5.0);
       setApiFallback(s.ai?.policy?.api_fallback ?? "ask");
       setTimezone(s.schedule?.timezone ?? "Asia/Ho_Chi_Minh");
+      setMirrorBaseUrl(s.models?.mirror_base_url ?? "");
 
       setCatalog(vRes.catalog || []);
       setViProvider(vRes.voice?.vi_provider || "edge");
@@ -135,6 +142,7 @@ export default function SettingsPage() {
             budget: { daily_usd: dailyUsd },
             ai: { policy: { api_fallback: apiFallback } },
             schedule: { timezone },
+            models: { mirror_base_url: mirrorBaseUrl.trim() },
           }),
         }),
         apiFetch("/api/v1/voices", {
@@ -401,55 +409,154 @@ export default function SettingsPage() {
 
       {/* On-Demand Local AI Models Manager */}
       <div className="bg-[#111827] border border-slate-800 rounded-xl p-5 space-y-3 text-xs">
-        <h2 className="text-sm font-semibold text-white flex items-center gap-1.5">
-          <Cpu className="w-4 h-4 text-purple-400" /> Kho Model AI Cục Bộ (Tải theo nhu cầu)
-        </h2>
-        <div className="grid md:grid-cols-2 gap-3">
-          {localModels.map((m) => (
-            <div
-              key={m.model_id}
-              className="bg-[#182235] border border-slate-800 rounded-lg p-3 flex items-center justify-between gap-2"
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-white flex items-center gap-1.5">
+            <Cpu className="w-4 h-4 text-purple-400" /> Kho Model AI Cục Bộ (Kiểm chứng SHA-256 &amp; Chạy thử CPU)
+          </h2>
+          <div className="flex items-center gap-2 w-full md:w-auto">
+            <input
+              value={mirrorBaseUrl}
+              onChange={(e) => setMirrorBaseUrl(e.target.value)}
+              placeholder="Mirror R2 tuỳ chọn (VD: https://cdn.company.vn/models)"
+              className="flex-1 md:w-80 bg-[#182235] border border-slate-700 rounded-lg px-3 py-1.5 text-[11px]"
+            />
+            <button
+              type="button"
+              onClick={async () => {
+                setErr("");
+                setMsg("");
+                try {
+                  await apiFetch("/api/v1/settings", {
+                    method: "PUT",
+                    body: JSON.stringify({
+                      models: { mirror_base_url: mirrorBaseUrl.trim() },
+                    }),
+                  });
+                  setMsg("Đã lưu địa chỉ Mirror tải Model AI.");
+                  await load();
+                } catch (e2) {
+                  setErr(e2 instanceof Error ? e2.message : "Lỗi lưu Mirror URL");
+                }
+              }}
+              className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 font-semibold cursor-pointer"
             >
-              <div>
-                <div className="font-semibold text-white">{m.name}</div>
-                <div className="text-[11px] text-slate-400">
-                  {m.category} • ~{m.size_mb} MB • Trạng thái:{" "}
-                  <span className={m.status === "ready" ? "text-emerald-300" : "text-amber-300"}>
-                    {m.status}
-                  </span>
+              Lưu Mirror
+            </button>
+          </div>
+        </div>
+        <div className="grid md:grid-cols-2 gap-3">
+          {localModels.map((m) => {
+            const isNc = (m.license || "").includes("NC");
+            let statusLabel = "Chưa tải";
+            let statusClass = "text-slate-400";
+            if (m.status === "downloading") {
+              statusLabel = `Đang tải (${Math.round((m.progress || 0) * 100)}%)`;
+              statusClass = "text-sky-300";
+            } else if (m.status === "downloaded") {
+              statusLabel = "Đã tải — chờ chạy thử";
+              statusClass = "text-amber-300";
+            } else if (m.status === "ready") {
+              statusLabel = m.smoke_tested ? "Sẵn sàng (đã chạy thử)" : "Sẵn sàng";
+              statusClass = "text-emerald-300";
+            } else if (m.status === "failed") {
+              statusLabel = "Lỗi kiểm chứng";
+              statusClass = "text-rose-400";
+            }
+            return (
+              <div
+                key={m.model_id}
+                className="bg-[#182235] border border-slate-800 rounded-lg p-3 flex flex-col justify-between gap-2"
+              >
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold text-white">{m.name}</span>
+                    {m.license && (
+                      <span
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0 ${
+                          isNc
+                            ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
+                            : "bg-slate-800 text-slate-300"
+                        }`}
+                        title={isNc ? "Giấy phép phi thương mại (CC-BY-NC) — chỉ dùng dự phòng offline" : m.license}
+                      >
+                        {m.license}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[11px] text-slate-400">
+                    {m.category} • ~{m.size_mb} MB •{" "}
+                    <span className={statusClass}>{statusLabel}</span>
+                  </div>
+                  {isNc && (
+                    <div className="text-[10px] text-amber-300/90">
+                      Lưu ý: Giấy phép phi thương mại — chỉ dùng dự phòng khi không có AI chính.
+                    </div>
+                  )}
+                  {m.missing_python_pkgs && m.missing_python_pkgs.length > 0 && (
+                    <div className="text-[10px] text-amber-400">
+                      Thiếu thư viện: {m.missing_python_pkgs.join(", ")}
+                    </div>
+                  )}
+                  {m.error && (
+                    <div className="text-[10px] text-rose-400 break-words">{m.error}</div>
+                  )}
+                </div>
+                <div className="flex justify-end gap-1.5 pt-1">
+                  {m.status !== "ready" && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setErr("");
+                        await apiFetch(`/api/v1/models/${m.model_id}/install`, {
+                          method: "POST",
+                          body: JSON.stringify({}),
+                        });
+                        setMsg(`Đã xếp hàng tải & kiểm thử model ${m.model_id}.`);
+                        await load();
+                      }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 cursor-pointer"
+                    >
+                      <Download className="w-3 h-3" /> {m.status === "downloaded" ? "Tải lại" : "Tải về"}
+                    </button>
+                  )}
+                  {m.installed_on_disk && m.status !== "ready" && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setErr("");
+                        setMsg("");
+                        try {
+                          await apiFetch(`/api/v1/models/${m.model_id}/verify`, {
+                            method: "POST",
+                          });
+                          setMsg(`Model ${m.model_id} đã vượt qua kiểm thử CPU và sẵn sàng!`);
+                          await load();
+                        } catch (e2) {
+                          setErr(e2 instanceof Error ? e2.message : "Kiểm thử model thất bại");
+                          await load();
+                        }
+                      }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 cursor-pointer"
+                    >
+                      <CheckCircle2 className="w-3 h-3" /> Chạy thử
+                    </button>
+                  )}
+                  {(m.status === "ready" || m.installed_on_disk) && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await apiFetch(`/api/v1/models/${m.model_id}`, { method: "DELETE" });
+                        await load();
+                      }}
+                      className="px-2.5 py-1 rounded bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 cursor-pointer"
+                    >
+                      Gỡ
+                    </button>
+                  )}
                 </div>
               </div>
-              <div className="flex gap-1.5 shrink-0">
-                {m.status !== "ready" ? (
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      await apiFetch(`/api/v1/models/${m.model_id}/install`, {
-                        method: "POST",
-                        body: JSON.stringify({}),
-                      });
-                      setMsg(`Đã xếp hàng tải model ${m.model_id}.`);
-                      await load();
-                    }}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-sky-500/20 text-sky-300 cursor-pointer"
-                  >
-                    <Download className="w-3 h-3" /> Tải về
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      await apiFetch(`/api/v1/models/${m.model_id}`, { method: "DELETE" });
-                      await load();
-                    }}
-                    className="px-2.5 py-1 rounded bg-rose-500/15 text-rose-300 cursor-pointer"
-                  >
-                    Gỡ
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 

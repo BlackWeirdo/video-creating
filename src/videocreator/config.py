@@ -147,6 +147,10 @@ class WebUIConfig(BaseModel):
     )
 
 
+class ModelsConfig(BaseModel):
+    mirror_base_url: str = ""
+
+
 class Settings(BaseModel):
     role: Literal["server", "client"] = "server"
     host: str = "127.0.0.1"
@@ -173,6 +177,7 @@ class Settings(BaseModel):
     r2: R2Config = Field(default_factory=R2Config)
     worker: WorkerConfig = Field(default_factory=WorkerConfig)
     web_ui: WebUIConfig = Field(default_factory=WebUIConfig)
+    models: ModelsConfig = Field(default_factory=ModelsConfig)
 
 
 # Parsed settings per config file, valid while the file's (mtime, size) signature is unchanged.
