@@ -134,6 +134,9 @@ def find_ffmpeg_binary(name: str = "ffmpeg") -> str:
     bundled = REPO_ROOT / "ffmpeg" / "bin" / f"{name}.exe"
     if bundled.exists():
         return str(bundled)
+    runtime_bundled = REPO_ROOT / "runtime" / "ffmpeg" / f"{name}.exe"
+    if runtime_bundled.exists():
+        return str(runtime_bundled)
     found = shutil.which(name)
     if found:
         return found
@@ -148,6 +151,28 @@ def find_ffmpeg_binary(name: str = "ffmpeg") -> str:
             if matches:
                 return str(matches[-1])
     return name
+
+
+def find_node_runtime() -> str | None:
+    """Locate the Node.js binary, preferring the project or bundled Node 24 LTS runtime."""
+    env_override = os.environ.get("VIDEOCREATOR_NODE_BIN")
+    if env_override and Path(env_override).is_file():
+        return str(Path(env_override).resolve())
+
+    node_exe = "node.exe" if os.name == "nt" else "node"
+    candidates: list[Path] = [REPO_ROOT / "runtime" / "node" / node_exe]
+    if os.name == "nt":
+        local_app = os.environ.get("LOCALAPPDATA")
+        if local_app:
+            candidates.append(Path(local_app) / "Programs" / "iCast" / "runtime" / "node" / "node.exe")
+        candidates.append(Path(r"C:\Users\ADMIN\AppData\Local\Programs\iCast\runtime\node\node.exe"))
+
+    for candidate in candidates:
+        if candidate.is_file():
+            return str(candidate)
+
+    found = shutil.which("node")
+    return found if found else None
 
 
 def find_rea_video_binary() -> str:

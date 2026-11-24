@@ -18,7 +18,7 @@ import uvicorn
 
 from videocreator.app import create_app
 from videocreator.config import load_settings
-from videocreator.paths import REPO_ROOT, get_paths
+from videocreator.paths import REPO_ROOT, find_node_runtime, get_paths
 from videocreator.secrets_store import SecretsStore
 
 ERROR_ALREADY_EXISTS = 183
@@ -108,26 +108,7 @@ def wait_for_health(
     return False
 
 
-def find_node_runtime() -> str | None:
-    """Locate the Node.js binary, preferring the project or iCast Node 24 LTS runtime."""
-    env_override = os.environ.get("VIDEOCREATOR_NODE_BIN")
-    if env_override and Path(env_override).is_file():
-        return str(Path(env_override).resolve())
-
-    node_exe = "node.exe" if os.name == "nt" else "node"
-    candidates: list[Path] = [REPO_ROOT / "runtime" / "node" / node_exe]
-    if os.name == "nt":
-        local_app = os.environ.get("LOCALAPPDATA")
-        if local_app:
-            candidates.append(Path(local_app) / "Programs" / "iCast" / "runtime" / "node" / "node.exe")
-        candidates.append(Path(r"C:\Users\ADMIN\AppData\Local\Programs\iCast\runtime\node\node.exe"))
-
-    for candidate in candidates:
-        if candidate.is_file():
-            return str(candidate)
-
-    found = shutil.which("node")
-    return found if found else None
+# `find_node_runtime` is imported from `videocreator.paths` for re-export compatibility.
 
 
 def stop_nextjs_standalone(proc: subprocess.Popen[Any] | None) -> None:

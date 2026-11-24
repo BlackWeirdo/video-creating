@@ -11,6 +11,7 @@ from videocreator.api.v1.routes_jobs import router as jobs_router
 from videocreator.api.v1.routes_localize_v1 import router as localize_v1_router
 from videocreator.api.v1.routes_models_v1 import router as models_v1_router
 from videocreator.api.v1.routes_news_v1 import router as news_v1_router
+from videocreator.api.v1.routes_onboarding_v1 import router as onboarding_v1_router
 from videocreator.api.v1.routes_production import router as production_router
 from videocreator.api.v1.routes_publishing import router as publishing_router
 from videocreator.api.v1.routes_resources import router as resources_router
@@ -39,3 +40,4 @@ v1_router.include_router(news_v1_router)
 v1_router.include_router(editor_v1_router)
 v1_router.include_router(workflows_v1_router)
 v1_router.include_router(specialized_v1_router)
+v1_router.include_router(onboarding_v1_router)
