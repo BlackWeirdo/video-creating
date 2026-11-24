@@ -211,7 +211,7 @@ REMOTION_CONFIG_TS = """import { Config } from '@remotion/cli/config';
 Config.setVideoImageFormat('jpeg');
 Config.setOverwriteOutput(true);
 Config.setChromiumOpenGlRenderer('angle');
-Config.setConcurrency(2);
+Config.setConcurrency(1);
 """
 
 

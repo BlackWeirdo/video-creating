@@ -158,13 +158,38 @@ def render_session(session_dir: Path, out_path: Path, *, timeout_s: int = 1800) 
     """Runs `remotion render src/index.ts Main <out>` for the session with the shared workspace CLI."""
     _link_node_modules(session_dir)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        proc = subprocess.run(
-            [_node_binary(), str(_remotion_cli_path()), "render", "src/index.ts", "Main", str(out_path), "--log=error", f"--browser-executable={_headless_browser_path()}"],
-            cwd=session_dir, capture_output=True, text=True, encoding="utf-8", errors="replace",
-            timeout=timeout_s, stdin=subprocess.DEVNULL, env={**os.environ, "CI": "1"},
-        )
-    except subprocess.TimeoutExpired as exc:
-        raise StudioRenderError(f"remotion render quá {timeout_s} giây") from exc
-    if proc.returncode != 0 or not out_path.exists():
-        raise StudioRenderError(((proc.stderr or "") + (proc.stdout or "")).strip()[-1500:])
+    cmd = [
+        _node_binary(),
+        str(_remotion_cli_path()),
+        "render",
+        "src/index.ts",
+        "Main",
+        str(out_path),
+        "--log=error",
+        f"--browser-executable={_headless_browser_path()}",
+    ]
+    env = {**os.environ, "CI": "1"}
+    proc: subprocess.CompletedProcess[str] | None = None
+    for attempt in range(2):
+        try:
+            proc = subprocess.run(
+                cmd,
+                cwd=session_dir,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=timeout_s,
+                stdin=subprocess.DEVNULL,
+                env=env,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise StudioRenderError(f"remotion render quá {timeout_s} giây") from exc
+        if proc.returncode == 0 and out_path.exists():
+            return
+        combined = (proc.stderr or "") + (proc.stdout or "")
+        if attempt == 0 and "compositor" in combined.lower():
+            continue
+        raise StudioRenderError(combined.strip()[-1500:])
+    assert proc is not None
+    raise StudioRenderError(((proc.stderr or "") + (proc.stdout or "")).strip()[-1500:])

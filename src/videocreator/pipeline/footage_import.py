@@ -15,6 +15,7 @@ from videocreator.db import get_conn, query_one, record_audit
 from videocreator.jobs import enqueue_job
 from videocreator.paths import AppPaths
 from videocreator.pipeline.probe import probe_video
+from videocreator.workspaces import DEFAULT_WORKSPACE_ID, require_workspace
 
 ALLOWED_VIDEO_EXTENSIONS: set[str] = {".mp4", ".mov", ".mkv", ".webm"}
 MAX_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024  # 2 GB
@@ -52,11 +53,13 @@ def import_footage_file(
     product_ids: list[int],
     no_product: bool = False,
     enqueue_analysis: bool = True,
+    workspace_id: int = DEFAULT_WORKSPACE_ID,
     actor: str = "ui",
     copy_file: Callable[[Path, Path], Any] = shutil.copy2,
 ) -> int:
     """Validates, probes, deduplicates by sha256, copies into media/footage/<id>.mp4,
     and optionally enqueues the `analyse` job."""
+    ws = require_workspace(paths.db_file, int(workspace_id))
     if not source_file.exists() or not source_file.is_file():
         raise ValueError(f"Source file does not exist: {source_file}")
 
@@ -105,9 +108,9 @@ def import_footage_file(
                 """
                 INSERT INTO footage (
                     path, sha256, duration_s, width, height, orientation,
-                    crop_json, product_ids_json, status
+                    crop_json, product_ids_json, workspace_id, status
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'imported')
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'imported')
                 """,
                 (
                     "pending",
@@ -118,6 +121,7 @@ def import_footage_file(
                     info.orientation,
                     json.dumps(crop_data) if crop_data else None,
                     json.dumps(clean_pids),
+                    int(ws["id"]),
                 ),
             )
             footage_id = int(cur.lastrowid or 0)
@@ -133,7 +137,7 @@ def import_footage_file(
                 action="footage.imported",
                 object_type="footage",
                 object_id=footage_id,
-                detail=f"sha256={sha256[:12]}, {info.width}x{info.height}, {info.duration_s}s",
+                detail=f"ws={ws['id']}, sha256={sha256[:12]}, {info.width}x{info.height}, {info.duration_s}s",
             )
     except sqlite3.IntegrityError as exc:
         # The same file was imported concurrently while this copy ran (sha256 is UNIQUE)
@@ -144,6 +148,6 @@ def import_footage_file(
         raise
 
     if enqueue_analysis:
-        enqueue_job(paths.db_file, "analyse", ref_id=footage_id)
+        enqueue_job(paths.db_file, "analyse", ref_id=footage_id, workspace_id=int(ws["id"]))
 
     return footage_id

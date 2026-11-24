@@ -8,6 +8,7 @@ from videocreator.db import get_conn, query_all, query_one, record_audit
 from videocreator.jobs import enqueue_job
 from videocreator.jsonutil import loads_or
 from videocreator.paths import AppPaths
+from videocreator.workspaces import DEFAULT_WORKSPACE_ID, require_workspace
 
 STUDIO_JOB_KIND = "studio"
 BUSY_MESSAGE = "Một phiên Studio khác đang chạy (chỉ cho phép 1 phiên tại 1 thời điểm)."
@@ -119,6 +120,7 @@ def create_studio_session(
     video_id: int | None = None,
     options: dict[str, Any] | None = None,
     status: str = "planning",
+    workspace_id: int = DEFAULT_WORKSPACE_ID,
     actor: str = "ui",
 ) -> int:
     """Creates a new `studio_sessions` row after enforcing the single-active-session rule (`FR-STD-13`).
@@ -127,6 +129,7 @@ def create_studio_session(
     """
     if has_active_studio_session(paths.db_file):
         raise StudioBusyError(BUSY_MESSAGE)
+    ws = require_workspace(paths.db_file, int(workspace_id))
 
     clean_prompt = prompt.strip()
     if not clean_prompt:
@@ -136,19 +139,32 @@ def create_studio_session(
         if video_id is None:
             v_cur = conn.execute(
                 """
-                INSERT INTO videos (engine, status, plan_json, captions_json)
-                VALUES ('studio', 'planned', ?, '{}')
+                INSERT INTO videos (engine, status, plan_json, captions_json, workspace_id)
+                VALUES ('studio', 'planned', ?, '{}', ?)
                 """,
-                (json.dumps({"title": f"Studio: {clean_prompt[:40]}", "formula": "studio-custom", "shots": []}, ensure_ascii=False),),
+                (
+                    json.dumps(
+                        {"title": f"Studio: {clean_prompt[:40]}", "formula": "studio-custom", "shots": []},
+                        ensure_ascii=False,
+                    ),
+                    int(ws["id"]),
+                ),
             )
             video_id = int(v_cur.lastrowid or 0)
 
         s_cur = conn.execute(
             """
-            INSERT INTO studio_sessions (video_id, prompt, ref_item_id, status, cost_usd, versions_json, options_json)
-            VALUES (?, ?, ?, ?, 0.0, '[]', ?)
+            INSERT INTO studio_sessions (video_id, prompt, ref_item_id, status, cost_usd, versions_json, options_json, workspace_id)
+            VALUES (?, ?, ?, ?, 0.0, '[]', ?, ?)
             """,
-            (video_id, clean_prompt, ref_item_id, status, json.dumps(options or {}, ensure_ascii=False)),
+            (
+                video_id,
+                clean_prompt,
+                ref_item_id,
+                status,
+                json.dumps(options or {}, ensure_ascii=False),
+                int(ws["id"]),
+            ),
         )
         session_id = int(s_cur.lastrowid or 0)
         record_audit(
@@ -157,7 +173,7 @@ def create_studio_session(
             action="studio_session.created",
             object_type="studio_session",
             object_id=session_id,
-            detail=clean_prompt[:140],
+            detail=f"ws={ws['id']}, {clean_prompt[:120]}",
         )
 
     session_dir = paths.media_dir / "studio" / str(session_id)
@@ -165,8 +181,17 @@ def create_studio_session(
     return session_id
 
 
-def list_studio_sessions(db_file: Path) -> list[dict[str, Any]]:
-    rows = query_all(db_file, "SELECT * FROM studio_sessions ORDER BY id DESC LIMIT 30")
+def list_studio_sessions(
+    db_file: Path, *, workspace_id: int | None = None
+) -> list[dict[str, Any]]:
+    if workspace_id is not None:
+        rows = query_all(
+            db_file,
+            "SELECT * FROM studio_sessions WHERE workspace_id = ? ORDER BY id DESC LIMIT 30",
+            (int(workspace_id),),
+        )
+    else:
+        rows = query_all(db_file, "SELECT * FROM studio_sessions ORDER BY id DESC LIMIT 30")
     out: list[dict[str, Any]] = []
     for r in rows:
         vers = loads_or(r.get("versions_json"), [])

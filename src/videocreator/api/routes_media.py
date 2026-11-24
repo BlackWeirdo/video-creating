@@ -12,6 +12,7 @@ router = APIRouter()
 
 
 @router.get("/media/{subpath:path}")
+@router.get("/files/{subpath:path}")
 async def serve_media(request: Request, subpath: str) -> FileResponse:
     """Safely serves media files inside `paths.media_dir` with Range support, blocking traversal (NFR-SEC-05)."""
     paths: AppPaths = request.app.state.paths

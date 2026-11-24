@@ -16,6 +16,7 @@ from videocreator.db import get_conn, query_all, query_one, record_audit
 from videocreator.jsonutil import loads_or
 from videocreator.paths import AppPaths, find_ffmpeg_binary
 from videocreator.templating import get_templates
+from videocreator.workspaces import DEFAULT_WORKSPACE_ID, require_workspace
 
 router = APIRouter()
 
@@ -62,10 +63,12 @@ def import_audio_asset(
     *,
     kind: Literal["music", "sfx"] = "music",
     title: str = "",
+    workspace_id: int = DEFAULT_WORKSPACE_ID,
 ) -> int:
     ext = source_file.suffix.lower()
     if ext not in ALLOWED_AUDIO_EXTENSIONS:
         raise ValueError(f"Unsupported audio extension '{ext}'")
+    ws = require_workspace(paths.db_file, int(workspace_id))
 
     duration_s = probe_audio_duration(source_file)
     clean_title = title.strip() or source_file.stem
@@ -81,10 +84,10 @@ def import_audio_asset(
     with get_conn(paths.db_file) as conn:
         cur = conn.execute(
             """
-            INSERT INTO assets (kind, path, duration_s, meta_json)
-            VALUES (?, 'pending', ?, ?)
+            INSERT INTO assets (kind, path, duration_s, meta_json, workspace_id)
+            VALUES (?, 'pending', ?, ?, ?)
             """,
-            (kind, duration_s, json.dumps(meta, ensure_ascii=False)),
+            (kind, duration_s, json.dumps(meta, ensure_ascii=False), int(ws["id"])),
         )
         asset_id = int(cur.lastrowid or 0)
         rel_path = f"assets/{kind}_{asset_id}{ext}"
