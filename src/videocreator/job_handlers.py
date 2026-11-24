@@ -9,8 +9,11 @@ from videocreator.pipeline.broll_suggest import BROLL_SUGGEST_JOB_KIND, run_brol
 from videocreator.pipeline.batch_studio import run_batch_run_job
 from videocreator.pipeline.describe import run_describe_footage
 from videocreator.pipeline.footage_analyse import run_analyse_footage
+from videocreator.pipeline.lipsync_studio import run_lipsync_render_job
 from videocreator.pipeline.localize import run_localize_extract_job, run_localize_render_job
 from videocreator.pipeline.news_studio import run_news_render_job
+from videocreator.pipeline.novel_studio import run_novel_render_job
+from videocreator.pipeline.podcast_studio import run_podcast_render_job
 from videocreator.pipeline.workflow_engine import run_workflow_job
 from videocreator.pipeline.plan_request import run_plan_footage
 from videocreator.pipeline.render import render_video
@@ -83,6 +86,18 @@ def register_job_handlers(job_registry: JobRegistry, paths: AppPaths) -> None:
     job_registry.register(
         "news_render",
         lambda ref_id: run_news_render_job(paths, int(ref_id or 0)),
+    )
+    job_registry.register(
+        "novel_render",
+        lambda ref_id: run_novel_render_job(paths, int(ref_id or 0)),
+    )
+    job_registry.register(
+        "podcast_render",
+        lambda ref_id: run_podcast_render_job(paths, int(ref_id or 0)),
+    )
+    job_registry.register(
+        "lipsync_render",
+        lambda ref_id: run_lipsync_render_job(paths, int(ref_id or 0)),
     )
     job_registry.register(
         "workflow_run",

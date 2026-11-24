@@ -66,6 +66,12 @@ CREATIVE_REMIX_FILTERS: frozenset[str] = frozenset(
         "vignette",
         "colorkey",
         "chromakey",
+        "showwaves",
+        "showfreqs",
+        "showwavespic",
+        "avectorscope",
+        "sine",
+        "aevalsrc",
     }
 )
 

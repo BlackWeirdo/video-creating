@@ -71,7 +71,7 @@ Phase 01 (Workspace + Dual-Lane Queue + /api/v1 Core)
 
 | Phase | Tên Phase | Phụ thuộc | Trạng thái | Tiến độ |
 |---|---|---|---|---|
-| **14** | [Studio Chuyên biệt: Tiểu thuyết, Sóng nhạc Podcast (`16:9`) & Lip-sync AI](phase-14-novel-podcast-and-lipsync-studios.md) | Đợt 3 | Chờ | 0% |
+| **14** | [Studio Chuyên biệt: Tiểu thuyết, Sóng nhạc Podcast (`16:9`) & Lip-sync AI](phase-14-novel-podcast-and-lipsync-studios.md) | Đợt 3 | Xong, test local đạt | 100% |
 | **15** | [Welcome Wizard & Sao lưu / Khôi phục Mã hóa (`.vcx`)](phase-15-welcome-wizard-and-backup-restore.md) | Phase 14 | Chờ | 0% |
 | **16** | [Giao diện Next.js Đợt 4, Bộ cài Windows `.exe` Inno Setup & Nghiệm thu](phase-16-wave4-ui-and-windows-installer.md) | Phase 15 | Chờ | 0% |
 
