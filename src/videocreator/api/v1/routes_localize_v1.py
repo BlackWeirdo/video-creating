@@ -16,6 +16,7 @@ from videocreator.pipeline.localize import (
     create_localize_project,
     get_localize_project,
     list_localize_projects,
+    preview_localize_segment_audio,
     run_localize_extract,
     run_localize_render,
     update_localize_project,
@@ -41,6 +42,10 @@ class LocalizeCreateBody(BaseModel):
     style_preset: str = "tiktok_karaoke"
     aspect_ratio: str = "9:16"
     voice_id: str = "vi-VN-HoaiMyNeural"
+    whisper_size: str = "small"
+    translation_style: str = "natural_tiktok"
+    clone_source_voice: bool = False
+    clone_consent_confirmed: bool = False
 
 
 class LocalizePatchBody(BaseModel):
@@ -54,12 +59,22 @@ class LocalizePatchBody(BaseModel):
     style_preset: str | None = None
     aspect_ratio: str | None = None
     voice_id: str | None = None
+    whisper_size: str | None = None
+    translation_style: str | None = None
+    clone_source_voice: bool | None = None
+    clone_consent_confirmed: bool | None = None
+    speaker_config: dict[str, Any] | None = None
 
 
 class LocalizeRunBody(BaseModel):
     sync: bool = False
-    tts_provider: str = "local"
+    tts_provider: str = "auto"
     target_accounts: list[int] = Field(default_factory=list)
+
+
+class LocalizePreviewBody(BaseModel):
+    segment_index: int
+    tts_provider: str = "auto"
 
 
 @router.get("/localize/projects")
@@ -102,6 +117,10 @@ async def api_v1_create_localize(
             style_preset=body.style_preset,
             aspect_ratio=body.aspect_ratio,
             voice_id=body.voice_id,
+            whisper_size=body.whisper_size,
+            translation_style=body.translation_style,
+            clone_source_voice=body.clone_source_voice,
+            clone_consent_confirmed=body.clone_consent_confirmed,
         )
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
@@ -164,12 +183,38 @@ async def api_v1_patch_localize(
             style_preset=body.style_preset,
             aspect_ratio=body.aspect_ratio,
             voice_id=body.voice_id,
+            whisper_size=body.whisper_size,
+            translation_style=body.translation_style,
+            clone_source_voice=body.clone_source_voice,
+            clone_consent_confirmed=body.clone_consent_confirmed,
+            speaker_config=body.speaker_config,
         )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if proj is None:
         raise HTTPException(status_code=404, detail=f"Localize project #{project_id} not found")
     return JSONResponse({"project": proj})
+
+
+@router.post("/localize/projects/{project_id}/preview-segment")
+async def api_v1_preview_localize_segment(
+    request: Request, project_id: int, body: LocalizePreviewBody
+) -> JSONResponse:
+    paths: AppPaths = request.app.state.paths
+    try:
+        res = preview_localize_segment_audio(
+            paths,
+            project_id,
+            body.segment_index,
+            tts_provider=body.tts_provider,
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return JSONResponse(res)
 
 
 @router.post("/localize/projects/{project_id}/extract")

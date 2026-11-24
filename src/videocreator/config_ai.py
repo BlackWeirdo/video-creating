@@ -19,6 +19,9 @@ class AIRoutesConfig(BaseModel):
     studio: list[str] = Field(
         default_factory=lambda: ["claude_cli", "claude_api", "gemini_api"]
     )
+    translator: list[str] = Field(
+        default_factory=lambda: ["claude_cli", "claude_api", "gemini_api"]
+    )
     videogen: list[str] = Field(
         default_factory=lambda: [
             "manual",

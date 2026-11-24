@@ -671,78 +671,10 @@ def separate_vocals_and_bgm(
     input_media: Path,
     out_dir: Path,
 ) -> tuple[Path, Path]:
-    """Separates vocal dialogue and background music WAV stems cleanly via FFmpeg DSP (or ONNX UVR in R3)."""
-    out_dir.mkdir(parents=True, exist_ok=True)
-    vocal_wav = out_dir / "vocal.wav"
-    bgm_wav = out_dir / "bgm.wav"
+    """Separates vocal dialogue and background music WAV stems via UVR MDX-Net ONNX or FFmpeg DSP fallback."""
+    from videocreator.pipeline.audio_sep import separate_vocals_and_bgm_smart
 
-    channels = _probe_audio_channels(input_media)
-    if channels == 0:
-        try:
-            dur = max(0.5, probe_duration(input_media))
-        except Exception:
-            dur = 2.0
-        for dest in (vocal_wav, bgm_wav):
-            run_ffmpeg(
-                [
-                    "-f",
-                    "lavfi",
-                    "-i",
-                    "anullsrc=channel_layout=mono:sample_rate=48000",
-                    "-t",
-                    f"{dur:.3f}",
-                    "-c:a",
-                    "pcm_s16le",
-                    str(dest.resolve()),
-                ]
-            )
-        return vocal_wav, bgm_wav
-
-    vocal_af = (
-        "pan=mono|c0=0.5*c0+0.5*c1,highpass=f=120,lowpass=f=7500"
-        if channels >= 2
-        else "highpass=f=120,lowpass=f=7500"
-    )
-    run_ffmpeg(
-        [
-            "-i",
-            str(input_media.resolve()),
-            "-vn",
-            "-af",
-            vocal_af,
-            "-c:a",
-            "pcm_s16le",
-            "-ar",
-            "48000",
-            "-ac",
-            "1",
-            str(vocal_wav.resolve()),
-        ],
-        allow_creative_filters=True,
-    )
-
-    bgm_af = (
-        "pan=stereo|c0=c0-0.85*c1|c1=c1-0.85*c0,lowpass=f=4500,volume=0.8"
-        if channels >= 2
-        else "lowpass=f=400,volume=0.35"
-    )
-    run_ffmpeg(
-        [
-            "-i",
-            str(input_media.resolve()),
-            "-vn",
-            "-af",
-            bgm_af,
-            "-c:a",
-            "pcm_s16le",
-            "-ar",
-            "48000",
-            "-ac",
-            "2",
-            str(bgm_wav.resolve()),
-        ],
-        allow_creative_filters=True,
-    )
+    vocal_wav, bgm_wav, _used_mdx = separate_vocals_and_bgm_smart(paths, input_media, out_dir)
     return vocal_wav, bgm_wav
 
 
@@ -778,27 +710,54 @@ def transcribe_media_segments(
     input_media: Path,
     *,
     lang: str = "auto",
+    whisper_size: str = "small",
 ) -> list[dict[str, Any]]:
-    """Extracts timed speech segments using faster-whisper (when installed), SRT sidecars, or FFmpeg silencedetect."""
-    try:
-        model_info = get_local_model(paths, "faster_whisper_small")
-    except Exception:
-        model_info = None
-    if model_info and model_info["status"] == "ready" and model_info["installed_on_disk"]:
+    """Extracts timed speech segments (with word timestamps) using faster-whisper, SRT sidecars, or silencedetect."""
+    preferred_ids = (
+        ["faster_whisper_medium", "faster_whisper_small"]
+        if (whisper_size or "").strip().lower() == "medium"
+        else ["faster_whisper_small", "faster_whisper_medium"]
+    )
+    model_info = None
+    for mid in preferred_ids:
+        try:
+            cand = get_local_model(paths, mid)
+        except Exception:
+            cand = None
+        if cand and cand.get("status") == "ready" and cand.get("installed_on_disk"):
+            model_info = cand
+            break
+
+    if model_info is not None:
         try:
             from faster_whisper import WhisperModel
 
             w_path = Path(model_info["local_path"])
             w_dir = w_path if w_path.is_dir() else w_path.parent
-            w_model = WhisperModel(str(w_dir), device="cpu", compute_type="int8")
+            w_model = WhisperModel(str(w_dir), device="cpu", compute_type="int8", cpu_threads=4)
             try:
                 lang_arg = None if lang == "auto" else lang
-                w_segs, _ = w_model.transcribe(str(input_media), language=lang_arg)
+                w_segs, _ = w_model.transcribe(
+                    str(input_media),
+                    language=lang_arg,
+                    word_timestamps=True,
+                    vad_filter=True,
+                )
                 results: list[dict[str, Any]] = []
                 for seg in w_segs:
                     txt = str(getattr(seg, "text", "") or "").strip()
                     st = float(getattr(seg, "start", 0.0))
                     en = float(getattr(seg, "end", st + 0.5))
+                    words_raw = getattr(seg, "words", None) or []
+                    words_list = [
+                        {
+                            "word": str(getattr(w, "word", "") or "").strip(),
+                            "start_s": round(float(getattr(w, "start", st)), 3),
+                            "end_s": round(float(getattr(w, "end", en)), 3),
+                        }
+                        for w in words_raw
+                        if str(getattr(w, "word", "") or "").strip()
+                    ]
                     if txt and en > st:
                         results.append(
                             {
@@ -806,12 +765,14 @@ def transcribe_media_segments(
                                 "start_s": round(st, 3),
                                 "end_s": round(en, 3),
                                 "source_text": txt,
+                                "words": words_list,
                             }
                         )
                 if results:
                     return results
             finally:
                 del w_model
+                gc.collect()
         except Exception as exc:
             logger.debug("faster-whisper fallback triggered for %s: %s", input_media.name, exc)
 

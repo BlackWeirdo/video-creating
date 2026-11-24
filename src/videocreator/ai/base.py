@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 T = TypeVar("T", bound=BaseModel)
 RouteKind = Literal["subscription", "api", "manual"]
-AIRole = Literal["vision", "writer", "checker", "studio"]
+AIRole = Literal["vision", "writer", "checker", "studio", "translator"]
 
 
 class AIError(RuntimeError):

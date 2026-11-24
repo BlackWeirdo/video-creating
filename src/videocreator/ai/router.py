@@ -62,6 +62,8 @@ class RoutedProvider:
             return list(routes.checker)
         if self.role == "studio":
             return list(routes.studio)
+        if self.role == "translator":
+            return list(routes.translator)
         return list(routes.writer)
 
     def _resolve_provider(self, pname: str, settings: Settings) -> AIProvider:

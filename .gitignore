@@ -28,6 +28,7 @@ spikes/vendor/
 spikes/mpt/
 spikes/out/
 spikes/samples/
+tests/samples/
 
 # app data dir
 data/
