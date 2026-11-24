@@ -1,4 +1,4 @@
-; Inno Setup Script for Video Creator V2 Desktop Platform (Phase 16)
+; Inno Setup Script for Video Creator V2 Offline Desktop Installer (Stage R6)
 #define MyAppVersion "2.0.0"
 
 [Setup]
@@ -29,25 +29,18 @@ Source: "..\THIRD_PARTY_NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\src\*"; DestDir: "{app}\src"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\web-next\.next\standalone\*"; DestDir: "{app}\web-next\.next\standalone"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "post_install.cmd"; DestDir: "{app}\installer"; Flags: ignoreversion
+Source: "post_install.ps1"; DestDir: "{app}\installer"; Flags: ignoreversion
 Source: "launch.vbs"; DestDir: "{app}\installer"; Flags: ignoreversion
 Source: "videocreator.ico"; DestDir: "{app}\installer"; Flags: ignoreversion
-Source: "Install-VideoCreator.cmd"; DestDir: "{app}\installer"; Flags: ignoreversion
 Source: "stage_bundle.ps1"; DestDir: "{app}\installer"; Flags: ignoreversion
-#if FileExists("..\runtime\node\node.exe")
+Source: "..\runtime\python\*"; DestDir: "{app}\runtime\python"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\runtime\node\*"; DestDir: "{app}\runtime\node"; Flags: ignoreversion recursesubdirs createallsubdirs
-#endif
-#if FileExists("..\ffmpeg\bin\ffmpeg.exe")
-Source: "..\ffmpeg\bin\*"; DestDir: "{app}\ffmpeg\bin"; Flags: ignoreversion recursesubdirs createallsubdirs
-#endif
-#if FileExists("..\tools\yt-dlp.exe")
-Source: "..\tools\yt-dlp.exe"; DestDir: "{app}\tools"; Flags: ignoreversion
-#endif
-#if FileExists("..\tools\uv\uv.exe")
-Source: "..\tools\uv\uv.exe"; DestDir: "{app}\tools\uv"; Flags: ignoreversion
-#endif
-#if DirExists("..\tools\freecut")
+Source: "..\runtime\ffmpeg\*"; DestDir: "{app}\runtime\ffmpeg"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\runtime\yt-dlp\*"; DestDir: "{app}\runtime\yt-dlp"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\runtime\uv\*"; DestDir: "{app}\runtime\uv"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "staging\runtime_sha256.json"; DestDir: "{app}\runtime"; Flags: ignoreversion
+Source: "staging\venv\*"; DestDir: "{app}\.venv"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\tools\freecut\*"; DestDir: "{app}\tools\freecut"; Flags: ignoreversion recursesubdirs createallsubdirs
-#endif
 #if DirExists("..\build\nuitka")
 Source: "..\build\nuitka\*"; DestDir: "{app}\src"; Flags: ignoreversion recursesubdirs createallsubdirs
 #endif
@@ -58,5 +51,5 @@ Name: "{autodesktop}\Video Creator V2"; Filename: "{sys}\wscript.exe"; Parameter
 Name: "{userstartup}\Video Creator V2"; Filename: "{sys}\wscript.exe"; Parameters: """{app}\installer\launch.vbs"""; WorkingDir: "{app}"; IconFilename: "{app}\installer\videocreator.ico"; Tasks: startupicon
 
 [Run]
-Filename: "{cmd}"; Parameters: "/c ""{app}\installer\post_install.cmd"""; WorkingDir: "{app}"; StatusMsg: "Đang thiết lập Python 3.11 và thư viện Video Creator V2 (uv sync)..."; Flags: waituntilterminated
+Filename: "{cmd}"; Parameters: "/c ""{app}\installer\post_install.cmd"""; WorkingDir: "{app}"; StatusMsg: "Đang kích hoạt môi trường Python 3.11 & AI Offline..."; Flags: waituntilterminated runhidden
 Filename: "{sys}\wscript.exe"; Parameters: """{app}\installer\launch.vbs"""; WorkingDir: "{app}"; Description: "Mở Video Creator V2 ngay sau khi cài"; Flags: nowait postinstall skipifsilent

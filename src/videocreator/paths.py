@@ -11,8 +11,23 @@ from pathlib import Path
 from platformdirs import user_data_dir
 
 APP_NAME = "VideoCreatorV2"
-PACKAGE_DIR = Path(__file__).resolve().parent
-REPO_ROOT = PACKAGE_DIR.parent.parent
+PACKAGE_DIR = Path(os.path.abspath(__file__)).parent
+
+
+def _resolve_repo_root(pkg_dir: Path) -> Path:
+    env_root = (os.environ.get("VIDEOCREATOR_APP_ROOT") or "").strip()
+    if env_root and Path(env_root).is_dir():
+        return Path(os.path.abspath(env_root))
+    cand = pkg_dir.parent.parent
+    if (cand / "pyproject.toml").is_file() or (cand / "runtime").is_dir() or (cand / "web-next").is_dir():
+        return cand
+    for parent in pkg_dir.parents:
+        if (parent / "pyproject.toml").is_file() or (parent / "runtime" / "node").is_dir():
+            return parent
+    return cand
+
+
+REPO_ROOT = _resolve_repo_root(PACKAGE_DIR)
 
 
 @dataclass(frozen=True)
