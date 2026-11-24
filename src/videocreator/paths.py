@@ -8,7 +8,7 @@ from pathlib import Path
 
 from platformdirs import user_data_dir
 
-APP_NAME = "VideoCreator"
+APP_NAME = "VideoCreatorV2"
 PACKAGE_DIR = Path(__file__).resolve().parent
 REPO_ROOT = PACKAGE_DIR.parent.parent
 

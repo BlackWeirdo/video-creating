@@ -14,14 +14,16 @@ import uvicorn
 
 from videocreator.__main__ import (
     find_node_runtime,
+    is_port_available,
     parse_args,
+    pick_available_port,
     start_nextjs_standalone,
     stop_nextjs_standalone,
     wait_for_health,
 )
 from videocreator.app import create_app
 from videocreator.db import query_one
-from videocreator.paths import REPO_ROOT, get_paths
+from videocreator.paths import APP_NAME, REPO_ROOT, get_paths
 
 pytestmark = pytest.mark.local
 
@@ -46,6 +48,10 @@ def _http_request(
 
 
 def test_cli_flags_and_node_runtime() -> None:
+    default_args = parse_args([])
+    assert default_args.ui_port == 3200
+    assert APP_NAME == "VideoCreatorV2"
+
     args = parse_args(["--ui-port", "3100", "--classic-ui"])
     assert args.ui_port == 3100
     assert args.classic_ui is True
@@ -53,6 +59,16 @@ def test_cli_flags_and_node_runtime() -> None:
     node_bin = find_node_runtime()
     assert node_bin is not None
     assert Path(node_bin).is_file()
+
+    # Occupied listener port must be detected and skipped by pick_available_port
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as occupied:
+        occupied.bind(("127.0.0.1", 0))
+        occupied.listen(1)
+        busy_port = int(occupied.getsockname()[1])
+        assert is_port_available("127.0.0.1", busy_port) is False
+        chosen = pick_available_port("127.0.0.1", busy_port)
+        assert chosen != busy_port
+        assert is_port_available("127.0.0.1", chosen) is True
 
 
 def test_nextjs_standalone_routes_static_and_runtime_proxy_e2e(tmp_path: Path) -> None:

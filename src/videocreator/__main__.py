@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import argparse
 import ctypes
+import json
 import os
 import shutil
+import socket
 import subprocess
 import sys
 import threading
@@ -111,6 +113,66 @@ def wait_for_health(
 # `find_node_runtime` is imported from `videocreator.paths` for re-export compatibility.
 
 
+def is_port_available(host: str, port: int) -> bool:
+    """Return True only if nothing is listening on `(host, port)` and it can be bound exclusively."""
+    bind_host = "127.0.0.1" if host in ("0.0.0.0", "::", "") else host
+    family = socket.AF_INET6 if ":" in bind_host else socket.AF_INET
+    with socket.socket(family, socket.SOCK_STREAM) as probe:
+        probe.settimeout(0.25)
+        if probe.connect_ex((bind_host, int(port))) == 0:
+            return False
+    with socket.socket(family, socket.SOCK_STREAM) as sock:
+        excl_opt = getattr(socket, "SO_EXCLUSIVEADDRUSE", None)
+        if excl_opt is not None:
+            try:
+                sock.setsockopt(socket.SOL_SOCKET, excl_opt, 1)
+            except OSError:
+                pass
+        try:
+            sock.bind((bind_host, int(port)))
+            return True
+        except OSError:
+            return False
+
+
+def pick_available_port(
+    host: str,
+    preferred_port: int,
+    *,
+    exclude_ports: set[int] | None = None,
+    max_tries: int = 30,
+) -> int:
+    """Pick `preferred_port` if free, otherwise scan upward for an available local TCP port."""
+    excluded = exclude_ports or set()
+    for offset in range(max(1, max_tries)):
+        cand = int(preferred_port) + offset
+        if cand in excluded or cand > 65535:
+            continue
+        if is_port_available(host, cand):
+            return cand
+    bind_host = "127.0.0.1" if host in ("0.0.0.0", "::", "") else host
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind((bind_host, 0))
+        return int(sock.getsockname()[1])
+
+
+def _verify_videocreator_ui(ui_base_url: str, timeout_s: float = 5.0) -> bool:
+    """Verify the UI server proxies to Video Creator V2's `/api/v1/health` (never a foreign app)."""
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    probe_url = f"{ui_base_url.rstrip('/')}/api/v1/health"
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        try:
+            with opener.open(probe_url, timeout=1.5) as resp:
+                if resp.status == 200:
+                    payload = json.loads(resp.read().decode("utf-8", errors="replace"))
+                    if payload.get("status") == "ok" and payload.get("api_version") == "v1":
+                        return True
+        except Exception:
+            time.sleep(0.15)
+    return False
+
+
 def stop_nextjs_standalone(proc: subprocess.Popen[Any] | None) -> None:
     """Terminate the Next.js standalone UI subprocess cleanly."""
     if proc is None or proc.poll() is not None:
@@ -176,6 +238,9 @@ def start_nextjs_standalone(
     if not wait_for_health(f"http://{probe_host}:{ui_port}/", timeout_s=timeout_s, process=proc):
         stop_nextjs_standalone(proc)
         return None
+    if proc.poll() is not None or not _verify_videocreator_ui(f"http://{probe_host}:{ui_port}"):
+        stop_nextjs_standalone(proc)
+        return None
     return proc
 
 
@@ -216,8 +281,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--ui-port",
         type=int,
-        default=3000,
-        help="Port for the Next.js standalone Studio UI (default: 3000)",
+        default=3200,
+        help="Port for the Next.js standalone Studio UI (default: 3200)",
     )
     parser.add_argument(
         "--classic-ui",
@@ -233,7 +298,7 @@ def _show_window_or_browser(base_url: str, server_thread: threading.Thread) -> N
         import webview
 
         webview.create_window(
-            "Video Creator",
+            "Video Creator V2",
             base_url,
             width=1280,
             height=840,
@@ -260,10 +325,11 @@ def _run_desktop_window(
     base_url: str,
     boot_log_path: Path,
     *,
-    ui_port: int = 3000,
+    ui_port: int = 3200,
     classic_ui: bool = False,
     local_host: str = "127.0.0.1",
     url_host: str = "127.0.0.1",
+    instance_info_path: Path | None = None,
 ) -> int:
     """Runs the FastAPI backend + Next.js standalone UI and opens the desktop window."""
     server_cfg = uvicorn.Config(app, host=host, port=port, log_level="warning")
@@ -280,23 +346,44 @@ def _run_desktop_window(
     ui_proc: subprocess.Popen[Any] | None = None
     display_url = base_url
     if not classic_ui:
+        chosen_ui_port = pick_available_port(local_host, ui_port, exclude_ports={port})
+        if chosen_ui_port != ui_port:
+            print(
+                f"Notice: UI port {ui_port} is in use; starting Video Creator V2 Studio UI on port {chosen_ui_port}.",
+                file=sys.stderr,
+            )
         ui_proc = start_nextjs_standalone(
-            ui_port,
+            chosen_ui_port,
             base_url,
             boot_log_path=boot_log_path,
             host=local_host,
         )
         if ui_proc is not None:
-            display_url = f"http://{url_host}:{ui_port}"
+            display_url = f"http://{url_host}:{chosen_ui_port}"
         else:
             print(
                 f"Warning: Next.js standalone UI unavailable; falling back to classic UI at {base_url}.",
                 file=sys.stderr,
             )
 
+    if instance_info_path is not None:
+        try:
+            instance_info_path.write_text(
+                json.dumps(
+                    {"display_url": display_url, "api_url": base_url, "pid": os.getpid()},
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+        except Exception:
+            pass
+
+    print(f"Video Creator V2 ready at {display_url} (API: {base_url})", flush=True)
     try:
         _show_window_or_browser(display_url, thread)
     finally:
+        if instance_info_path is not None:
+            instance_info_path.unlink(missing_ok=True)
         stop_nextjs_standalone(ui_proc)
         server.should_exit = True
         thread.join(timeout=5.0)
@@ -322,7 +409,6 @@ def main(argv: list[str] | None = None) -> int:
     port = args.port or settings.port
     local_host = "127.0.0.1" if host in ("0.0.0.0", "::") else host
     url_host = f"[{local_host}]" if ":" in local_host and not local_host.startswith("[") else local_host
-    base_url = f"http://{url_host}:{port}"
 
     if host.lower() not in ("127.0.0.1", "localhost", "::1"):
         secrets = SecretsStore(paths.secrets_file)
@@ -333,18 +419,35 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 2
 
+    instance_info_path = paths.data_dir / "instance_url.json"
     lock = SingleInstanceLock(paths.lock_file)
     if not lock.acquire():
-        ui_server_file = REPO_ROOT / "web-next" / ".next" / "standalone" / "server.js"
-        open_url = (
-            f"http://{url_host}:{args.ui_port}"
-            if (not args.classic_ui and ui_server_file.is_file())
-            else base_url
-        )
-        print(f"Video Creator is already running. Opening {open_url} ...")
+        open_url = ""
+        if instance_info_path.is_file():
+            try:
+                saved = json.loads(instance_info_path.read_text(encoding="utf-8"))
+                cand_api = str(saved.get("api_url") or "")
+                cand_ui = str(saved.get("display_url") or "")
+                if cand_ui and cand_api and wait_for_health(f"{cand_api}/health", timeout_s=2.0):
+                    open_url = cand_ui
+            except Exception:
+                open_url = ""
+        if not open_url:
+            cand_ui = f"http://{url_host}:{args.ui_port}"
+            open_url = cand_ui if _verify_videocreator_ui(cand_ui, timeout_s=1.5) else f"http://{url_host}:{port}"
+        print(f"Video Creator V2 is already running. Opening {open_url} ...")
         if not args.headless:
             webbrowser.open(open_url)
         return 0
+
+    if args.port is None and not is_port_available(local_host, port):
+        alt_port = pick_available_port(local_host, port)
+        print(
+            f"Notice: Backend port {port} is in use; starting Video Creator V2 API on port {alt_port}.",
+            file=sys.stderr,
+        )
+        port = alt_port
+    base_url = f"http://{url_host}:{port}"
 
     try:
         app = create_app(paths.data_dir, bind_host=host)
@@ -362,6 +465,7 @@ def main(argv: list[str] | None = None) -> int:
             classic_ui=args.classic_ui,
             local_host=local_host,
             url_host=url_host,
+            instance_info_path=instance_info_path,
         )
     except Exception as exc:
         import traceback
