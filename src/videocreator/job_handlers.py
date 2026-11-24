@@ -1,6 +1,7 @@
 """Registers the handler of every job kind with the job registry."""
 from __future__ import annotations
 
+from videocreator.autopilot import run_autopilot_tick
 from videocreator.jobs import JobRegistry
 from videocreator.models_manager import run_download_model_job
 from videocreator.paths import AppPaths
@@ -80,4 +81,16 @@ def register_job_handlers(job_registry: JobRegistry, paths: AppPaths) -> None:
     job_registry.register(
         "batch_run",
         lambda ref_id: run_batch_run_job(paths, int(ref_id or 0)),
+    )
+    job_registry.register(
+        "autopilot_tick",
+        lambda ref_id: str(
+            len(
+                run_autopilot_tick(
+                    paths,
+                    rule_id=int(ref_id) if ref_id and int(ref_id) > 0 else None,
+                    force=bool(ref_id and int(ref_id) > 0),
+                )
+            )
+        ),
     )

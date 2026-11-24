@@ -117,25 +117,24 @@ def test_batch_prompts_full_ai_trends_and_checkpoint_resume(tmp_path: Path) -> N
         )
         ws_id = int(ws_res.json()["workspace"]["id"])
 
-        # Prompt-only batch in shot-less full_ai workspace auto-generates motion canvas
-        p_res = client.post(
-            "/api/v1/batches",
-            json={
-                "workspace_id": ws_id,
-                "title": "AI Prompts AB",
-                "source_kind": "prompts",
-                "items": ["Meo chup trang suc", "Bi quyet phoi nhan"],
-                "ab_count": 1,
-                "style_presets": ["neon_glow"],
-                "sync": False,
-            },
+        # Simulate checkpoint resume deterministically without racing background worker
+        from videocreator.pipeline.batch_studio import (
+            _plan_batch_item,
+            create_batch_run,
+            get_batch_run,
+            run_batch_run,
         )
-        assert p_res.status_code == 201
-        batch_id = int(p_res.json()["batch"]["id"])
 
-        # Simulate checkpoint resume: run step 1 planning for both items, make item #2 fail in render,
-        # then restore and retry without duplicating item #2's video_id!
-        from videocreator.pipeline.batch_studio import _plan_batch_item, get_batch_run, run_batch_run
+        created_b = create_batch_run(
+            paths,
+            workspace_id=ws_id,
+            title="AI Prompts AB",
+            source_kind="prompts",
+            items=["Meo chup trang suc", "Bi quyet phoi nhan"],
+            ab_count=1,
+            style_presets=["neon_glow"],
+        )
+        batch_id = int(created_b["id"])
 
         batch_before = get_batch_run(paths.db_file, batch_id)
         assert batch_before is not None
@@ -163,7 +162,7 @@ def test_batch_prompts_full_ai_trends_and_checkpoint_resume(tmp_path: Path) -> N
         )
         assert retry_res.status_code == 200
         recovered = retry_res.json()["batch"]
-        assert recovered["status"] == "completed"
+        assert recovered["status"] == "completed", recovered["items"]
         assert recovered["items"][0]["video_id"] == vid1
         assert recovered["items"][1]["video_id"] == vid2
         assert recovered["items"][0]["step"] == "completed"

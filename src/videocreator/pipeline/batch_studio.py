@@ -229,7 +229,7 @@ def _ensure_full_ai_canvas_shot(paths: AppPaths, workspace_id: int, aspect_ratio
             "-f",
             "lavfi",
             "-i",
-            f"testsrc2=s={w}x{h}:r=30:d=3.6",
+            f"testsrc2=s={w}x{h}:r=30:d=5.6",
             "-c:v",
             "libx264",
             "-preset",
@@ -243,13 +243,13 @@ def _ensure_full_ai_canvas_shot(paths: AppPaths, workspace_id: int, aspect_ratio
     with get_conn(paths.db_file) as conn:
         a_id = int(
             conn.execute(
-                "INSERT INTO assets (workspace_id, kind, path, duration_s, meta_json) VALUES (?, 'broll', ?, 3.6, '{}')",
+                "INSERT INTO assets (workspace_id, kind, path, duration_s, meta_json) VALUES (?, 'broll', ?, 5.6, '{}')",
                 (int(workspace_id), rel_path),
             ).lastrowid
         )
         s_id = int(
             conn.execute(
-                "INSERT INTO shots (asset_id, idx, start_s, end_s, description, has_product, quality) VALUES (?, 0, 0.0, 3.4, 'AI Canvas Motion', 0, 4)",
+                "INSERT INTO shots (asset_id, idx, start_s, end_s, description, has_product, quality) VALUES (?, 0, 0.0, 5.4, 'AI Canvas Motion', 0, 4)",
                 (a_id,),
             ).lastrowid
         )
@@ -275,6 +275,10 @@ def _pick_shots_for_batch_item(
         """,
         (int(workspace_id),),
     )
+    by_id: dict[int, float] = {
+        int(r["id"]): max(1.0, float(r.get("end_s") or 2.0) - float(r.get("start_s") or 0.0))
+        for r in rows
+    }
     chosen_ids: list[int] = []
     if product_id:
         for r in rows:
@@ -289,13 +293,21 @@ def _pick_shots_for_batch_item(
             raise PermissionError(
                 f"Workspace '{policy}' thiếu footage shot thật để dựng video."
             )
-        chosen_ids = [_ensure_full_ai_canvas_shot(paths, workspace_id, aspect_ratio)]
+        ai_sid = _ensure_full_ai_canvas_shot(paths, workspace_id, aspect_ratio)
+        chosen_ids = [ai_sid]
+        by_id[ai_sid] = 5.4
 
     primary = chosen_ids[0]
     secondary = chosen_ids[1] if len(chosen_ids) > 1 else chosen_ids[0]
+    if len(chosen_ids) == 1 and by_id.get(primary, 0.0) >= 5.2:
+        d1 = 2.6
+        d2 = 2.6
+    else:
+        d1 = round(min(2.6, max(1.6, by_id.get(primary, 2.0))), 2)
+        d2 = round(min(2.6, max(1.6, by_id.get(secondary, 2.0))), 2)
     return [
-        {"shot_id": primary, "duration_s": 1.4},
-        {"shot_id": secondary, "duration_s": 1.4},
+        {"shot_id": primary, "duration_s": d1},
+        {"shot_id": secondary, "duration_s": d2},
     ]
 
 
@@ -429,6 +441,7 @@ def run_batch_run(
     *,
     failed_only: bool = False,
     score_override: float | None = None,
+    auto_approve: bool = True,
 ) -> dict[str, Any]:
     """Executes or resumes a Batch Run with checkpoint persistence per item."""
     run_row = query_one(paths.db_file, "SELECT * FROM batch_runs WHERE id = ?", (int(batch_id),))
@@ -468,7 +481,8 @@ def run_batch_run(
                         "UPDATE videos SET quality_score = ? WHERE id = ?",
                         (chosen_q, video_id),
                     )
-            try_autopilot_approve(paths, video_id)
+            if auto_approve:
+                try_autopilot_approve(paths, video_id)
 
             with get_conn(paths.db_file) as conn:
                 conn.execute(

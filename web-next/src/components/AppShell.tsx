@@ -5,11 +5,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Activity,
+  Bot,
   CheckCircle2,
   Clapperboard,
   Film,
   Flame,
   FolderKanban,
+  Languages,
   Layers,
   LayoutDashboard,
   Palette,
@@ -30,8 +32,11 @@ const NAV_ITEMS = [
   { href: "/products", label: "Sản phẩm & Dữ kiện", icon: FolderKanban },
   { href: "/footage", label: "Footage & Kho Shot", icon: Film },
   { href: "/videos", label: "Sản xuất & Kịch bản", icon: Clapperboard },
+  { href: "/localize", label: "Việt hóa & Remix", icon: Languages },
+  { href: "/batch", label: "Batch & A/B Studio", icon: Layers },
   { href: "/video-style", label: "Video Style & Audio", icon: Palette },
   { href: "/studio", label: "Remotion Studio AI", icon: Sparkles },
+  { href: "/autopilot", label: "Kênh Autopilot", icon: Bot },
   { href: "/approval", label: "Duyệt, Kênh & Lịch đăng", icon: CheckCircle2 },
   { href: "/settings", label: "Cài đặt & AI Keys", icon: Settings },
 ];

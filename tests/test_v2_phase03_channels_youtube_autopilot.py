@@ -41,7 +41,8 @@ def test_migration_017_preserves_existing_accounts_and_posts_with_fk(tmp_path: P
     mig16_dir = tmp_path / "mig16"
     mig16_dir.mkdir()
     for f in sorted(DEFAULT_MIGRATIONS_DIR.glob("*.sql")):
-        if f.name.startswith("017_"):
+        prefix = f.name.split("_", 1)[0]
+        if prefix.isdigit() and int(prefix) >= 17:
             continue
         shutil.copy2(f, mig16_dir / f.name)
 

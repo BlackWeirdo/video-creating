@@ -125,9 +125,19 @@ class AppScheduler:
             max_instances=1,
         )
 
+        # 9. Every 15 minutes: execute due Channel Autopilot rules
+        self._scheduler.add_job(
+            self._tick_autopilot,
+            "interval",
+            minutes=15,
+            id="autopilot_tick",
+            replace_existing=True,
+            max_instances=1,
+        )
+
         self._scheduler.start()
         logger.info(
-            "Started APScheduler (publish_due, token_check, nightly_backup, daily_report, weekly_report, collect_metrics, daily_trend_scan, inbox_and_deferred)"
+            "Started APScheduler (publish_due, token_check, nightly_backup, daily_report, weekly_report, collect_metrics, daily_trend_scan, inbox_and_deferred, autopilot_tick)"
         )
 
     async def _tick_publish_due(self) -> None:
@@ -186,6 +196,14 @@ class AppScheduler:
             await asyncio.to_thread(flush_deferred_notifications, self.paths)
         except Exception as exc:
             logger.error("Error in inbox_and_deferred tick: %s", exc)
+
+    async def _tick_autopilot(self) -> None:
+        try:
+            from videocreator.autopilot import run_autopilot_tick
+
+            await asyncio.to_thread(run_autopilot_tick, self.paths)
+        except Exception as exc:
+            logger.error("Error in autopilot_tick: %s", exc)
 
     def stop(self) -> None:
         if self._scheduler is not None and self._scheduler.running:

@@ -626,6 +626,7 @@ def run_localize_render(
     *,
     tts_provider: str = "local",
     target_accounts: list[int] | None = None,
+    auto_approve: bool = True,
 ) -> dict[str, Any]:
     """Renders localized/remixed video using hardsub removal, real-shot hybrid splicing, ducked BGM & QC."""
     proj = get_localize_project(paths.db_file, project_id)
@@ -857,7 +858,8 @@ def run_localize_render(
         score_or_send_to_approval(
             paths, video_id, should_score=False, score_provider=None, score_override=None
         )
-        try_autopilot_approve(paths, video_id)
+        if auto_approve:
+            try_autopilot_approve(paths, video_id)
 
         with get_conn(paths.db_file) as conn:
             conn.execute(

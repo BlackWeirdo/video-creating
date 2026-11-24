@@ -1,8 +1,29 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
-import { KeyRound, Save, Settings } from "lucide-react";
+import { Cpu, Download, KeyRound, Plus, Save, Settings, Trash2 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+
+interface LocalModelRow {
+  model_id: string;
+  name: string;
+  category: string;
+  size_mb: number;
+  status: string;
+  progress: number;
+  installed_on_disk: boolean;
+}
+
+interface PooledKeyRow {
+  id: number;
+  provider: string;
+  label: string;
+  masked_preview: string;
+  enabled: boolean;
+  priority: number;
+  is_cooling_down: boolean;
+  use_count: number;
+}
 
 interface SecretMeta {
   name: string;
@@ -30,13 +51,18 @@ export default function SettingsPage() {
 
   const [secrets, setSecrets] = useState<SecretMeta[]>([]);
   const [secretInputs, setSecretInputs] = useState<Record<string, string>>({});
+  const [localModels, setLocalModels] = useState<LocalModelRow[]>([]);
+  const [poolKeys, setPoolKeys] = useState<PooledKeyRow[]>([]);
+  const [poolProvider, setPoolProvider] = useState("gemini");
+  const [poolLabel, setPoolLabel] = useState("");
+  const [poolSecret, setPoolSecret] = useState("");
   const [spentToday, setSpentToday] = useState(0);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
 
   const load = useCallback(async () => {
     try {
-      const [cfgRes, vRes, secRes, usageRes] = await Promise.all([
+      const [cfgRes, vRes, secRes, usageRes, modRes, kpRes] = await Promise.all([
         apiFetch<{
           settings: {
             worker: { io_concurrency: number; compute_concurrency: number };
@@ -51,6 +77,8 @@ export default function SettingsPage() {
         }>("/api/v1/voices"),
         apiFetch<{ secrets: SecretMeta[] }>("/api/v1/secrets"),
         apiFetch<{ spent_today_usd: number }>("/api/v1/ai/usage"),
+        apiFetch<{ models: LocalModelRow[] }>("/api/v1/models"),
+        apiFetch<{ keys: PooledKeyRow[] }>("/api/v1/key-pool"),
       ]);
       const s = cfgRes.settings;
       setIoConc(s.worker?.io_concurrency ?? 4);
@@ -64,6 +92,8 @@ export default function SettingsPage() {
       setViVoice(vRes.voice?.vi_voice || "vi-VN-HoaiMyNeural-Female");
       setSecrets(secRes.secrets || []);
       setSpentToday(usageRes.spent_today_usd || 0);
+      setLocalModels(modRes.models || []);
+      setPoolKeys(kpRes.keys || []);
       setErr("");
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Lỗi tải cài đặt");
@@ -268,6 +298,142 @@ export default function SettingsPage() {
           <Save className="w-4 h-4" /> Lưu API Keys Mới
         </button>
       </form>
+
+      {/* Multi-Key Rotation Pool */}
+      <div className="bg-[#111827] border border-slate-800 rounded-xl p-5 space-y-3 text-xs">
+        <h2 className="text-sm font-semibold text-white flex items-center gap-1.5">
+          <KeyRound className="w-4 h-4 text-emerald-400" /> Bể Xoay Vòng Nhiều API Key ({poolKeys.length})
+        </h2>
+        <div className="grid md:grid-cols-4 gap-2">
+          <select
+            value={poolProvider}
+            onChange={(e) => setPoolProvider(e.target.value)}
+            className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
+          >
+            <option value="gemini">Gemini</option>
+            <option value="claude">Claude</option>
+            <option value="openai_compat">OpenAI-compat</option>
+            <option value="fal">fal.ai</option>
+            <option value="elevenlabs">ElevenLabs</option>
+            <option value="muse">Muse Spark</option>
+          </select>
+          <input
+            value={poolLabel}
+            onChange={(e) => setPoolLabel(e.target.value)}
+            placeholder="Nhãn (VD: Tài khoản 1)"
+            className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
+          />
+          <input
+            type="password"
+            value={poolSecret}
+            onChange={(e) => setPoolSecret(e.target.value)}
+            placeholder="Dán API Key mới vào pool..."
+            className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
+          />
+          <button
+            type="button"
+            onClick={async () => {
+              if (!poolSecret.trim()) return;
+              await apiFetch("/api/v1/key-pool", {
+                method: "POST",
+                body: JSON.stringify({
+                  provider: poolProvider,
+                  label: poolLabel,
+                  raw_secret: poolSecret,
+                }),
+              });
+              setPoolLabel("");
+              setPoolSecret("");
+              setMsg("Đã thêm API Key vào bể xoay vòng.");
+              await load();
+            }}
+            className="inline-flex items-center justify-center gap-1 px-3 py-2 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 font-semibold cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" /> Thêm vào Pool
+          </button>
+        </div>
+        <div className="space-y-1.5">
+          {poolKeys.map((k) => (
+            <div
+              key={k.id}
+              className="flex items-center justify-between bg-[#182235] border border-slate-800 rounded-lg px-3 py-2"
+            >
+              <div>
+                <span className="uppercase text-sky-300 font-semibold mr-2">{k.provider}</span>
+                <span className="text-white">{k.label || `Key #${k.id}`}</span>{" "}
+                <span className="text-slate-400">({k.masked_preview})</span>
+                <span className="ml-2 text-[11px] text-slate-400">
+                  Dùng: {k.use_count} {k.is_cooling_down ? "• Đang cooldown" : ""}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={async () => {
+                  await apiFetch(`/api/v1/key-pool/${k.id}`, { method: "DELETE" });
+                  await load();
+                }}
+                className="text-slate-400 hover:text-rose-400 cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* On-Demand Local AI Models Manager */}
+      <div className="bg-[#111827] border border-slate-800 rounded-xl p-5 space-y-3 text-xs">
+        <h2 className="text-sm font-semibold text-white flex items-center gap-1.5">
+          <Cpu className="w-4 h-4 text-purple-400" /> Kho Model AI Cục Bộ (Tải theo nhu cầu)
+        </h2>
+        <div className="grid md:grid-cols-2 gap-3">
+          {localModels.map((m) => (
+            <div
+              key={m.model_id}
+              className="bg-[#182235] border border-slate-800 rounded-lg p-3 flex items-center justify-between gap-2"
+            >
+              <div>
+                <div className="font-semibold text-white">{m.name}</div>
+                <div className="text-[11px] text-slate-400">
+                  {m.category} • ~{m.size_mb} MB • Trạng thái:{" "}
+                  <span className={m.status === "ready" ? "text-emerald-300" : "text-amber-300"}>
+                    {m.status}
+                  </span>
+                </div>
+              </div>
+              <div className="flex gap-1.5 shrink-0">
+                {m.status !== "ready" ? (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await apiFetch(`/api/v1/models/${m.model_id}/install`, {
+                        method: "POST",
+                        body: JSON.stringify({}),
+                      });
+                      setMsg(`Đã xếp hàng tải model ${m.model_id}.`);
+                      await load();
+                    }}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-sky-500/20 text-sky-300 cursor-pointer"
+                  >
+                    <Download className="w-3 h-3" /> Tải về
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await apiFetch(`/api/v1/models/${m.model_id}`, { method: "DELETE" });
+                      await load();
+                    }}
+                    className="px-2.5 py-1 rounded bg-rose-500/15 text-rose-300 cursor-pointer"
+                  >
+                    Gỡ
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

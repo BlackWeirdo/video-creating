@@ -19,8 +19,8 @@ Xây dựng **Video Creator V2** trên nhánh `v2` của repo `c:\Users\ADMIN\vi
 | Đợt | Trọng tâm | Thành quả chạy thật sau khi hoàn thành |
 |---|---|---|
 | **Đợt 1** *(đã hoàn thành)* | Nền móng Multi-Workspace, Hàng đợi 2 làn, Video Style Engine (gỡ MPT), YouTube + Gói `.zip`, `/api/v1/*` và Shell Next.js 15 cho toàn bộ tính năng lõi | Nền tảng đa thương hiệu chạy trên Next.js 15 + FastAPI, dựng video `9:16` đẹp hơn V1 (sub nhảy chữ, ducking, QC) và đăng đủ 5 MXH + `.zip` |
-| **Đợt 2** *(đang thực hiện)* | Trình quản lý Model AI tải thêm + Studio Việt hóa/Reup/Hybrid Remix/Quốc tế hóa + Batch & Product A/B Studio + Kênh Autopilot | Tự động hóa sản xuất số lượng lớn từ Xu hướng, Sản phẩm hoặc Việt hóa/Remix và tự chạy lịch cho kênh vệ tinh |
-| **Đợt 3** | Characters & AI Image Studio + News-to-Video + Nhúng trình dựng FreeCut (MIT) + Visual Workflow Node (`@xyflow/react`) | Hoàn thiện bộ công cụ đồng nhất nhân vật, tạo ảnh AI, tin tức, cắt ghép đa track và workflow kéo-thả |
+| **Đợt 2** *(đã hoàn thành)* | Trình quản lý Model AI tải thêm + Studio Việt hóa/Reup/Hybrid Remix/Quốc tế hóa + Batch & Product A/B Studio + Kênh Autopilot | Tự động hóa sản xuất số lượng lớn từ Xu hướng, Sản phẩm hoặc Việt hóa/Remix và tự chạy lịch cho kênh vệ tinh |
+| **Đợt 3** *(đang thực hiện)* | Characters & AI Image Studio + News-to-Video + Nhúng trình dựng FreeCut (MIT) + Visual Workflow Node (`@xyflow/react`) | Hoàn thiện bộ công cụ đồng nhất nhân vật, tạo ảnh AI, tin tức, cắt ghép đa track và workflow kéo-thả |
 | **Đợt 4** | Studio Tiểu thuyết, Sóng nhạc Podcast (`16:9`), Lip-sync AI + Welcome Wizard, Sao lưu/Khôi phục, Bộ cài `.exe` Inno Setup (+ tùy chọn Nuitka `.pyd`) | Xuất xưởng bộ cài `.exe` hoàn chỉnh cài độc lập cho từng máy nhân viên |
 
 ---
@@ -52,7 +52,18 @@ Phase 01 (Workspace + Dual-Lane Queue + /api/v1 Core)
 | **06** | [Trình quản lý Model AI Cục bộ & Bể xoay vòng API Key](phase-06-local-models-and-key-pool.md) | Đợt 1 | Xong, test local đạt | 100% |
 | **07** | [Studio Việt hóa / Reup, Hybrid Remix & Quốc tế hóa](phase-07-localize-reup-hybrid-remix.md) | Phase 06 | Xong, test local đạt | 100% |
 | **08** | [Batch Studio & Biến thể Sản phẩm A/B kèm Checkpoint Resume](phase-08-batch-and-product-ab-studio.md) | Phase 07 | Xong, test local đạt | 100% |
-| **09** | [Kênh Autopilot tự chạy & Giao diện Next.js Đợt 2](phase-09-autopilot-and-wave2-views.md) | Phase 08 | Chờ | 0% |
+| **09** | [Kênh Autopilot tự chạy & Giao diện Next.js Đợt 2](phase-09-autopilot-and-wave2-views.md) | Phase 08 | Xong, test local đạt | 100% |
+
+---
+
+## 3C. Chi tiết Các Phase trong Đợt 3
+
+| Phase | Tên Phase | Phụ thuộc | Trạng thái | Tiến độ |
+|---|---|---|---|---|
+| **10** | [Nhân vật Cố định & AI Image Studio kèm Tách nền PNG](phase-10-characters-and-image-studio.md) | Đợt 2 | Chờ | 0% |
+| **11** | [Studio Tin tức / Bài viết sang Video & Gói đăng bài](phase-11-news-to-video-studio.md) | Phase 10 | Chờ | 0% |
+| **12** | [Cầu nối Trình dựng FreeCut (MIT) & Bộ ghép Đa track](phase-12-freecut-and-timeline-editor.md) | Phase 11 | Chờ | 0% |
+| **13** | [Bảng vẽ Workflow Node (`@xyflow/react`) & Giao diện Đợt 3](phase-13-workflows-and-wave3-views.md) | Phase 12 | Chờ | 0% |
 
 ---
 

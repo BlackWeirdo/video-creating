@@ -130,6 +130,35 @@ export default function TrendsPage() {
     await loadAll();
   };
 
+  const sendTrendToLocalize = async (trendId: number) => {
+    setErr("");
+    try {
+      const res = await apiFetch<{ project: { id: number } }>(
+        `/api/v1/trends/${trendId}/send-to-localize`,
+        { method: "POST", body: JSON.stringify({ workspace_id: activeWorkspaceId }) }
+      );
+      setMsg(`Đã chuyển Trend #${trendId} sang Localize Studio (#${res.project.id}).`);
+    } catch (e2) {
+      setErr(e2 instanceof Error ? e2.message : "Workspace hiện tại không cho phép Localize trend này");
+    }
+  };
+
+  const sendTrendToBatch = async (trendId: number) => {
+    setErr("");
+    try {
+      const res = await apiFetch<{ batch: { id: number } }>(
+        "/api/v1/trends/send-to-batch",
+        {
+          method: "POST",
+          body: JSON.stringify({ workspace_id: activeWorkspaceId, trend_ids: [trendId], ab_count: 2 }),
+        }
+      );
+      setMsg(`Đã tạo Batch A/B #${res.batch.id} từ Trend #${trendId}.`);
+    } catch (e2) {
+      setErr(e2 instanceof Error ? e2.message : "Không thể đẩy Trend sang Batch Studio");
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -336,6 +365,20 @@ export default function TrendsPage() {
                       className="inline-flex items-center gap-1 text-emerald-300 hover:underline cursor-pointer"
                     >
                       <Play className="w-3 h-3" /> Phân tích
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void sendTrendToLocalize(t.id)}
+                      className="text-purple-300 hover:underline cursor-pointer"
+                    >
+                      Việt hóa
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void sendTrendToBatch(t.id)}
+                      className="text-amber-300 hover:underline cursor-pointer"
+                    >
+                      Batch A/B
                     </button>
                   </div>
                 </div>
