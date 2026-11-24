@@ -23,6 +23,7 @@ from videocreator.posting.service import is_posting_paused, utc_now_iso
 from videocreator.posting.storage_r2 import upload_to_r2
 from videocreator.posting.threads import ThreadsPoster
 from videocreator.posting.tiktok import TikTokPoster
+from videocreator.posting.youtube import YouTubePoster
 from videocreator.secrets_store import SecretsStore
 from videocreator.state_posts import transition_post
 from videocreator.timeutil import parse_iso_utc, utc_now
@@ -45,6 +46,7 @@ def build_default_posters(
         "instagram": InstagramReelsPoster(paths, sec),
         "threads": ThreadsPoster(paths, sec),
         "tiktok": TikTokPoster(paths, sec),
+        "youtube": YouTubePoster(paths, sec),
     }
 
 

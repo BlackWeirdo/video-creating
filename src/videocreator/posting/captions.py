@@ -32,6 +32,8 @@ def format_platform_caption(video_row: dict[str, Any], platform: str) -> str:
 
     captions = {**plan_caps, **override_caps}
     plat_obj = captions.get(platform)
+    if (not isinstance(plat_obj, dict) or not str(plat_obj.get("text") or "").strip()) and platform == "youtube":
+        plat_obj = captions.get("tiktok") or captions.get("facebook") or {}
     if not isinstance(plat_obj, dict):
         plat_obj = {}
     text = str(plat_obj.get("text") or "").strip()

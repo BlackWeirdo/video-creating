@@ -12,6 +12,7 @@ from videocreator.posting.facebook import FacebookPagePoster
 from videocreator.posting.instagram import InstagramReelsPoster
 from videocreator.posting.threads import ThreadsPoster
 from videocreator.posting.tiktok import TikTokPoster
+from videocreator.posting.youtube import YouTubePoster
 from videocreator.secrets_store import SecretsStore
 from videocreator.timeutil import UTC_ISO_FORMAT, utc_now
 
@@ -27,6 +28,8 @@ def _default_metrics_reader(platform: str, secrets: SecretsStore, paths: AppPath
         return ThreadsPoster(paths, secrets)
     if platform == "tiktok":
         return TikTokPoster(paths, secrets)
+    if platform == "youtube":
+        return YouTubePoster(paths, secrets)
     return None
 
 CHECKPOINT_HOURS: list[tuple[str, float]] = [

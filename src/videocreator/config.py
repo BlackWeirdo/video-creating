@@ -61,6 +61,13 @@ def _default_platform_limits() -> dict[str, PlatformLimitConfig]:
         "instagram": PlatformLimitConfig(min_duration_s=5.0, max_duration_s=90.0, max_caption_chars=2200),
         "threads": PlatformLimitConfig(min_duration_s=5.0, max_duration_s=90.0, max_caption_chars=500),
         "tiktok": PlatformLimitConfig(min_duration_s=5.0, max_duration_s=90.0, max_caption_chars=2200),
+        "youtube": PlatformLimitConfig(
+            min_duration_s=3.0,
+            max_duration_s=180.0,
+            max_size_mb=256.0,
+            aspect_ratio="any",
+            max_caption_chars=5000,
+        ),
     }
 
 

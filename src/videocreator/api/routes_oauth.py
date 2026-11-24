@@ -17,11 +17,11 @@ from videocreator.secrets_store import SecretsStore
 router = APIRouter()
 
 
-def _validate_oauth_platform(platform: str) -> Literal["threads", "tiktok"]:
-    if platform not in ("threads", "tiktok"):
+def _validate_oauth_platform(platform: str) -> Literal["threads", "tiktok", "youtube"]:
+    if platform not in ("threads", "tiktok", "youtube"):
         raise HTTPException(
             status_code=400,
-            detail=f"Nền tảng OAuth không hỗ trợ: {platform} (chỉ hỗ trợ threads, tiktok)",
+            detail=f"Nền tảng OAuth không hỗ trợ: {platform} (chỉ hỗ trợ threads, tiktok, youtube)",
         )
     return platform  # type: ignore[return-value]
 

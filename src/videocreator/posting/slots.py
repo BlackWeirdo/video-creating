@@ -111,7 +111,9 @@ def default_target_account_ids(db_file: Path, video_id: int) -> list[int]:
     """Target accounts of a video (`FR-APR-02`): the reviewer's selection when there is one, otherwise
     every enabled account whose language matches the captions and whose platform passed the format check."""
     v_row = query_one(
-        db_file, "SELECT target_accounts_json, caption_lang, preflight_json FROM videos WHERE id = ?", (video_id,)
+        db_file,
+        "SELECT target_accounts_json, caption_lang, preflight_json, workspace_id FROM videos WHERE id = ?",
+        (video_id,),
     )
     if v_row is None:
         return []
@@ -122,7 +124,12 @@ def default_target_account_ids(db_file: Path, video_id: int) -> list[int]:
     if chosen:
         return chosen
     preflight = loads_or(v_row.get("preflight_json"), {})
-    rows = query_all(db_file, "SELECT id, platform, lang FROM accounts WHERE enabled = 1 ORDER BY id ASC")
+    ws_id = int(v_row.get("workspace_id") or 1)
+    rows = query_all(
+        db_file,
+        "SELECT id, platform, lang FROM accounts WHERE enabled = 1 AND workspace_id = ? ORDER BY id ASC",
+        (ws_id,),
+    )
     lang = str(v_row.get("caption_lang") or "vi")
     return [
         int(r["id"])

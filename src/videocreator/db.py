@@ -97,9 +97,23 @@ def migrate(db_file: Path, migrations_dir: Path | None = None) -> int:
             ver = _migration_version(sql_file, idx)
             if ver <= current:
                 continue
-            body = _strip_explicit_tx(sql_file.read_text(encoding="utf-8"))
-            conn.executescript(f"BEGIN IMMEDIATE;\n{body}\nPRAGMA user_version = {ver};\nCOMMIT;")
-            conn.execute("PRAGMA foreign_keys = ON;")
+            raw_sql = sql_file.read_text(encoding="utf-8")
+            needs_fk_off = "-- pragma: foreign_keys=off" in raw_sql.lower()
+            body = _strip_explicit_tx(raw_sql)
+            if needs_fk_off:
+                conn.execute("PRAGMA foreign_keys = OFF;")
+            try:
+                conn.executescript(
+                    f"BEGIN IMMEDIATE;\n{body}\nPRAGMA user_version = {ver};\nCOMMIT;"
+                )
+                if needs_fk_off:
+                    fk_violations = conn.execute("PRAGMA foreign_key_check;").fetchall()
+                    if fk_violations:
+                        raise RuntimeError(
+                            f"Foreign key check failed after {sql_file.name}: {[dict(r) for r in fk_violations]}"
+                        )
+            finally:
+                conn.execute("PRAGMA foreign_keys = ON;")
             current = ver
         return current
     except Exception:

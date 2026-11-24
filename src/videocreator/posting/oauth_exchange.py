@@ -13,6 +13,8 @@ from videocreator.posting.oauth import (
     THREADS_TOKEN_URL,
     TIKTOK_TOKEN_URL,
     TIKTOK_USER_INFO_URL,
+    YOUTUBE_CHANNELS_URL,
+    YOUTUBE_TOKEN_URL,
     consume_oauth_state,
 )
 from videocreator.secrets_store import SecretsStore
@@ -32,6 +34,7 @@ def _exchange_threads(
     redirect_uri: str,
     lang: Literal["vi", "en"],
     base_utc: datetime,
+    workspace_id: int = 1,
 ) -> int:
     from videocreator.posting.accounts import upsert_account
 
@@ -91,6 +94,7 @@ def _exchange_threads(
         access_token=access_token,
         lang=lang,
         token_expires_at=_expiry_iso(base_utc, expires_in),
+        workspace_id=workspace_id,
         secrets_store=sec,
     )
 
@@ -119,6 +123,7 @@ def _exchange_tiktok(
     redirect_uri: str,
     lang: Literal["vi", "en"],
     base_utc: datetime,
+    workspace_id: int = 1,
 ) -> int:
     from videocreator.posting.accounts import upsert_account
 
@@ -157,6 +162,7 @@ def _exchange_tiktok(
         access_token=access_token,
         lang=lang,
         token_expires_at=_expiry_iso(base_utc, expires_in),
+        workspace_id=workspace_id,
         secrets_store=sec,
     )
     if not refresh_token:
@@ -171,9 +177,83 @@ def _exchange_tiktok(
     return acc_id
 
 
+def _exchange_youtube(
+    paths: AppPaths,
+    client: Any,
+    sec: SecretsStore,
+    *,
+    code: str,
+    redirect_uri: str,
+    lang: Literal["vi", "en"],
+    base_utc: datetime,
+    workspace_id: int = 1,
+) -> int:
+    from videocreator.posting.accounts import upsert_account
+
+    client_id = sec.get("GOOGLE_CLIENT_ID") or ""
+    client_secret = sec.get("GOOGLE_CLIENT_SECRET") or ""
+    if not client_id or not client_secret:
+        raise ValueError("Thiếu GOOGLE_CLIENT_ID hoặc GOOGLE_CLIENT_SECRET")
+
+    r_tok = client.post(
+        YOUTUBE_TOKEN_URL,
+        data={
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "code": code.strip(),
+            "grant_type": "authorization_code",
+            "redirect_uri": redirect_uri,
+        },
+    )
+    r_tok.raise_for_status()
+    tok_data = r_tok.json() or {}
+    access_token = str(tok_data.get("access_token") or "").strip()
+    if not access_token:
+        raise ValueError(
+            f"YouTube OAuth không trả về access_token: {tok_data.get('error_description') or tok_data.get('error') or 'unknown'}"
+        )
+    refresh_token = str(tok_data.get("refresh_token") or "").strip()
+    expires_in = int(tok_data.get("expires_in") or 3600)
+
+    r_ch = client.get(
+        YOUTUBE_CHANNELS_URL,
+        params={"part": "snippet", "mine": "true"},
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    channel_id = "youtube_channel"
+    channel_name = "YouTube Channel"
+    if r_ch.status_code == 200:
+        items = (r_ch.json() or {}).get("items") or []
+        if items:
+            channel_id = str(items[0].get("id") or channel_id)
+            snippet = items[0].get("snippet") or {}
+            channel_name = str(snippet.get("title") or channel_name)
+
+    acc_id = upsert_account(
+        paths,
+        platform="youtube",
+        external_id=channel_id,
+        name=channel_name,
+        access_token=access_token,
+        lang=lang,
+        token_expires_at=_expiry_iso(base_utc, expires_in),
+        workspace_id=workspace_id,
+        secrets_store=sec,
+    )
+    if refresh_token:
+        acc_row = query_one(
+            paths.db_file,
+            "SELECT secret_key FROM accounts WHERE id = ?",
+            (acc_id,),
+        )
+        if acc_row:
+            sec.set(f"{acc_row['secret_key']}_REFRESH", refresh_token)
+    return acc_id
+
+
 def exchange_code_for_account(
     paths: AppPaths,
-    platform: Literal["threads", "tiktok"],
+    platform: Literal["threads", "tiktok", "youtube"],
     *,
     code: str,
     state: str,
@@ -185,13 +265,29 @@ def exchange_code_for_account(
     state_data = consume_oauth_state(
         paths.db_file, state, expected_platform=platform, now_dt=now_dt
     )
-    exchange = {"threads": _exchange_threads, "tiktok": _exchange_tiktok}.get(platform)
+    exchange = {
+        "threads": _exchange_threads,
+        "tiktok": _exchange_tiktok,
+        "youtube": _exchange_youtube,
+    }.get(platform)
     if exchange is None:
         raise ValueError(f"Unsupported OAuth platform: {platform}")
 
+    ws_id = int(state_data.get("workspace_id") or 1)
     own_client = http_client is None
     client = http_client or httpx.Client(timeout=30.0)
     try:
+        if platform == "threads":
+            return _exchange_threads(
+                paths,
+                client,
+                secrets_store or SecretsStore(paths.secrets_file),
+                code=code,
+                redirect_uri=str(state_data.get("redirect_uri") or ""),
+                lang="en" if state_data.get("lang") == "en" else "vi",
+                base_utc=utc_now(now_dt),
+                workspace_id=ws_id,
+            )
         return exchange(
             paths,
             client,
@@ -200,6 +296,7 @@ def exchange_code_for_account(
             redirect_uri=str(state_data.get("redirect_uri") or ""),
             lang="en" if state_data.get("lang") == "en" else "vi",
             base_utc=utc_now(now_dt),
+            workspace_id=ws_id,
         )
     finally:
         if own_client:

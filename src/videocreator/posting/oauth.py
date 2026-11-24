@@ -24,13 +24,19 @@ TIKTOK_AUTH_URL = "https://www.tiktok.com/v2/auth/authorize/"
 TIKTOK_TOKEN_URL = "https://open.tiktokapis.com/v2/oauth/token/"
 TIKTOK_USER_INFO_URL = "https://open.tiktokapis.com/v2/user/info/"
 
+YOUTUBE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
+YOUTUBE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+YOUTUBE_CHANNELS_URL = "https://www.googleapis.com/youtube/v3/channels"
+YOUTUBE_SCOPE = "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly"
+
 
 def build_authorize_url(
     paths: AppPaths,
-    platform: Literal["threads", "tiktok"],
+    platform: Literal["threads", "tiktok", "youtube"],
     *,
     redirect_uri: str,
     lang: Literal["vi", "en"] = "vi",
+    workspace_id: int = 1,
     now_dt: datetime | None = None,
     secrets_store: SecretsStore | None = None,
 ) -> tuple[str, str]:
@@ -44,6 +50,7 @@ def build_authorize_url(
         "platform": platform,
         "redirect_uri": redirect_uri,
         "lang": lang,
+        "workspace_id": int(workspace_id),
         "expires_at": expires_utc.strftime(UTC_ISO_FORMAT),
     }
     with get_conn(paths.db_file) as conn:
@@ -80,6 +87,21 @@ def build_authorize_url(
             "state": state,
         }
         return f"{TIKTOK_AUTH_URL}?{urlencode(params)}", state
+
+    if platform == "youtube":
+        client_id = sec.get("GOOGLE_CLIENT_ID") or ""
+        if not client_id:
+            raise ValueError("Chưa cấu hình GOOGLE_CLIENT_ID trong Settings / Secrets")
+        params = {
+            "client_id": client_id,
+            "redirect_uri": redirect_uri,
+            "scope": YOUTUBE_SCOPE,
+            "response_type": "code",
+            "access_type": "offline",
+            "prompt": "consent",
+            "state": state,
+        }
+        return f"{YOUTUBE_AUTH_URL}?{urlencode(params)}", state
 
     raise ValueError(f"Unsupported OAuth platform: {platform}")
 

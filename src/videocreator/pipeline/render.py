@@ -401,10 +401,18 @@ def render_video(
             paths, video_id, should_score=should_score, score_provider=score_provider, score_override=score_override
         )
         if waiting_id is not None:  # this video, or a better-scored earlier attempt of it
+            from videocreator.approvals import try_autopilot_approve
+
+            scheduled_by_autopilot = False
             try:
-                notify_pending(paths, waiting_id)
-            except Exception as tg_exc:
-                logger.warning("notify_pending hook warning for video #%d: %s", waiting_id, tg_exc)
+                scheduled_by_autopilot = try_autopilot_approve(paths, waiting_id)
+            except Exception as ap_exc:
+                logger.warning("Autopilot approval skipped for video #%d: %s", waiting_id, ap_exc)
+            if not scheduled_by_autopilot:
+                try:
+                    notify_pending(paths, waiting_id)
+                except Exception as tg_exc:
+                    logger.warning("notify_pending hook warning for video #%d: %s", waiting_id, tg_exc)
         return f"Rendered video #{video_id} ({actual_duration_s:.2f}s) -> {rel_out}"
 
     except Exception as exc:

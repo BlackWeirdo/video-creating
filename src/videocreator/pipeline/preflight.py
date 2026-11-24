@@ -109,8 +109,21 @@ def check_platform(
 
     w = int(meta["width"])
     h = int(meta["height"])
-    if limit.aspect_ratio == "9:16" and (w <= 0 or h <= 0 or abs((w / h) - (9 / 16)) > 0.02):
+    ratio = limit.aspect_ratio.strip().lower()
+    if w <= 0 or h <= 0:
+        errors.append(f"Không đăng được {platform}: kích thước khung hình không hợp lệ ({w}x{h})")
+    elif ratio == "9:16" and abs((w / h) - (9 / 16)) > 0.02:
         errors.append(f"Không đăng được {platform}: tỉ lệ khung hình {w}x{h} không phải 9:16")
+    elif ratio == "16:9" and abs((w / h) - (16 / 9)) > 0.02:
+        errors.append(f"Không đăng được {platform}: tỉ lệ khung hình {w}x{h} không phải 16:9")
+    elif ratio == "1:1" and abs((w / h) - 1.0) > 0.02:
+        errors.append(f"Không đăng được {platform}: tỉ lệ khung hình {w}x{h} không phải 1:1")
+    elif ratio == "any":
+        actual = w / h
+        if min(abs(actual - (9 / 16)), abs(actual - (16 / 9)), abs(actual - 1.0)) > 0.03:
+            errors.append(
+                f"Không đăng được {platform}: tỉ lệ khung hình {w}x{h} không khớp 9:16, 16:9 hoặc 1:1"
+            )
 
     fps = float(meta["fps"])
     if fps < limit.min_fps - 0.5 or fps > limit.max_fps + 0.5:

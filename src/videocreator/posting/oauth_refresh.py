@@ -7,7 +7,7 @@ import httpx
 
 from videocreator.db import get_conn, record_audit
 from videocreator.paths import AppPaths
-from videocreator.posting.oauth import THREADS_REFRESH_URL, TIKTOK_TOKEN_URL
+from videocreator.posting.oauth import THREADS_REFRESH_URL, TIKTOK_TOKEN_URL, YOUTUBE_TOKEN_URL
 from videocreator.secrets_store import SecretsStore
 from videocreator.timeutil import UTC_ISO_FORMAT, parse_iso_utc, utc_now
 
@@ -86,6 +86,32 @@ def _refresh_threads(client: Any, sec: SecretsStore, secret_key: str) -> int | N
     return int(data.get("expires_in") or 5184000)
 
 
+def _refresh_youtube(client: Any, sec: SecretsStore, secret_key: str) -> int | None:
+    refresh_tok = sec.get(f"{secret_key}_REFRESH")
+    client_id = sec.get("GOOGLE_CLIENT_ID") or ""
+    client_secret = sec.get("GOOGLE_CLIENT_SECRET") or ""
+    if not refresh_tok or not client_id or not client_secret:
+        return None
+    resp = client.post(
+        YOUTUBE_TOKEN_URL,
+        data={
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "grant_type": "refresh_token",
+            "refresh_token": refresh_tok,
+        },
+    )
+    resp.raise_for_status()
+    data = resp.json() or {}
+    new_access = str(data.get("access_token") or "").strip()
+    if not new_access:
+        raise ValueError(
+            f"YouTube token refresh missing access_token: {data.get('error_description') or data.get('error') or 'unknown'}"
+        )
+    sec.set(secret_key, new_access)
+    return int(data.get("expires_in") or 3600)
+
+
 def refresh_token_if_needed(
     paths: AppPaths,
     account_row: dict[str, Any],
@@ -94,9 +120,9 @@ def refresh_token_if_needed(
     secrets_store: SecretsStore | None = None,
     http_client: Any = None,
 ) -> bool:
-    """Refreshes Threads or TikTok token if `token_expires_at` is within threshold (`< 10 min` for TikTok, `< 7 days` for Threads)."""
+    """Refreshes Threads, TikTok, or YouTube token if `token_expires_at` is within threshold."""
     platform = str(account_row.get("platform") or "")
-    if platform not in ("threads", "tiktok"):
+    if platform not in ("threads", "tiktok", "youtube"):
         return False
 
     exp_dt = parse_iso_utc(account_row.get("token_expires_at"))
@@ -105,14 +131,20 @@ def refresh_token_if_needed(
 
     base_utc = utc_now(now_dt)
     threshold = (
-        timedelta(minutes=TOKEN_REFRESH_MARGIN_MINUTES) if platform == "tiktok" else THREADS_REFRESH_MARGIN
+        timedelta(minutes=TOKEN_REFRESH_MARGIN_MINUTES)
+        if platform in ("tiktok", "youtube")
+        else THREADS_REFRESH_MARGIN
     )
     if (exp_dt - base_utc) > threshold:
         return False
 
     sec = secrets_store or SecretsStore(paths.secrets_file)
     secret_key = str(account_row["secret_key"])
-    refresh = _refresh_tiktok if platform == "tiktok" else _refresh_threads
+    refresh = {
+        "tiktok": _refresh_tiktok,
+        "threads": _refresh_threads,
+        "youtube": _refresh_youtube,
+    }[platform]
 
     own_client = http_client is None
     client = http_client or httpx.Client(timeout=30.0)
