@@ -4,6 +4,8 @@ from __future__ import annotations
 import argparse
 import ctypes
 import os
+import shutil
+import subprocess
 import sys
 import threading
 import time
@@ -16,7 +18,7 @@ import uvicorn
 
 from videocreator.app import create_app
 from videocreator.config import load_settings
-from videocreator.paths import get_paths
+from videocreator.paths import REPO_ROOT, get_paths
 from videocreator.secrets_store import SecretsStore
 
 ERROR_ALREADY_EXISTS = 183
@@ -84,11 +86,18 @@ class SingleInstanceLock:
             self._fd = None
 
 
-def wait_for_health(url: str, timeout_s: float = 30.0, server_thread: threading.Thread | None = None) -> bool:
+def wait_for_health(
+    url: str,
+    timeout_s: float = 30.0,
+    server_thread: threading.Thread | None = None,
+    process: subprocess.Popen[Any] | None = None,
+) -> bool:
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
         if server_thread is not None and not server_thread.is_alive():
+            return False
+        if process is not None and process.poll() is not None:
             return False
         try:
             with opener.open(url, timeout=1.0) as resp:
@@ -97,6 +106,96 @@ def wait_for_health(url: str, timeout_s: float = 30.0, server_thread: threading.
         except Exception:
             time.sleep(0.15)
     return False
+
+
+def find_node_runtime() -> str | None:
+    """Locate the Node.js binary, preferring the project or iCast Node 24 LTS runtime."""
+    env_override = os.environ.get("VIDEOCREATOR_NODE_BIN")
+    if env_override and Path(env_override).is_file():
+        return str(Path(env_override).resolve())
+
+    node_exe = "node.exe" if os.name == "nt" else "node"
+    candidates: list[Path] = [REPO_ROOT / "runtime" / "node" / node_exe]
+    if os.name == "nt":
+        local_app = os.environ.get("LOCALAPPDATA")
+        if local_app:
+            candidates.append(Path(local_app) / "Programs" / "iCast" / "runtime" / "node" / "node.exe")
+        candidates.append(Path(r"C:\Users\ADMIN\AppData\Local\Programs\iCast\runtime\node\node.exe"))
+
+    for candidate in candidates:
+        if candidate.is_file():
+            return str(candidate)
+
+    found = shutil.which("node")
+    return found if found else None
+
+
+def stop_nextjs_standalone(proc: subprocess.Popen[Any] | None) -> None:
+    """Terminate the Next.js standalone UI subprocess cleanly."""
+    if proc is None or proc.poll() is not None:
+        return
+    try:
+        proc.terminate()
+        proc.wait(timeout=3.0)
+    except Exception:
+        try:
+            proc.kill()
+            proc.wait(timeout=2.0)
+        except Exception:
+            pass
+
+
+def start_nextjs_standalone(
+    ui_port: int,
+    backend_url: str,
+    boot_log_path: Path | None = None,
+    *,
+    host: str = "127.0.0.1",
+    server_path: Path | None = None,
+    timeout_s: float = 20.0,
+) -> subprocess.Popen[Any] | None:
+    """Launch the built Next.js standalone server and wait until it serves HTTP 200."""
+    target_server = server_path or (REPO_ROOT / "web-next" / ".next" / "standalone" / "server.js")
+    if not target_server.is_file():
+        return None
+    node_bin = find_node_runtime()
+    if not node_bin:
+        return None
+
+    bind_host = "127.0.0.1" if host in ("0.0.0.0", "::", "") else host
+    probe_host = f"[{bind_host}]" if ":" in bind_host and not bind_host.startswith("[") else bind_host
+    env = os.environ.copy()
+    env["PORT"] = str(ui_port)
+    env["HOSTNAME"] = bind_host
+    env["VIDEOCREATOR_API_URL"] = backend_url
+    env["NEXT_TELEMETRY_DISABLED"] = "1"
+
+    creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
+    if boot_log_path is not None:
+        boot_log_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(boot_log_path, "a", encoding="utf-8") as log_file:
+            proc = subprocess.Popen(
+                [node_bin, str(target_server)],
+                cwd=str(target_server.parent),
+                env=env,
+                stdout=log_file,
+                stderr=log_file,
+                creationflags=creationflags,
+            )
+    else:
+        proc = subprocess.Popen(
+            [node_bin, str(target_server)],
+            cwd=str(target_server.parent),
+            env=env,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.STDOUT,
+            creationflags=creationflags,
+        )
+
+    if not wait_for_health(f"http://{probe_host}:{ui_port}/", timeout_s=timeout_s, process=proc):
+        stop_nextjs_standalone(proc)
+        return None
+    return proc
 
 
 def _notify_windows_error(message: str) -> None:
@@ -133,6 +232,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="Override data directory (or set VIDEOCREATOR_DATA)",
     )
+    parser.add_argument(
+        "--ui-port",
+        type=int,
+        default=3000,
+        help="Port for the Next.js standalone Studio UI (default: 3000)",
+    )
+    parser.add_argument(
+        "--classic-ui",
+        action="store_true",
+        help="Open the classic Jinja2/HTMX UI instead of Next.js Studio UI",
+    )
     return parser.parse_args(argv)
 
 
@@ -162,8 +272,19 @@ def _show_window_or_browser(base_url: str, server_thread: threading.Thread) -> N
             pass
 
 
-def _run_desktop_window(app: Any, host: str, port: int, base_url: str, boot_log_path: Path) -> int:
-    """Runs the server on a background thread and the desktop window in the foreground."""
+def _run_desktop_window(
+    app: Any,
+    host: str,
+    port: int,
+    base_url: str,
+    boot_log_path: Path,
+    *,
+    ui_port: int = 3000,
+    classic_ui: bool = False,
+    local_host: str = "127.0.0.1",
+    url_host: str = "127.0.0.1",
+) -> int:
+    """Runs the FastAPI backend + Next.js standalone UI and opens the desktop window."""
     server_cfg = uvicorn.Config(app, host=host, port=port, log_level="warning")
     server = uvicorn.Server(server_cfg)
     thread = threading.Thread(target=server.run, daemon=True, name="uvicorn-thread")
@@ -174,9 +295,28 @@ def _run_desktop_window(app: Any, host: str, port: int, base_url: str, boot_log_
         print(f"Error: {msg}", file=sys.stderr)
         _notify_windows_error(msg)
         return 1
+
+    ui_proc: subprocess.Popen[Any] | None = None
+    display_url = base_url
+    if not classic_ui:
+        ui_proc = start_nextjs_standalone(
+            ui_port,
+            base_url,
+            boot_log_path=boot_log_path,
+            host=local_host,
+        )
+        if ui_proc is not None:
+            display_url = f"http://{url_host}:{ui_port}"
+        else:
+            print(
+                f"Warning: Next.js standalone UI unavailable; falling back to classic UI at {base_url}.",
+                file=sys.stderr,
+            )
+
     try:
-        _show_window_or_browser(base_url, thread)
+        _show_window_or_browser(display_url, thread)
     finally:
+        stop_nextjs_standalone(ui_proc)
         server.should_exit = True
         thread.join(timeout=5.0)
     return 0
@@ -214,9 +354,15 @@ def main(argv: list[str] | None = None) -> int:
 
     lock = SingleInstanceLock(paths.lock_file)
     if not lock.acquire():
-        print(f"Video Creator is already running. Opening {base_url} ...")
+        ui_server_file = REPO_ROOT / "web-next" / ".next" / "standalone" / "server.js"
+        open_url = (
+            f"http://{url_host}:{args.ui_port}"
+            if (not args.classic_ui and ui_server_file.is_file())
+            else base_url
+        )
+        print(f"Video Creator is already running. Opening {open_url} ...")
         if not args.headless:
-            webbrowser.open(base_url)
+            webbrowser.open(open_url)
         return 0
 
     try:
@@ -225,7 +371,17 @@ def main(argv: list[str] | None = None) -> int:
             uvicorn.run(app, host=host, port=port, log_level="info")
             return 0
 
-        return _run_desktop_window(app, host, port, base_url, boot_log_path)
+        return _run_desktop_window(
+            app,
+            host,
+            port,
+            base_url,
+            boot_log_path,
+            ui_port=args.ui_port,
+            classic_ui=args.classic_ui,
+            local_host=local_host,
+            url_host=url_host,
+        )
     except Exception as exc:
         import traceback
 

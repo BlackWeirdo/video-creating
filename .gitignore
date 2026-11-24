@@ -42,3 +42,8 @@ tools/
 
 # per-machine Claude Code permissions
 .claude/settings.local.json
+
+# nextjs
+.next/
+out/
+*.tsbuildinfo
