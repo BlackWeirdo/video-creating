@@ -64,6 +64,8 @@ CREATIVE_REMIX_FILTERS: frozenset[str] = frozenset(
         "hue",
         "unsharp",
         "vignette",
+        "colorkey",
+        "chromakey",
     }
 )
 
@@ -72,12 +74,43 @@ class RenderError(RuntimeError):
     """Raised when an FFmpeg render step fails."""
 
 
+def _split_top_level(text: str, sep: str) -> list[str]:
+    parts: list[str] = []
+    cur: list[str] = []
+    depth = 0
+    in_quote = False
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        if ch == "\\" and i + 1 < len(text):
+            cur.append(ch)
+            cur.append(text[i + 1])
+            i += 2
+            continue
+        if ch == "'":
+            in_quote = not in_quote
+        elif not in_quote:
+            if ch == "(":
+                depth += 1
+            elif ch == ")" and depth > 0:
+                depth -= 1
+            elif ch == sep and depth == 0:
+                parts.append("".join(cur))
+                cur = []
+                i += 1
+                continue
+        cur.append(ch)
+        i += 1
+    parts.append("".join(cur))
+    return parts
+
+
 def extract_filter_names(filtergraph: str) -> list[str]:
     """Parses all filter names from an FFmpeg `-vf`, `-af`, or `-filter_complex` expression."""
     cleaned = re.sub(r"\[[^\]]*\]", " ", filtergraph)
     names: list[str] = []
-    for chain in cleaned.split(";"):
-        for step in chain.split(","):
+    for chain in _split_top_level(cleaned, ";"):
+        for step in _split_top_level(chain, ","):
             token = step.strip()
             if not token:
                 continue
