@@ -21,6 +21,11 @@ WizardStyle=modern
 Name: "desktopicon"; Description: "Tạo biểu tượng Video Creator V2 ngoài màn hình Desktop"; GroupDescription: "Biểu tượng:"
 Name: "startupicon"; Description: "Tự động chạy cùng Windows (dành cho Kênh Autopilot 24/7)"; GroupDescription: "Khởi động:"; Flags: unchecked
 
+[InstallDelete]
+; Purge previous Next.js standalone route-cache & stale hashed chunks on in-place upgrades
+Type: filesandordirs; Name: "{app}\web-next\.next"
+Type: filesandordirs; Name: "{app}\src\videocreator"
+
 [Files]
 Source: "..\pyproject.toml"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\uv.lock"; DestDir: "{app}"; Flags: ignoreversion

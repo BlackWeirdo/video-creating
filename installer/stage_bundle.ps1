@@ -66,6 +66,10 @@ $Node = if ($env:VIDEOCREATOR_NODE_BIN -and (Test-Path $env:VIDEOCREATOR_NODE_BI
 if (-not $SkipWebBuild) {
     Write-Host "[1/4] Building Next.js 15 Standalone bundle (web-next)..." -ForegroundColor Cyan
     $NpmCli = "C:\Program Files\nodejs\node_modules\npm\bin\npm-cli.js"
+    $NextBuildDir = Join-Path $RepoRoot "web-next\.next"
+    if (Test-Path -LiteralPath $NextBuildDir) {
+        Remove-Item -LiteralPath $NextBuildDir -Recurse -Force
+    }
     Push-Location (Join-Path $RepoRoot "web-next")
     try {
         $env:PATH = "$(Split-Path -Parent $Node);$env:PATH"
