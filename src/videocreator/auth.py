@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 import secrets
+import threading
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -16,6 +17,36 @@ from videocreator.secrets_store import SecretsStore
 LOCALHOST_HOSTS: frozenset[str] = frozenset({"127.0.0.1", "localhost", "::1"})
 SAFE_METHODS: frozenset[str] = frozenset({"GET", "HEAD", "OPTIONS", "TRACE"})
 PUBLIC_HEALTH_PATHS: frozenset[str] = frozenset({"/health", "/api/v1/health"})
+PROXIED_PREFIXES: tuple[str, ...] = (
+    "/api/v1/",
+    "/api/editor/",
+    "/files/",
+    "/assets/",
+    "/freecut/",
+)
+
+_TRUSTED_UI_LOCK = threading.Lock()
+_TRUSTED_UI_ORIGINS: set[str] = set()
+
+
+def register_trusted_ui_origin(origin: str) -> str:
+    norm = _normalize_origin(origin)
+    if norm:
+        with _TRUSTED_UI_LOCK:
+            _TRUSTED_UI_ORIGINS.add(norm)
+    return norm
+
+
+def unregister_trusted_ui_origin(origin: str) -> None:
+    norm = _normalize_origin(origin)
+    if norm:
+        with _TRUSTED_UI_LOCK:
+            _TRUSTED_UI_ORIGINS.discard(norm)
+
+
+def get_trusted_ui_origins() -> set[str]:
+    with _TRUSTED_UI_LOCK:
+        return set(_TRUSTED_UI_ORIGINS)
 
 
 def _normalize_host_port(netloc: str, default_scheme: str) -> str:
@@ -43,7 +74,7 @@ def _is_cross_origin_mutation(
     if request.method.upper() in SAFE_METHODS:
         return False, ""
 
-    is_v1_api = request.url.path.startswith("/api/v1/")
+    is_proxied_api = request.url.path.startswith(PROXIED_PREFIXES)
     allowed = allowed_origins or set()
 
     sec_fetch_site = (request.headers.get("sec-fetch-site") or "").strip().lower()
@@ -56,7 +87,9 @@ def _is_cross_origin_mutation(
 
     origin = (request.headers.get("origin") or "").strip()
     normalized_origin = _normalize_origin(origin)
-    origin_explicitly_allowed = is_v1_api and bool(normalized_origin) and (normalized_origin in allowed)
+    origin_explicitly_allowed = (
+        is_proxied_api and bool(normalized_origin) and (normalized_origin in allowed)
+    )
 
     if sec_fetch_site and sec_fetch_site not in ("same-origin", "none"):
         if not (sec_fetch_site == "same-site" and origin_explicitly_allowed):
@@ -83,7 +116,7 @@ def _is_cross_origin_mutation(
                 parsed_ref.netloc, parsed_ref.scheme or req_scheme
             )
             ref_origin = _normalize_origin(f"{parsed_ref.scheme}://{parsed_ref.netloc}")
-            ref_allowed = is_v1_api and ref_origin in allowed
+            ref_allowed = is_proxied_api and ref_origin in allowed
             if not ref_authority or (
                 ref_authority != expected_authority and not ref_allowed
             ):
@@ -115,7 +148,7 @@ class NonLocalhostBasicAuthMiddleware(BaseHTTPMiddleware):
         settings = load_settings(self.config_file)
         allowed_origins = {
             _normalize_origin(o) for o in settings.web_ui.allowed_origins if o.strip()
-        }
+        } | get_trusted_ui_origins()
         blocked, reason = _is_cross_origin_mutation(request, allowed_origins=allowed_origins)
         if blocked:
             return Response(content=reason, status_code=403)

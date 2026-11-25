@@ -19,6 +19,7 @@ from typing import Any
 import uvicorn
 
 from videocreator.app import create_app
+from videocreator.auth import register_trusted_ui_origin, unregister_trusted_ui_origin
 from videocreator.config import load_settings
 from videocreator.paths import (
     REPO_ROOT,
@@ -136,8 +137,14 @@ def _verify_videocreator_ui(ui_base_url: str, timeout_s: float = 5.0) -> bool:
     return False
 
 
+_PROC_TRUSTED_ORIGINS: dict[int, list[str]] = {}
+
+
 def stop_nextjs_standalone(proc: subprocess.Popen[Any] | None) -> None:
     """Terminate the Next.js standalone UI subprocess cleanly."""
+    if proc is not None:
+        for origin in _PROC_TRUSTED_ORIGINS.pop(id(proc), []):
+            unregister_trusted_ui_origin(origin)
     if proc is None or proc.poll() is not None:
         return
     try:
@@ -204,6 +211,10 @@ def start_nextjs_standalone(
     if proc.poll() is not None or not _verify_videocreator_ui(f"http://{probe_host}:{ui_port}"):
         stop_nextjs_standalone(proc)
         return None
+    registered = [register_trusted_ui_origin(f"http://{probe_host}:{ui_port}")]
+    if bind_host == "127.0.0.1":
+        registered.append(register_trusted_ui_origin(f"http://localhost:{ui_port}"))
+    _PROC_TRUSTED_ORIGINS[id(proc)] = registered
     return proc
 
 
