@@ -11,6 +11,8 @@ import { TrendItemsGrid } from "@/app/trends/_components/TrendItemsGrid";
 import { PageHeader } from "@/components/vc/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { FieldLabel, SwitchToggle, TextareaBox } from "@/components/ui/form-controls";
+import { ModalDialog } from "@/components/ui/overlays";
 
 interface TrendsPageBundle {
   watchlist: WatchItem[];
@@ -21,6 +23,9 @@ interface TrendsPageBundle {
 export default function TrendsPage() {
   const { activeWorkspaceId } = useWorkspace();
   const [msg, setMsg] = useState("");
+  const [remixTarget, setRemixTarget] = useState<TrendItem | null>(null);
+  const [remixPrompt, setRemixPrompt] = useState("");
+  const [remixConsent, setRemixConsent] = useState(false);
 
   const { data, error: err, setError: setErr, reload: loadAll } =
     useApiQuery<TrendsPageBundle>(
@@ -165,7 +170,81 @@ export default function TrendsPage() {
         onAnalyse={analyseItem}
         onSendToLocalize={sendTrendToLocalize}
         onSendToBatch={sendTrendToBatch}
+        onMuseRemix={(t) => {
+          setRemixTarget(t);
+          setRemixPrompt(t.title || "");
+          setRemixConsent(false);
+        }}
       />
+
+      <ModalDialog
+        open={Boolean(remixTarget)}
+        onOpenChange={(o) => {
+          if (!o) setRemixTarget(null);
+        }}
+        title={`Remix Chuyển Động bằng Muse (#${remixTarget?.id ?? ""})`}
+        description="Cắt ≤12s video tham chiếu để Muse học nhịp chuyển động mới (chỉ cho phép ở Workspace Full AI và có quyền sử dụng)."
+      >
+        <div className="space-y-3 pt-1">
+          <div>
+            <FieldLabel htmlFor="rm-prompt">Ý tưởng biến thể mới *</FieldLabel>
+            <TextareaBox
+              id="rm-prompt"
+              rows={3}
+              value={remixPrompt}
+              onChange={(e) => setRemixPrompt(e.target.value)}
+            />
+          </div>
+          <div className="flex items-center gap-2.5">
+            <SwitchToggle
+              id="rm-ok"
+              checked={remixConsent}
+              onCheckedChange={setRemixConsent}
+            />
+            <label htmlFor="rm-ok" className="text-[12.5px] text-[var(--text-secondary)]">
+              Tôi xác nhận có quyền sử dụng clip này làm tham chiếu chuyển động
+            </label>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setRemixTarget(null)}
+            >
+              Đóng
+            </Button>
+            <Button
+              type="button"
+              disabled={!remixConsent}
+              onClick={async () => {
+                if (!remixTarget) return;
+                setErr("");
+                try {
+                  await apiFetch(`/api/v1/muse/trends/${remixTarget.id}/remix`, {
+                    method: "POST",
+                    body: JSON.stringify({
+                      workspace_id: activeWorkspaceId,
+                      prompt: remixPrompt,
+                      rights_confirmed: remixConsent,
+                    }),
+                  });
+                  void apiFetch("/api/v1/muse/dispatch", { method: "POST" }).catch(() => {});
+                  setRemixTarget(null);
+                  const m = "Đã đưa tác vụ Remix chuyển động Muse vào hàng đợi!";
+                  setMsg(m);
+                  toast.success(m);
+                } catch (e2) {
+                  setErr(
+                    e2 instanceof Error ? e2.message : "Không thể tạo Remix Muse"
+                  );
+                }
+              }}
+            >
+              Tạo Remix Muse
+            </Button>
+          </div>
+        </div>
+      </ModalDialog>
     </div>
   );
 }

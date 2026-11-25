@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { ExternalLink, Flame, Languages, Layers, Play } from "lucide-react";
+import { ExternalLink, Flame, Languages, Layers, Play, Sparkles } from "lucide-react";
 import type { TrendItem } from "@/app/trends/types";
 import { EmptyState } from "@/components/vc/StatCard";
 import { Card, CardTitleRow, SectionHeading } from "@/components/ui/card";
@@ -13,11 +13,13 @@ export function TrendItemsGrid({
   onAnalyse,
   onSendToLocalize,
   onSendToBatch,
+  onMuseRemix,
 }: {
   trends: TrendItem[];
   onAnalyse: (id: number) => Promise<void>;
   onSendToLocalize: (id: number) => Promise<void>;
   onSendToBatch: (id: number) => Promise<void>;
+  onMuseRemix?: (trend: TrendItem) => void;
 }) {
   return (
     <Card className="space-y-3.5">
@@ -88,6 +90,15 @@ export function TrendItemsGrid({
                   >
                     <Layers className="w-3.5 h-3.5" /> Tạo A/B
                   </Button>
+                  {onMuseRemix && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => onMuseRemix(t)}
+                    >
+                      <Sparkles className="w-3.5 h-3.5" /> Remix Muse
+                    </Button>
+                  )}
                 </div>
               </div>
 

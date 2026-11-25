@@ -84,6 +84,33 @@ export function CharacterCreatorPanel({
     }
   };
 
+  const generateMuseVariants = async () => {
+    onError("");
+    onMessage("");
+    try {
+      await apiFetch("/api/v1/muse/tasks", {
+        method: "POST",
+        body: JSON.stringify({
+          workspace_id: workspaceId,
+          kind: "image",
+          purpose: "character",
+          prompt: imgPrompt || "Chân dung MC studio chuyên nghiệp ánh sáng mềm",
+          count: 4,
+          ref_type: imgCharId > 0 ? "character" : null,
+          ref_id: imgCharId > 0 ? imgCharId : null,
+          refs: imgCharId > 0 ? [{ type: "character", id: imgCharId }] : [],
+        }),
+      });
+      void apiFetch("/api/v1/muse/dispatch", { method: "POST" }).catch(() => {});
+      const m = "Đã xếp tạo 4 biến thể ảnh bằng Muse Gateway vào hàng chờ!";
+      onMessage(m);
+      toast.success(m);
+      await onReload();
+    } catch (e2) {
+      onError(e2 instanceof Error ? e2.message : "Không thể tạo biến thể Muse");
+    }
+  };
+
   return (
     <div className="grid md:grid-cols-2 gap-4">
       <Card tinted>
@@ -167,9 +194,17 @@ export function CharacterCreatorPanel({
               Cảnh có sản phẩm (chỉ cho phép ở Hybrid / Full AI)
             </label>
           </div>
-          <Button type="submit" variant="secondary">
-            Sinh Ảnh + Shot Chuyển Động
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button type="submit" variant="secondary">
+              Sinh Ảnh + Shot Chuyển Động
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void generateMuseVariants()}
+            >
+              Tạo 4 biến thể bằng Muse
+            </Button>
+          </div>
         </form>
       </Card>
     </div>

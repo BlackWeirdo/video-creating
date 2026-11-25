@@ -33,6 +33,9 @@ export function CreateNovelCard({
   const [sourceText, setSourceText] = useState("");
   const [aspectRatio, setAspectRatio] = useState("9:16");
   const [characterId, setCharacterId] = useState<number>(0);
+  const [visualSource, setVisualSource] = useState<"characters" | "muse_video">(
+    "characters"
+  );
   const [voiceId, setVoiceId] = useState("vi-VN-HoaiMyNeural");
   const [previewChapters, setPreviewChapters] = useState<
     Array<{ chapter_index: number; title: string; word_count: number }>
@@ -79,6 +82,7 @@ export function CreateNovelCard({
             source_text: sourceText,
             aspect_ratio: aspectRatio,
             character_id: characterId > 0 ? characterId : null,
+            visual_source: visualSource,
             voice_id: voiceId,
           }),
         }
@@ -154,6 +158,19 @@ export function CreateNovelCard({
                   {c.name} ({c.voice_id})
                 </option>
               ))}
+            </SelectBox>
+          </div>
+          <div>
+            <FieldLabel htmlFor="nv-vis">Nguồn hình ảnh chương truyện</FieldLabel>
+            <SelectBox
+              id="nv-vis"
+              value={visualSource}
+              onChange={(e) =>
+                setVisualSource(e.target.value as "characters" | "muse_video")
+              }
+            >
+              <option value="characters">Nhân vật &amp; Ảnh chuyển động</option>
+              <option value="muse_video">Clip Video Muse AI cho từng chương</option>
             </SelectBox>
           </div>
         </div>

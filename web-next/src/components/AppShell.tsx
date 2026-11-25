@@ -20,6 +20,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [queue, setQueue] = useState<QueueSummary | null>(null);
   const [recentJobs, setRecentJobs] = useState<JobRecord[]>([]);
   const [navCounts, setNavCounts] = useState<NavCounts | null>(null);
+  const [museRunning, setMuseRunning] = useState(0);
   const [showLogs, setShowLogs] = useState(false);
   const [logLines, setLogLines] = useState<string[]>([]);
   const [wizardNeeded, setWizardNeeded] = useState(false);
@@ -96,6 +97,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           if (snap?.queue) setQueue(snap.queue);
           if (Array.isArray(snap?.recent_jobs)) setRecentJobs(snap.recent_jobs);
           if (snap?.nav_counts) setNavCounts(snap.nav_counts);
+          if (typeof snap?.muse_queue?.running_total === "number") {
+            setMuseRunning(snap.muse_queue.running_total);
+          }
           window.dispatchEvent(new CustomEvent("vc:queue-snapshot", { detail: snap }));
         } catch {
           // ignore malformed heartbeat
@@ -155,6 +159,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         onOpenCreateWs={() => setShowNewWs(true)}
         wizardNeeded={wizardNeeded}
         navCounts={navCounts}
+        museRunning={museRunning}
       />
 
       <div className="flex-1 flex flex-col min-w-0">

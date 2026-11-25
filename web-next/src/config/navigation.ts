@@ -30,7 +30,7 @@ export interface NavItemConfig {
   clusterId: ClusterId;
   clusterLabel: string;
   keywords: string;
-  badgeType?: "approvals" | "suggestions";
+  badgeType?: "approvals" | "suggestions" | "muse";
 }
 
 export interface NavClusterConfig {
@@ -116,6 +116,15 @@ export const NAV_CLUSTERS: NavClusterConfig[] = [
     id: "produce",
     label: "Sản xuất video",
     items: [
+      {
+        href: "/muse",
+        label: "Muse Studio (Đa luồng)",
+        icon: Sparkles,
+        clusterId: "produce",
+        clusterLabel: "Sản xuất video",
+        keywords: "muse studio video ai da luong storyboard bien the",
+        badgeType: "muse",
+      },
       {
         href: "/videos",
         label: "Kịch bản & Sản xuất",

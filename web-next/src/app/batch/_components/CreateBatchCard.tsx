@@ -34,6 +34,9 @@ export function CreateBatchCard({
   const [selectedProdIds, setSelectedProdIds] = useState<number[]>([]);
   const [promptsText, setPromptsText] = useState("");
   const [abCount, setAbCount] = useState(2);
+  const [visualSource, setVisualSource] = useState<
+    "workspace_shots" | "muse_video"
+  >("workspace_shots");
   const [styleA, setStyleA] = useState("tiktok_karaoke");
   const [styleB, setStyleB] = useState("box_highlight");
 
@@ -59,6 +62,7 @@ export function CreateBatchCard({
             source_kind: sourceKind,
             items,
             ab_count: abCount,
+            visual_source: visualSource,
             style_presets: [styleA, styleB],
             sync: false,
           }),
@@ -80,7 +84,7 @@ export function CreateBatchCard({
       <form onSubmit={createBatch} className="space-y-4">
         <SectionHeading>Khởi Chạy Chiến Dịch Hàng Loạt Mới</SectionHeading>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-3.5">
           <div>
             <FieldLabel htmlFor="bt-title">Tên chiến dịch</FieldLabel>
             <TextInput
@@ -104,6 +108,21 @@ export function CreateBatchCard({
               <option value="products">Theo Sản phẩm trong Workspace</option>
               <option value="prompts">Theo danh sách Ý tưởng</option>
               <option value="trends">Theo mã Video Xu hướng</option>
+            </SelectBox>
+          </div>
+          <div>
+            <FieldLabel htmlFor="bt-vis">Nguồn cảnh quay</FieldLabel>
+            <SelectBox
+              id="bt-vis"
+              value={visualSource}
+              onChange={(e) =>
+                setVisualSource(
+                  e.target.value as "workspace_shots" | "muse_video"
+                )
+              }
+            >
+              <option value="workspace_shots">Kho Shot Workspace</option>
+              <option value="muse_video">Clip Muse AI (Đa luồng)</option>
             </SelectBox>
           </div>
           <div>

@@ -25,6 +25,7 @@ interface NewsProject {
   title: string;
   source_kind: string;
   source_url: string;
+  visual_source?: string;
   status: string;
   output_video_id: number | null;
   publish_pack_path: string;
@@ -37,6 +38,9 @@ export default function NewsPage() {
   const { activeWorkspaceId } = useWorkspace();
   const [sourceKind, setSourceKind] = useState<"url" | "rss" | "raw_text">(
     "raw_text"
+  );
+  const [visualSource, setVisualSource] = useState<"characters" | "muse_video">(
+    "characters"
   );
   const [title, setTitle] = useState("");
   const [sourceUrl, setSourceUrl] = useState("");
@@ -88,6 +92,7 @@ export default function NewsPage() {
             source_kind: sourceKind,
             source_url: sourceUrl,
             raw_text: rawText,
+            visual_source: visualSource,
           }),
         }
       );
@@ -168,6 +173,19 @@ export default function NewsPage() {
                 <option value="raw_text">Dán trực tiếp nội dung bài viết</option>
                 <option value="url">Đọc từ liên kết bài báo</option>
                 <option value="rss">Đọc từ nguồn RSS</option>
+              </SelectBox>
+            </div>
+            <div>
+              <FieldLabel htmlFor="nw-vis">Nguồn hình ảnh phân cảnh</FieldLabel>
+              <SelectBox
+                id="nw-vis"
+                value={visualSource}
+                onChange={(e) =>
+                  setVisualSource(e.target.value as "characters" | "muse_video")
+                }
+              >
+                <option value="characters">Nhân vật MC &amp; Kho Shot</option>
+                <option value="muse_video">Clip Video Muse AI theo đoạn tin</option>
               </SelectBox>
             </div>
             {sourceKind !== "raw_text" && (

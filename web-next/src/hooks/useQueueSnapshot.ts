@@ -1,12 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { JobRecord, NavCounts, QueueSummary } from "@/lib/api/types";
+import type {
+  JobRecord,
+  MuseQueueSnapshot,
+  NavCounts,
+  QueueSummary,
+} from "@/lib/api/types";
 
 export interface QueueSnapshotPayload {
   queue?: QueueSummary;
   recent_jobs?: JobRecord[];
   nav_counts?: NavCounts;
+  muse_queue?: MuseQueueSnapshot;
 }
 
 /**

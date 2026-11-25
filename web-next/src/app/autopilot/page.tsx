@@ -21,7 +21,12 @@ interface AutopilotRule {
   id: number;
   name: string;
   enabled: boolean;
-  source_mode: "suggestions" | "products_ab" | "rss_feed" | "localize_trends";
+  source_mode:
+    | "suggestions"
+    | "products_ab"
+    | "rss_feed"
+    | "localize_trends"
+    | "muse_video";
   feed_url: string;
   daily_cap: number;
   min_quality_score: number;
@@ -189,6 +194,7 @@ export default function AutopilotPage() {
                 <option value="suggestions">Đề xuất từ Xu hướng</option>
                 <option value="rss_feed">Nguồn tin RSS / Atom</option>
                 <option value="localize_trends">Việt hóa Xu hướng</option>
+                <option value="muse_video">Clip Muse AI tự động (Full AI)</option>
               </SelectBox>
             </div>
             <div>

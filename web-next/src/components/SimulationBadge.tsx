@@ -16,6 +16,7 @@ const FLAG_LABELS: Record<string, string> = {
   ai_image_canvas_placeholder: "Khung nền đồ họa FFmpeg (chưa kết nối model sinh ảnh AI)",
   cutout_colorkey_fallback: "Tách nền theo màu (chưa cài Rembg U2Net)",
   lipsync_waveform_preview: "Bản xem trước sóng âm chân dung (chưa chạy nhép môi AI)",
+  muse_video_partial: "Muse dừng trước thời lượng yêu cầu — đang dùng clip dài nhất",
 };
 
 export function SimulationBadge({ flags }: { flags?: string[] | null }) {

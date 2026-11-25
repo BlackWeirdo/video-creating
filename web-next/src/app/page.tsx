@@ -14,10 +14,12 @@ import {
   Languages,
   LayoutDashboard,
   Scissors,
+  Sparkles,
 } from "lucide-react";
 import { apiFetch, JobRecord, useWorkspace, Workspace } from "@/lib/api";
 import { useApiQuery } from "@/hooks/useApiQuery";
 import { useQueueSnapshot } from "@/hooks/useQueueSnapshot";
+import type { MuseStatus } from "@/app/muse/types";
 import { NAV_CLUSTERS } from "@/config/navigation";
 import { PageHeader } from "@/components/vc/PageHeader";
 import { PolicyBadge } from "@/components/vc/PolicyBadge";
@@ -76,6 +78,15 @@ export default function DashboardPage() {
       ),
     [activeWorkspaceId],
     { fallbackError: "Không thể tải dữ liệu tổng quan" }
+  );
+
+  const { data: museStatus } = useApiQuery<MuseStatus | null>(
+    (signal) =>
+      apiFetch<MuseStatus>(
+        `/api/v1/muse/status?workspace_id=${activeWorkspaceId}`,
+        { signal }
+      ).catch(() => null),
+    [activeWorkspaceId]
   );
 
   useQueueSnapshot((detail) => {
@@ -157,6 +168,40 @@ export default function DashboardPage() {
           icon={<DollarSign className="w-4 h-4" />}
         />
       </div>
+
+      {/* Muse Gateway Multi-Lane Health Card */}
+      {museStatus && (
+        <Card tinted className="flex flex-wrap items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-2 text-[14.5px] font-bold text-[var(--text-primary)]">
+                <Sparkles className="w-4 h-4 text-[var(--c-icon)]" /> Muse Gateway Đa Luồng
+              </span>
+              <Badge tone={museStatus.online && museStatus.hardened ? "emerald" : "neutral"}>
+                {museStatus.online ? "Online • vc-hardened" : "Chưa bật / Offline"}
+              </Badge>
+              {museStatus.queue.running_total > 0 && (
+                <Badge tone="cluster" className="tabular-nums">
+                  {museStatus.queue.running_total} đang render
+                </Badge>
+              )}
+            </div>
+            <div className="text-[12.5px] text-[var(--text-muted)] tabular-nums">
+              Tài khoản sẵn sàng: {museStatus.accounts.ready} • Bận: {museStatus.accounts.busy} • Cooldown:{" "}
+              {museStatus.accounts.cooldown} • Video hôm nay: {museStatus.today.videos_succeeded} (Tỷ lệ thành công:{" "}
+              {museStatus.today.success_rate}%)
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild size="sm" variant="secondary">
+              <Link href="/settings">Quản trị Pool</Link>
+            </Button>
+            <Button asChild size="sm">
+              <Link href="/muse">Mở Muse Studio →</Link>
+            </Button>
+          </div>
+        </Card>
+      )}
 
       {/* 5 Vivid Cluster Shortcut Cards */}
       <section aria-labelledby="clusters-heading" className="space-y-3">

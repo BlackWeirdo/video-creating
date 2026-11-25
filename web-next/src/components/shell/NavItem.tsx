@@ -17,6 +17,7 @@ export function NavItemRow({
   alwaysShowPin = false,
   onTogglePin,
   navCounts,
+  museRunning = 0,
 }: {
   item: NavItemConfig;
   active: boolean;
@@ -25,18 +26,22 @@ export function NavItemRow({
   alwaysShowPin?: boolean;
   onTogglePin?: (href: string) => void;
   navCounts: NavCounts | null;
+  museRunning?: number;
 }) {
   const Icon = item.icon;
   const cid = item.clusterId;
 
   let countText = "";
-  let countTone: "emerald" | "amber" = "emerald";
+  let countTone: "emerald" | "amber" | "cluster" = "emerald";
   if (item.badgeType === "approvals" && (navCounts?.approvals_pending || 0) > 0) {
     countText = `${navCounts?.approvals_pending} chờ`;
     countTone = "emerald";
   } else if (item.badgeType === "suggestions" && (navCounts?.suggestions_new || 0) > 0) {
     countText = `${navCounts?.suggestions_new} mới`;
     countTone = "amber";
+  } else if (item.badgeType === "muse" && museRunning > 0) {
+    countText = `${museRunning} chạy`;
+    countTone = "cluster";
   }
 
   const hasFailedJob = Boolean(navCounts?.failed_routes?.includes(item.href));

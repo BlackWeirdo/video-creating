@@ -291,9 +291,11 @@ export function AppearanceAndWorkerTab({
                 id="cfg-voice"
                 value={`${viProvider}:${viVoice}`}
                 onChange={(e) => {
-                  const [p, v] = e.target.value.split(":");
-                  setViProvider(p);
-                  setViVoice(v);
+                  const sep = e.target.value.indexOf(":");
+                  if (sep > 0) {
+                    setViProvider(e.target.value.slice(0, sep));
+                    setViVoice(e.target.value.slice(sep + 1));
+                  }
                 }}
               >
                 {catalog

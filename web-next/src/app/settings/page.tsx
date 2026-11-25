@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Archive, Cpu, KeyRound, Palette, Settings } from "lucide-react";
+import { Archive, Cpu, KeyRound, Palette, Settings, Sparkles } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { useApiQuery } from "@/hooks/useApiQuery";
 import { PageHeader } from "@/components/vc/PageHeader";
@@ -18,6 +18,10 @@ import { AppearanceAndWorkerTab } from "@/app/settings/AppearanceAndWorkerTab";
 import { AiKeysPoolTab } from "@/app/settings/AiKeysPoolTab";
 import { LocalModelsManagerTab } from "@/app/settings/LocalModelsManagerTab";
 import { BackupRestoreTab } from "@/app/settings/BackupRestoreTab";
+import {
+  MuseGatewaySettingsShape,
+  MuseGatewayTab,
+} from "@/app/settings/MuseGatewayTab";
 
 export default function SettingsPage() {
   const [ioConc, setIoConc] = useState(4);
@@ -36,6 +40,16 @@ export default function SettingsPage() {
   const [poolKeys, setPoolKeys] = useState<PooledKeyRow[]>([]);
   const [spentToday, setSpentToday] = useState(0);
   const [backupSummary, setBackupSummary] = useState<BackupSummary | null>(null);
+  const [museCfg, setMuseCfg] = useState<MuseGatewaySettingsShape>({
+    enabled: false,
+    mode: "local_sidecar",
+    base_url: "http://127.0.0.1:1412",
+    max_parallel: 8,
+    renders_per_account: 2,
+    daily_cap_video_per_account: 20,
+    remote_hardened_confirmed: false,
+    include_in_vcx_backup: false,
+  });
 
   const [msg, setMsg] = useState("");
 
@@ -50,6 +64,7 @@ export default function SettingsPage() {
               ai: { policy: { api_fallback: string } };
               schedule: { timezone: string };
               models?: { mirror_base_url?: string };
+              muse_gateway?: MuseGatewaySettingsShape;
             };
           }>("/api/v1/settings", { signal }),
           apiFetch<{
@@ -84,6 +99,9 @@ export default function SettingsPage() {
         setLocalModels(modRes.models || []);
         setPoolKeys(kpRes.keys || []);
         setBackupSummary(bkRes);
+        if (s.muse_gateway) {
+          setMuseCfg((prev) => ({ ...prev, ...s.muse_gateway }));
+        }
       },
     }
   );
@@ -137,6 +155,9 @@ export default function SettingsPage() {
             <Cpu className="w-4 h-4" /> Mô hình AI CPU ({readyModels}/
             {localModels.length})
           </TabTrigger>
+          <TabTrigger value="muse">
+            <Sparkles className="w-4 h-4" /> Muse Gateway
+          </TabTrigger>
           <TabTrigger value="backup">
             <Archive className="w-4 h-4" /> Sao lưu &amp; Khôi phục (.vcx)
           </TabTrigger>
@@ -181,6 +202,15 @@ export default function SettingsPage() {
             mirrorBaseUrl={mirrorBaseUrl}
             setMirrorBaseUrl={setMirrorBaseUrl}
             onReload={load}
+            onMessage={setMsg}
+            onError={setErr}
+          />
+        </TabPanel>
+
+        <TabPanel value="muse">
+          <MuseGatewayTab
+            initialConfig={museCfg}
+            onReloadParent={load}
             onMessage={setMsg}
             onError={setErr}
           />

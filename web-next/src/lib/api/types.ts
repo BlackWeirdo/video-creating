@@ -38,6 +38,14 @@ export interface NavCounts {
   failed_routes: string[];
 }
 
+export interface MuseQueueSnapshot {
+  pending: number;
+  submitted: number;
+  importing: number;
+  waiting_quota: number;
+  running_total: number;
+}
+
 export interface CharacterOption {
   id: number;
   name: string;

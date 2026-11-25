@@ -47,6 +47,7 @@ export function Sidebar({
   onOpenCreateWs,
   wizardNeeded,
   navCounts,
+  museRunning = 0,
 }: {
   collapsed: boolean;
   onToggleCollapse: () => void;
@@ -54,6 +55,7 @@ export function Sidebar({
   onOpenCreateWs: () => void;
   wizardNeeded: boolean;
   navCounts: NavCounts | null;
+  museRunning?: number;
 }) {
   const pathname = usePathname();
   const [openMap, setOpenMap] = React.useState<Record<ClusterId, boolean>>(DEFAULT_OPEN);
@@ -309,6 +311,7 @@ export function Sidebar({
                     isPinned={favorites.includes(it.href)}
                     onTogglePin={toggleFavorite}
                     navCounts={navCounts}
+                    museRunning={museRunning}
                   />
                 ))}
               </CollapsibleContent>
