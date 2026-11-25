@@ -12,6 +12,7 @@ from videocreator.tts.synthesizer import (
     WordTiming,
     fit_voice_to_budget,
     synthesize_speech_segments,
+    synthesize_with_local_fallback,
     trim_voice_silence,
 )
 
@@ -24,5 +25,6 @@ __all__ = [
     "fit_voice_to_budget",
     "max_syllables_for_duration",
     "synthesize_speech_segments",
+    "synthesize_with_local_fallback",
     "trim_voice_silence",
 ]
