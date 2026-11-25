@@ -1,12 +1,13 @@
-# Tài liệu Tổng kết Bàn giao Kỹ thuật — Video Creator V2 (`2.3.0`)
+# Tài liệu Tổng kết Bàn giao Kỹ thuật — Video Creator V2 (`2.4.0`)
 
-- **Nhánh bàn giao hoàn chỉnh**: `feat/v2.3-complete` (phiên bản **`2.3.0`**, phát triển tiếp trên nền `refactor/modularize` `2.2.0` `ed41a2e`)
+- **Nhánh bàn giao tích hợp Muse**: `feat/muse-gateway` (phiên bản **`2.4.0`**, phát triển trên nền `feat/v2.3-complete` `89a7661`)
 - **Tài liệu đặc tả gốc**: `docs/video-creator-v2-spec.md`
+- **Tài liệu tích hợp & PoC Muse Gateway**: `docs/integrations/muse-gateway.md`, `docs/integrations/muse-gateway-poc.md`, bản vá `tools/muse-gateway-patches/0001-vc-hardening.patch`
 - **Tài liệu hướng dẫn nhân sự & kiểm tra máy sạch**: `docs/staff-release-notes.md`
 - **Hồ sơ kiểm kê & đối chiếu Refactor**: `docs/refactor/baseline.md`, `docs/refactor/v1-inventory.md`
-- **Bộ cài Offline `2.3.0` (`feat/v2.3-complete`)**: `installer/dist/VideoCreatorV2Setup.exe` (**585.3 MB**, SHA-256: `5c758610c5e41b0925af5ee71f2ff2e5b8e0a79de9f7d0fdc7158fc89277d95c`)
+- **Bộ cài Offline `2.4.0` (`feat/muse-gateway`)**: `installer/dist/VideoCreatorV2Setup.exe` (**585.6 MB**, SHA-256: `c29a23c107b4d0f33846cfcb3fd505933f7c063abcd8ceb81eb7870e87fe574e`)
 - **Bản sao lưu Bộ cài `2.0.0` (`v2` gốc)**: `installer/dist/VideoCreatorV2Setup_2.0.0_v2.exe` (**596.1 MB**, SHA-256: `0b8b45c6328049ef56c504fa0c7935e6dea536ca3d91dc34caa9a5c5d3c9622d`)
-- **Độ phủ Kiểm thử tự động**: **76 tệp test Python** (`pytest -m local` đạt **277 passed, 1 skipped**, `pytest -m models` đạt **4 passed**) + **2 tệp unit test TypeScript frontend** (`npm test` đạt **7/7 pass**), `270` HTTP/Mount routes được khóa thứ tự bằng `tests/snapshots/routes.json`.
+- **Độ phủ Kiểm thử tự động**: **79 tệp test Python** (`pytest -m local` đạt **287 passed, 1 skipped**, `pytest -m models` đạt **4 passed**, cùng smoke test tùy chọn `pytest -m muse_live`) + **3 tệp unit test TypeScript frontend** (`npm test` đạt **10/10 pass**), `320` HTTP/Mount routes được khóa thứ tự bằng `tests/snapshots/routes.json`.
 
 ---
 
@@ -22,7 +23,8 @@
 | **Wave 3 (`2.2.0`)** | `cb2b0ca` .. `d0945ba` | Tách 7 cụm module lớn ở backend (100% file dưới 450 dòng): `ai_models/`, `pipeline/asr.py`, `tts/*`, `autopilot/{crud,producers,runner}`, `pipeline/podcast_visuals.py`, `pipeline/workflows/{dag,store,node_runners,executor}`, tách nhỏ `routes_resources.py` và `routes_production.py`. |
 | **Wave 4 (`2.2.0`)** | `e728b69` .. `c1dc256` | Mô-đun hóa `lib/api/{types,client}.ts` + `lib/workspace-context.tsx`, bổ sung `hooks/{useApiQuery,useApiMutation,useQueueSnapshot,useLocalStorageState}.ts` (hủy request cũ bằng `AbortController` khi chuyển Workspace), đưa số lệnh `fetch()` thô bên ngoài client/proxy về `0`, tách nhỏ 4 trang lớn (`/approval`, `/characters`, `/welcome`, `/trends` đều dưới 300 dòng). |
 | **Wave 5–6 (`2.2.0`)** | `7122121` .. `ed41a2e` | Kiểm kê 24 router V1 (`docs/refactor/v1-inventory.md`), tách gói `api/mounts/` (`/files`, `/freecut`, `/oauth`, `/settings/export|import`, `/ui-unavailable`), cô lập router HTML cũ vào `api/legacy_v1.py`, nâng phiên bản `2.2.0` và đóng gói bộ cài offline. |
-| **Hoàn thiện Toàn diện (`2.3.0`)** | `c4633be` .. `2222888` | Đồng bộ **20/20 trang Next.js** sang `useApiQuery` (`createAbortableQueryRunner`), tách gọn `/novel`, `/batch`, `/videos/[id]` và thêm unit test TypeScript (`npm test`); bổ sung linter AST Python `F821`/`F401` (`test_static_python_lint.py`), nhãn `@pytest.mark.slow` và mẫu GitHub Actions CI (`docs/ci/github-actions-ci.yml` — copy sang `.github/workflows/ci.yml` bằng token có quyền `workflow`); thu hẹp bắt lỗi rộng; tách 4 module backend cuối cùng (`ai_images.py` tích hợp **Google GenAI Imagen 3**, `news_extractor.py`, `novel_chapters.py`, `batch_planner.py`); đạt **100% API parity V1→V2** (`270` routes) kèm cờ tắt hẳn V1 (`VIDEOCREATOR_DISABLE_LEGACY_V1=1`) và sổ tay nhân sự (`docs/staff-release-notes.md`). |
+| **Hoàn thiện Toàn diện (`2.3.0`)** | `c4633be` .. `89a7661` | Đồng bộ **20/20 trang Next.js** sang `useApiQuery` (`createAbortableQueryRunner`), tách gọn `/novel`, `/batch`, `/videos/[id]` và thêm unit test TypeScript (`npm test`); bổ sung linter AST Python `F821`/`F401` (`test_static_python_lint.py`), nhãn `@pytest.mark.slow` và mẫu GitHub Actions CI (`docs/ci/github-actions-ci.yml`); tách 4 module backend cuối cùng (`ai_images.py` tích hợp **Google GenAI Imagen 3**, `news_extractor.py`, `novel_chapters.py`, `batch_planner.py`); đạt **100% API parity V1→V2** (`270` routes) kèm cờ tắt hẳn V1 (`VIDEOCREATOR_DISABLE_LEGACY_V1=1`). |
+| **Tích hợp Muse Gateway Đa luồng (`2.4.0`)** | `cceec6e` .. HEAD | Vá bảo mật `0001-vc-hardening.patch` (`cmdMode='off'`, chặn RCE & rò rỉ `<cwd>`), gói `videocreator.muse_gateway` (client, sidecar, pairing DPAPI, migration `032_muse_gateway.sql`, bộ điều phối đa luồng không chặn worker + webhook HMAC, Storyboard nối cảnh FFmpeg, proxy quản trị ẩn cookie, sao lưu mã hóa `.vcx`), tích hợp Muse Image / Muse TTS / Muse Chat, gắn vào toàn bộ Studio (`waiting_media` + auto-resume), trang `/muse` và tab quản trị `MuseGatewayTab`. |
 
 ---
 

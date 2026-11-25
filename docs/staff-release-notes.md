@@ -1,12 +1,16 @@
-# Thông báo Phát hành Nội bộ & Sổ tay Nhân sự — Video Creator V2 (`2.3.0`)
+# Thông báo Phát hành Nội bộ & Sổ tay Nhân sự — Video Creator V2 (`2.4.0`)
 
-Tài liệu này dành cho đội ngũ biên tập viên, vận hành kênh và IT nội bộ khi cài đặt và sử dụng **Video Creator V2 (`2.3.0`)** từ bộ cài `VideoCreatorV2Setup.exe`.
+Tài liệu này dành cho đội ngũ biên tập viên, vận hành kênh và IT nội bộ khi cài đặt và sử dụng **Video Creator V2 (`2.4.0`)** từ bộ cài `VideoCreatorV2Setup.exe`.
 
 ---
 
-## 1. Điểm Mới Nổi Bật ở Bản `2.3.0`
+## 1. Điểm Mới Nổi Bật ở Bản `2.4.0` & `2.3.0`
 
-1. **Sinh ảnh Nhân vật & Bối cảnh AI thật qua Google Imagen 3 (`imagen-3.0-generate-002`)**:
+1. **Muse Studio (`/muse`) & Bộ điều phối Video AI Đa luồng (`2.4.0`)**:
+   - Tích hợp **Muse Gateway (`vc-hardened`)** cho phép chạy song song nhiều luồng tạo video AI trên nhiều tài khoản Muse (`2` luồng render / tài khoản, chi phí API `$0`), tự động nhập clip vào kho Shot và không làm kẹt hàng đợi dựng video trên máy.
+   - Hỗ trợ **Storyboard nhiều cảnh nối khung hình cuối (Frame-Bridging)**, nút **Sửa tiếp** trên cùng hội thoại Muse, sinh lô 4 biến thể ảnh nhân vật, **7 giọng đọc Tiếng Việt Muse Voice**, tùy chọn cảnh quay Muse cho **Tin tức**, **Tiểu thuyết**, **Batch A/B**, **Workflows**, **Autopilot**, **Remix xu hướng** và lệnh Telegram (`/vid`, `/img`, `/voice`).
+   - **Lưu ý Điều khoản & An toàn tài khoản**: Muse Gateway tự động hóa trình duyệt đăng nhập cookie (không phải API thương mại chính thức của Muse). Để tránh bị giới hạn hoặc khóa tài khoản, hãy giữ nguyên **Trần an toàn/tài khoản/ngày** (`daily_cap_video_per_account = 20`) và chỉ dùng chiến lược `round-robin` / `fallback` (hạn chế `fusion` vì tiêu tốn hạn mức của mọi tài khoản cùng lúc).
+2. **Sinh ảnh Nhân vật & Bối cảnh AI thật qua Google Imagen 3 → Dự phòng Muse Image (`2.3.0`–`2.4.0`)**:
    - Tại trang **Nhân vật & Ảnh AI** (`/characters`), **Bản tin** (`/news`), và **Tiểu thuyết** (`/novel`), khi đã khai báo `GEMINI_API_KEY` (hoặc khóa xoay vòng `gemini` trong Key Pool) và còn hạn mức ngân sách tạo sinh trong ngày (`generative_daily_usd`, mặc định `~$0.03`/ảnh), ứng dụng gọi trực tiếp **Google Imagen 3** để sinh ảnh nền/nhân vật chất lượng cao rồi ghép lớp nhân vật đã tách nền.
    - Khi chạy trên máy hoàn toàn offline, chưa điền `GEMINI_API_KEY`, hoặc chạm trần ngân sách ngày, ứng dụng **không báo lỗi dừng luồng** mà tự chuyển sang phông nền màu chuẩn hóa tại chỗ và gắn nhãn cảnh báo minh bạch (`SimulationBadge`) để nhân viên biết ngay đây là bản dựng nháp offline.
 2. **Chuyển đổi Kênh (Workspace) mượt mà, không trộn dữ liệu**:
@@ -29,6 +33,7 @@ Tài liệu này dành cho đội ngũ biên tập viên, vận hành kênh và 
 | `offline_nllb_translation` | Bản dịch kịch bản dùng mô hình dịch máy cục bộ NLLB-200 trên CPU thay vì Claude/Gemini. | Máy không có mạng hoặc hạn mức Claude/Gemini đang nghỉ chờ quota. | Có thể dùng ngay (đã dịch tiếng Việt thật trên CPU), hoặc đánh thức kết nối AI tại Cài đặt để biên tập văn phong mượt hơn. |
 | `tts_tone_placeholder` | Giọng đọc đang là âm thanh kiểm tra nhịp (`test_tone`), chưa phải giọng người đọc thật. | Đang để `voice.vi_provider = "test_tone"` hoặc mạng chặn Edge-TTS khi chưa tải VieNeu-TTS. | Chọn `edge_tts` (khi có mạng) hoặc tải mô hình **`vieneu_tts`** trong **Cài đặt -> Mô hình AI Offline** để đọc giọng tiếng Việt hoàn toàn offline. |
 | `lipsync_waveform_preview` | Chuyển động miệng nhân vật đang nhép theo biên độ âm lượng giọng đọc (2D Viseme) thay vì tái tạo khuôn mặt sâu. | Máy trạm chỉ có CPU phổ thông, chưa nạp mô hình Wav2Lip cục bộ. | Phù hợp cho avatar minh họa 2D/bản tin nhanh; với sản phẩm thật trong Workspace `strict_footage`, ưu tiên dùng cảnh quay người thật. |
+| `muse_video_partial` | Muse dừng trước thời lượng yêu cầu — đang dùng clip dài nhất. | Khi yêu cầu video đơn dài (15–60s) và trình duyệt Muse kết thúc sớm. | Hệ thống đã tự động chọn clip dài nhất để dựng bình thường; với video dài >12s, khuyến nghị tách thành nhiều phân cảnh 6–10s trong **Storyboard nối cảnh** (`/muse`). |
 
 ---
 
