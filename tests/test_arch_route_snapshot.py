@@ -16,14 +16,8 @@ pytestmark = pytest.mark.local
 
 SNAPSHOT_FILE = Path(__file__).resolve().parent / "snapshots" / "routes.json"
 
-# Emptied in Wave 2 once shared services replace legacy V1 imports.
-TEMPORARY_V1_IMPORTS_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
-    {
-        ("src/videocreator/api/v1/routes_resources.py", "videocreator.api.routes_assets"),
-        ("src/videocreator/api/v1/routes_resources.py", "videocreator.api.routes_voices"),
-        ("src/videocreator/api/v1/routes_settings_v1.py", "videocreator.api.routes_settings"),
-    }
-)
+# Zero reverse imports from `api/v1` to legacy `api/routes_*` allowed!
+TEMPORARY_V1_IMPORTS_ALLOWLIST: frozenset[tuple[str, str]] = frozenset()
 
 
 def _walk_routes(routes: list[Any], prefix: str = "") -> list[dict[str, Any]]:

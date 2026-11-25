@@ -9,8 +9,8 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, ValidationError
 
 from videocreator.ai.budget import budget_day, get_daily_api_spend
-from videocreator.api.routes_settings import KNOWN_SECRET_KEYS
 from videocreator.api.v1.deps import resolve_workspace_id
+from videocreator.services.secret_keys import KNOWN_SECRET_KEYS
 from videocreator.config import Settings, load_settings, save_settings
 from videocreator.db import get_conn, query_all, query_one, record_audit
 from videocreator.job_store import get_queue_summary

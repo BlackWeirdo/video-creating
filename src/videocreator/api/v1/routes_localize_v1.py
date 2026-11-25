@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from videocreator.api.v1.deps import resolve_workspace_id
+from videocreator.api.v1.uploads import MAX_LOCALIZE_UPLOAD_BYTES, read_upload_bytes_checked
 from videocreator.jobs import enqueue_job
 from videocreator.paths import AppPaths
 from videocreator.pipeline.localize import (
@@ -135,16 +136,18 @@ async def api_v1_upload_localize_source(
     file: UploadFile = File(...),
 ) -> JSONResponse:
     paths: AppPaths = request.app.state.paths
-    suffix = Path(file.filename or "source.mp4").suffix.lower()
-    if suffix not in (".mp4", ".mov", ".mkv", ".webm", ".m4v"):
-        raise HTTPException(status_code=400, detail="Chỉ hỗ trợ file video (.mp4/.mov/.mkv/.webm)")
+    data, suffix = await read_upload_bytes_checked(
+        file,
+        allowed_extensions=(".mp4", ".mov", ".mkv", ".webm", ".m4v"),
+        min_bytes=64,
+        max_bytes=MAX_LOCALIZE_UPLOAD_BYTES,
+        invalid_ext_message="Chỉ hỗ trợ file video (.mp4/.mov/.mkv/.webm)",
+        empty_message="File video tải lên rỗng",
+    )
     dest_dir = paths.media_dir / "localize" / "uploads"
     dest_dir.mkdir(parents=True, exist_ok=True)
     dest_name = f"loc_{secrets.token_hex(6)}{suffix}"
     dest = dest_dir / dest_name
-    data = await file.read()
-    if len(data) < 64:
-        raise HTTPException(status_code=400, detail="File video tải lên rỗng")
     dest.write_bytes(data)
     rel_path = f"localize/uploads/{dest_name}"
     return JSONResponse(

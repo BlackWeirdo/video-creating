@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from videocreator.api.v1.deps import resolve_workspace_id
+from videocreator.api.v1.uploads import read_upload_bytes_checked
 from videocreator.paths import AppPaths
 from videocreator.pipeline.channel_voices import (
     create_channel_voice,
@@ -130,7 +131,9 @@ async def api_v1_upload_character_ref(
     file: UploadFile = File(...),
 ) -> JSONResponse:
     paths: AppPaths = request.app.state.paths
-    raw = await file.read()
+    raw, _ = await read_upload_bytes_checked(
+        file, empty_message="File ảnh tham chiếu rỗng"
+    )
     try:
         ch = save_character_ref_image(
             paths, character_id, filename=file.filename or "ref.png", data=raw
@@ -240,7 +243,9 @@ async def api_v1_create_channel_voice(
 ) -> JSONResponse:
     paths: AppPaths = request.app.state.paths
     ws_id = resolve_workspace_id(paths.db_file, workspace_id)
-    raw = await file.read()
+    raw, _ = await read_upload_bytes_checked(
+        file, empty_message="File mẫu giọng trống hoặc quá ngắn"
+    )
     try:
         cv = create_channel_voice(
             paths,

@@ -13,9 +13,8 @@ from fastapi import APIRouter, File, Form, HTTPException, Query, Request, Upload
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from videocreator.api.routes_assets import ALLOWED_AUDIO_EXTENSIONS, import_audio_asset
-from videocreator.api.routes_voices import AVAILABLE_VOICE_CATALOG
 from videocreator.api.v1.deps import resolve_workspace_id
+from videocreator.api.v1.uploads import MAX_FOOTAGE_UPLOAD_BYTES, save_upload_to_temp
 from videocreator.config import load_settings, save_settings
 from videocreator.db import get_conn, query_all, query_one, record_audit
 from videocreator.jsonutil import loads_or, parse_int_list, parse_str_list
@@ -29,6 +28,12 @@ from videocreator.products import (
     product_name_map,
     update_product,
 )
+from videocreator.services.assets import (
+    ALLOWED_AUDIO_EXTENSIONS,
+    MAX_AUDIO_UPLOAD_BYTES,
+    import_audio_asset,
+)
+from videocreator.services.voices_catalog import AVAILABLE_VOICE_CATALOG
 from videocreator.tts import TTSUnavailableError, count_syllables, synthesize_speech_segments
 
 router = APIRouter()
@@ -212,22 +217,21 @@ async def api_v1_upload_footage(
 ) -> JSONResponse:
     paths: AppPaths = request.app.state.paths
     ws_id = resolve_workspace_id(paths.db_file, workspace_id, require_active=True)
-    ext = Path(file.filename or "upload.mp4").suffix.lower() or ".mp4"
-    if ext not in ALLOWED_VIDEO_EXTENSIONS:
-        raise HTTPException(status_code=400, detail=f"Đuôi video không hợp lệ: {ext}")
-
     parsed_pids: list[int] = []
     for tok in product_ids.replace(";", ",").split(","):
         clean = tok.strip()
         if clean.isdigit():
             parsed_pids.append(int(clean))
 
-    tmp_path = paths.work_dir / f"upload_{uuid.uuid4().hex}{ext}"
-    tmp_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = await save_upload_to_temp(
+        file,
+        paths.work_dir,
+        allowed_extensions=ALLOWED_VIDEO_EXTENSIONS,
+        default_ext=".mp4",
+        max_bytes=MAX_FOOTAGE_UPLOAD_BYTES,
+        prefix="upload",
+    )
     try:
-        with tmp_path.open("wb") as out:
-            while chunk := await file.read(1024 * 1024):
-                out.write(chunk)
         fid = await asyncio.to_thread(
             import_footage_file,
             paths,
@@ -496,15 +500,15 @@ async def api_v1_upload_asset(
 ) -> JSONResponse:
     paths: AppPaths = request.app.state.paths
     ws_id = resolve_workspace_id(paths.db_file, workspace_id, require_active=True)
-    ext = Path(file.filename or "audio.wav").suffix.lower() or ".wav"
-    if ext not in ALLOWED_AUDIO_EXTENSIONS:
-        raise HTTPException(status_code=400, detail=f"Đuôi audio không hợp lệ: {ext}")
-    tmp_path = paths.work_dir / f"asset_up_{uuid.uuid4().hex}{ext}"
-    tmp_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = await save_upload_to_temp(
+        file,
+        paths.work_dir,
+        allowed_extensions=ALLOWED_AUDIO_EXTENSIONS,
+        default_ext=".wav",
+        max_bytes=MAX_AUDIO_UPLOAD_BYTES,
+        prefix="asset_up",
+    )
     try:
-        with tmp_path.open("wb") as out:
-            while chunk := await file.read(512 * 1024):
-                out.write(chunk)
         aid = await asyncio.to_thread(
             import_audio_asset,
             paths,
