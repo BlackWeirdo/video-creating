@@ -24,6 +24,9 @@ BOT_COMMAND_SPECS: list[tuple[str, str]] = [
     ("pause", "Tạm dừng đăng bài tự động"),
     ("resume", "Chạy lại đăng bài tự động"),
     ("report", "Báo cáo ngày (/report week cho báo cáo tuần)"),
+    ("vid", "Tạo video Muse: /vid [8s] [9:16] <mô tả>"),
+    ("img", "Tạo ảnh Muse: /img <mô tả>"),
+    ("voice", "Tạo giọng đọc Muse: /voice <nội dung>"),
     ("setup", "Tạo các Topic theo mảng trong nhóm"),
     ("help", "Danh sách lệnh điều khiển"),
 ]
@@ -94,7 +97,8 @@ def execute_command(
         return False, "Chat này không nằm trong danh sách được phép.", []
 
     name = command.lstrip("/").split("@")[0].lower().strip()
-    clean_args = (args or "").strip().lower()
+    raw_args = (args or "").strip()
+    clean_args = raw_args if name in ("vid", "img", "voice", "link") else raw_args.lower()
     action = TelegramAction(paths, settings, chat_id, user_id, user_name, now_dt)
 
     read_only = READ_ONLY_COMMANDS.get(name)

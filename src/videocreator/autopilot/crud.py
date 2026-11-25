@@ -14,7 +14,7 @@ from videocreator.pipeline.styles import resolve_style_preset
 from videocreator.workspaces import require_workspace
 
 VALID_AUTOPILOT_MODES: frozenset[str] = frozenset(
-    {"suggestions", "products_ab", "rss_feed", "localize_trends"}
+    {"suggestions", "products_ab", "rss_feed", "localize_trends", "muse_video"}
 )
 
 
@@ -27,6 +27,10 @@ def validate_autopilot_policy(
 
     ws = require_workspace(db_file, workspace_id)
     policy = str(ws.get("content_policy") or "strict_footage")
+    if clean_mode == "muse_video" and policy != "full_ai":
+        raise PermissionError(
+            "Autopilot chế độ 'muse_video' chỉ cho phép trên Workspace 'full_ai'."
+        )
     if policy == "strict_footage" and clean_mode == "localize_trends":
         raise PermissionError(
             "Workspace 'strict_footage' không cho phép Autopilot chế độ 'localize_trends'."

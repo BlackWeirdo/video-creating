@@ -11,6 +11,7 @@ from videocreator.db import get_conn, query_all, query_one, record_audit
 from videocreator.db_rows import file_media_url, hydrate_row
 from videocreator.job_store import report_active_job_progress
 from videocreator.jsonutil import loads_or
+from videocreator.muse_gateway.studio_bridge import ensure_project_muse_shots
 from videocreator.paths import AppPaths
 from videocreator.pipeline.compute_job import run_studio_project_job
 from videocreator.pipeline.export import resolve_canvas_dimensions
@@ -32,7 +33,13 @@ def _hydrate_novel(db_file: Path, row: dict[str, Any]) -> dict[str, Any]:
         "SELECT * FROM novel_chapters WHERE project_id = ? ORDER BY chapter_index ASC",
         (int(row["id"]),),
     )
-    out = hydrate_row(row, json_fields={"simulation_flags": ("simulation_flags_json", [])})
+    out = hydrate_row(
+        row,
+        json_fields={"simulation_flags": ("simulation_flags_json", [])},
+        bool_fields=("waiting_media",),
+    )
+    if out.get("waiting_media"):
+        out["status"] = "waiting_media"
     out["chapters"] = [
         {**ch, "video_url": file_media_url(ch.get("output_path"), empty="")}
         for ch in chapters
@@ -63,6 +70,7 @@ def create_novel_project(
     title: str,
     source_text: str,
     character_id: int | None = None,
+    visual_source: str = "characters",
     style_preset: str = "tiktok_karaoke",
     aspect_ratio: str = "9:16",
     target_lang: str = "vi",
@@ -71,6 +79,9 @@ def create_novel_project(
     actor: str = "api",
 ) -> dict[str, Any]:
     ws = require_workspace(paths.db_file, workspace_id)
+    vis_src = (visual_source or "characters").strip().lower()
+    if vis_src not in ("characters", "muse_video"):
+        raise ValueError(f"Unsupported novel visual_source '{visual_source}'")
     chapters = split_novel_chapters(source_text, target_words=target_words_per_chapter)
     if not chapters:
         raise ValueError("Nội dung truyện/tiểu thuyết không được để trống")
@@ -84,16 +95,17 @@ def create_novel_project(
         cur = conn.execute(
             """
             INSERT INTO novel_projects (
-                workspace_id, title, source_text, character_id, style_preset,
+                workspace_id, title, source_text, character_id, visual_source, style_preset,
                 aspect_ratio, target_lang, voice_id, status
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'draft')
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft')
             """,
             (
                 int(workspace_id),
                 clean_title,
                 source_text.strip(),
                 int(character_id) if character_id else None,
+                vis_src,
                 style,
                 ratio,
                 (target_lang or "vi").strip() or "vi",
@@ -137,8 +149,16 @@ def render_novel_project(
     *,
     chapter_ids: list[int] | None = None,
     force: bool = False,
+    visual_source: str | None = None,
 ) -> dict[str, Any]:
     """Renders novel chapters into videos, skipping chapters already completed (checkpoint resume)."""
+    if visual_source is not None and visual_source.strip():
+        vs = visual_source.strip().lower()
+        if vs not in ("characters", "muse_video"):
+            raise ValueError(f"Unsupported novel visual_source '{visual_source}'")
+        with get_conn(paths.db_file) as conn:
+            conn.execute("UPDATE novel_projects SET visual_source = ? WHERE id = ?", (vs, int(project_id)))
+
     proj = get_novel_project(paths.db_file, project_id)
     if proj is None:
         raise ValueError(f"Novel project #{project_id} not found")
@@ -161,9 +181,49 @@ def render_novel_project(
         if ch_row and ch_row.get("voice_id") and eff_voice_id in ("", "vi-VN-HoaiMyNeural"):
             eff_voice_id = str(ch_row["voice_id"])
 
+    chapters_list = list(proj.get("chapters") or [])
+    muse_chapter_map: dict[int, int] = {}
+    muse_partial = False
+    if str(proj.get("visual_source") or "characters") == "muse_video":
+        pending_ch = [
+            c
+            for c in chapters_list
+            if (target_set is None or int(c["id"]) in target_set)
+            and (
+                force
+                or str(c.get("status") or "") != "ready"
+                or not str(c.get("output_path") or "").strip()
+                or not (paths.media_dir / str(c.get("output_path") or "")).is_file()
+            )
+        ]
+        if pending_ch:
+            muse_shots, muse_partial = ensure_project_muse_shots(
+                paths,
+                workspace_id=ws_id,
+                ref_type="novel_project",
+                ref_id=project_id,
+                prompts_and_durations=[
+                    (f"{proj['title']} - {c['title']}: {str(c['body_text'])[:140]}", 6.0)
+                    for c in pending_ch
+                ],
+                aspect_ratio=ratio,
+                character_id=int(proj["character_id"]) if proj.get("character_id") else None,
+            )
+            if muse_shots is None:
+                with get_conn(paths.db_file) as conn:
+                    conn.execute(
+                        "UPDATE novel_projects SET status = 'rendering', waiting_media = 1, error = NULL WHERE id = ?",
+                        (int(project_id),),
+                    )
+                waiting = get_novel_project(paths.db_file, project_id)
+                assert waiting is not None
+                return waiting
+            for idx, c in enumerate(pending_ch):
+                muse_chapter_map[int(c["id"])] = muse_shots[idx % len(muse_shots)]
+
     with get_conn(paths.db_file) as conn:
         conn.execute(
-            "UPDATE novel_projects SET status = 'rendering', error = NULL WHERE id = ?",
+            "UPDATE novel_projects SET status = 'rendering', waiting_media = 0, error = NULL WHERE id = ?",
             (int(project_id),),
         )
 
@@ -172,7 +232,6 @@ def render_novel_project(
     failed_count = 0
     any_placeholder_img = False
 
-    chapters_list = list(proj.get("chapters") or [])
     total_ch = max(1, len(chapters_list))
     for ch_pos, ch in enumerate(chapters_list, start=1):
         ch_id = int(ch["id"])
@@ -204,7 +263,9 @@ def render_novel_project(
 
         try:
             lines = build_chapter_lines(str(ch["title"]), str(ch["body_text"]), t_lang)
-            planned_shots, ch_placeholder = resolve_novel_chapter_shots(paths, proj, ch, lines)
+            planned_shots, ch_placeholder = resolve_novel_chapter_shots(
+                paths, proj, ch, lines, forced_shot_id=muse_chapter_map.get(ch_id)
+            )
             if ch_placeholder:
                 any_placeholder_img = True
             caption = f"{proj['title']} - {ch['title']}".strip()
@@ -292,6 +353,8 @@ def render_novel_project(
         any_placeholder_img = True
 
     sim_flags: list[str] = []
+    if muse_partial:
+        sim_flags.append("muse_video_partial")
     if any_placeholder_img:
         sim_flags.append("ai_image_canvas_placeholder")
     from videocreator.config import load_settings
@@ -314,7 +377,7 @@ def render_novel_project(
         conn.execute(
             """
             UPDATE novel_projects
-            SET status = ?, simulation_flags_json = ?,
+            SET status = ?, waiting_media = 0, simulation_flags_json = ?,
                 updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
             WHERE id = ?
             """,

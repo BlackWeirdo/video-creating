@@ -12,6 +12,7 @@ from videocreator.db import get_conn, query_all, query_one, record_audit
 from videocreator.db_rows import hydrate_row
 from videocreator.job_store import report_active_job_progress
 from videocreator.jsonutil import loads_or
+from videocreator.muse_gateway.studio_bridge import ensure_project_muse_shots
 from videocreator.paths import AppPaths
 from videocreator.pipeline.assembly import ensure_full_ai_canvas_shot
 from videocreator.pipeline.characters import generate_ai_image
@@ -38,6 +39,7 @@ def create_news_project(
     source_url: str = "",
     raw_text: str = "",
     character_id: int | None = None,
+    visual_source: str = "characters",
     style_preset: str = "tiktok_karaoke",
     aspect_ratio: str = "9:16",
     target_lang: str = "vi",
@@ -48,6 +50,9 @@ def create_news_project(
     kind = (source_kind or "raw_text").strip().lower()
     if kind not in VALID_NEWS_SOURCE_KINDS:
         raise ValueError(f"Unsupported news source_kind '{source_kind}'")
+    vis_src = (visual_source or "characters").strip().lower()
+    if vis_src not in ("characters", "muse_video"):
+        raise ValueError(f"Unsupported news visual_source '{visual_source}'")
     style = resolve_style_preset(paths.db_file, style_preset)["id"]
     ratio = (aspect_ratio or str(ws.get("default_aspect_ratio") or "9:16")).strip() or "9:16"
     clean_title = (title or "").strip() or (source_url[:60] if source_url else "Bản tin mới")
@@ -57,9 +62,9 @@ def create_news_project(
             """
             INSERT INTO news_projects (
                 workspace_id, title, source_kind, source_url, raw_text,
-                character_id, style_preset, aspect_ratio, target_lang, voice_id
+                character_id, visual_source, style_preset, aspect_ratio, target_lang, voice_id
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 int(workspace_id),
@@ -68,6 +73,7 @@ def create_news_project(
                 source_url.strip(),
                 raw_text.strip(),
                 int(character_id) if character_id else None,
+                vis_src,
                 style,
                 ratio,
                 (target_lang or "vi").strip() or "vi",
@@ -89,14 +95,18 @@ def create_news_project(
 
 
 def _hydrate_news(row: dict[str, Any]) -> dict[str, Any]:
-    return hydrate_row(
+    out = hydrate_row(
         row,
         json_fields={
             "facts": ("facts_json", {}),
             "script": ("script_json", []),
             "simulation_flags": ("simulation_flags_json", []),
         },
+        bool_fields=("waiting_media",),
     )
+    if out.get("waiting_media"):
+        out["status"] = "waiting_media"
+    return out
 
 
 def get_news_project(db_file: Path, project_id: int) -> dict[str, Any] | None:
@@ -120,6 +130,7 @@ def update_news_project(
     title: str | None = None,
     script: list[dict[str, Any]] | None = None,
     character_id: int | None = None,
+    visual_source: str | None = None,
     style_preset: str | None = None,
     aspect_ratio: str | None = None,
 ) -> dict[str, Any] | None:
@@ -136,6 +147,12 @@ def update_news_project(
     if character_id is not None:
         sets.append("character_id = ?")
         params.append(int(character_id) if character_id > 0 else None)
+    if visual_source is not None and visual_source.strip():
+        vs = visual_source.strip().lower()
+        if vs not in ("characters", "muse_video"):
+            raise ValueError(f"Unsupported news visual_source '{visual_source}'")
+        sets.append("visual_source = ?")
+        params.append(vs)
     if style_preset is not None and style_preset.strip():
         sets.append("style_preset = ?")
         params.append(resolve_style_preset(paths.db_file, style_preset)["id"])
@@ -270,8 +287,11 @@ def render_news_project(
     project_id: int,
     *,
     build_pack: bool = True,
+    visual_source: str | None = None,
 ) -> dict[str, Any]:
     """Renders News Project MP4 via FFmpeg + QC + optional 5-platform `.zip` publish pack."""
+    if visual_source is not None and visual_source.strip():
+        update_news_project(paths, project_id, visual_source=visual_source)
     proj = get_news_project(paths.db_file, project_id)
     if proj is None:
         raise ValueError(f"News project #{project_id} not found")
@@ -284,15 +304,52 @@ def render_news_project(
     if not script:
         raise ValueError(f"News project #{project_id} has empty script")
 
+    muse_partial = False
+    if str(proj.get("visual_source") or "characters") == "muse_video":
+        muse_shots, muse_partial = ensure_project_muse_shots(
+            paths,
+            workspace_id=ws_id,
+            ref_type="news_project",
+            ref_id=project_id,
+            prompts_and_durations=[
+                (f"Bản tin: {seg.get('text') or proj['title']}", max(4.0, float(seg.get("duration_s") or 4.0)))
+                for seg in script
+            ],
+            aspect_ratio=str(proj.get("aspect_ratio") or "9:16"),
+            character_id=int(proj["character_id"]) if proj.get("character_id") else None,
+        )
+        if muse_shots is None:
+            with get_conn(paths.db_file) as conn:
+                conn.execute(
+                    "UPDATE news_projects SET status = 'rendering', waiting_media = 1, error = NULL WHERE id = ?",
+                    (int(project_id),),
+                )
+            waiting = get_news_project(paths.db_file, project_id)
+            assert waiting is not None
+            return waiting
+    else:
+        muse_shots = []
+
     with get_conn(paths.db_file) as conn:
         conn.execute(
-            "UPDATE news_projects SET status = 'rendering', error = NULL WHERE id = ?",
+            "UPDATE news_projects SET status = 'rendering', waiting_media = 0, error = NULL WHERE id = ?",
             (int(project_id),),
         )
 
     try:
         report_active_job_progress(0.15, f"Đang chọn phân cảnh bản tin #{project_id}...")
-        planned_shots, used_placeholder_image = _resolve_news_shots(paths, proj, script)
+        if muse_shots:
+            planned_shots = [
+                {
+                    "shot_id": muse_shots[idx % len(muse_shots)],
+                    "duration_s": max(1.6, float(seg.get("duration_s") or 2.4)),
+                    "text": str(seg.get("text") or "").strip(),
+                }
+                for idx, seg in enumerate(script)
+            ]
+            used_placeholder_image = False
+        else:
+            planned_shots, used_placeholder_image = _resolve_news_shots(paths, proj, script)
         facts = dict(proj.get("facts") or {})
         headline = str(facts.get("headline") or proj["title"])
         summary_caption = ". ".join(str(s.get("text") or "") for s in script).strip()
@@ -362,6 +419,8 @@ def render_news_project(
         from videocreator.config import load_settings
 
         sim_flags: list[str] = []
+        if muse_partial:
+            sim_flags.append("muse_video_partial")
         if used_placeholder_image:
             sim_flags.append("ai_image_canvas_placeholder")
         cfg_v = load_settings(paths.config_file).voice.vi_provider
@@ -377,6 +436,7 @@ def render_news_project(
                 SET output_video_id = ?,
                     publish_pack_path = ?,
                     simulation_flags_json = ?,
+                    waiting_media = 0,
                     status = 'completed',
                     error = NULL,
                     updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
@@ -399,7 +459,7 @@ def render_news_project(
     except Exception as exc:
         with get_conn(paths.db_file) as conn:
             conn.execute(
-                "UPDATE news_projects SET status = 'failed', error = ? WHERE id = ?",
+                "UPDATE news_projects SET status = 'failed', waiting_media = 0, error = ? WHERE id = ?",
                 (str(exc)[:400], int(project_id)),
             )
         raise

@@ -55,6 +55,11 @@ from videocreator.muse_gateway.storyboard import (
     start_storyboard_generation,
     update_storyboard,
 )
+from videocreator.muse_gateway.studio_bridge import (
+    MuseMediaPendingError,
+    create_trend_motion_remix_task,
+    ensure_project_muse_shots,
+)
 from videocreator.muse_gateway.webhook import (
     process_muse_webhook_event,
     verify_muse_webhook_signature,
@@ -65,6 +70,7 @@ __all__ = [
     "MuseGatewayClient",
     "MuseGatewayError",
     "MuseInputError",
+    "MuseMediaPendingError",
     "MuseQuotaWait",
     "MuseUnavailable",
     "MuseUnsafeGatewayError",
@@ -76,8 +82,10 @@ __all__ = [
     "count_active_muse_tasks",
     "create_muse_task",
     "create_storyboard",
+    "create_trend_motion_remix_task",
     "delete_storyboard",
     "ensure_muse_sidecar_running",
+    "ensure_project_muse_shots",
     "get_muse_task",
     "get_sidecar_runtime_status",
     "get_storyboard",

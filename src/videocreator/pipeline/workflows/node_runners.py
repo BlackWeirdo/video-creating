@@ -17,6 +17,11 @@ from videocreator.pipeline.news_studio import extract_article_facts
 from videocreator.pipeline.render import finalize_master_export
 from videocreator.pipeline.render_steps import concat_segments, cut_shot_segments
 from videocreator.pipeline.styles import resolve_style_preset
+from videocreator.pipeline.workflows.muse_nodes import (
+    run_muse_image_node,
+    run_muse_video_node,
+    run_muse_voice_node,
+)
 from videocreator.posting.publish_pack import build_publish_pack_zip
 from videocreator.state import transition
 from videocreator.tts.synthesizer import TTSUnavailableError, synthesize_speech_segments
@@ -356,4 +361,7 @@ NODE_RUNNERS: dict[str, NodeRunner] = {
     "voice_node": _run_voice_node,
     "render_node": _run_render_node,
     "publish_node": _run_publish_node,
+    "muse_video_node": run_muse_video_node,
+    "muse_image_node": run_muse_image_node,
+    "muse_voice_node": run_muse_voice_node,
 }

@@ -26,6 +26,7 @@ class BatchCreateBody(BaseModel):
     source_kind: str = "products"
     items: list[Any] = Field(default_factory=list)
     ab_count: int = 2
+    visual_source: str = "workspace_shots"
     style_presets: list[str] = Field(default_factory=list)
     aspect_ratio: str = "9:16"
     target_lang: str = "vi"
@@ -67,6 +68,7 @@ async def api_v1_create_batch(
             source_kind=body.source_kind,
             items=body.items,
             ab_count=body.ab_count,
+            visual_source=body.visual_source,
             style_presets=body.style_presets or None,
             aspect_ratio=body.aspect_ratio,
             target_lang=body.target_lang,

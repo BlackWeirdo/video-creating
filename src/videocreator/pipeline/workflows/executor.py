@@ -7,6 +7,7 @@ from typing import Any
 
 from videocreator.db import get_conn, record_audit
 from videocreator.job_store import report_active_job_progress
+from videocreator.muse_gateway.studio_bridge import MuseMediaPendingError
 from videocreator.paths import AppPaths
 from videocreator.pipeline.compute_job import run_studio_project_job
 from videocreator.pipeline.workflows.dag import node_kind, topological_sort_workflow
@@ -73,7 +74,7 @@ def execute_workflow(
             conn.execute(
                 """
                 UPDATE workflow_runs
-                SET status = 'completed', node_outputs_json = ?, video_id = ?, error = NULL
+                SET status = 'completed', waiting_media = 0, node_outputs_json = ?, video_id = ?, error = NULL
                 WHERE id = ?
                 """,
                 (json.dumps(node_outputs, ensure_ascii=False), st.final_video_id, run_id),
@@ -96,6 +97,28 @@ def execute_workflow(
             "workspace_id": ws_id,
             "status": "completed",
             "video_id": st.final_video_id,
+            "node_outputs": node_outputs,
+        }
+    except MuseMediaPendingError as pending_exc:
+        with get_conn(paths.db_file) as conn:
+            conn.execute(
+                """
+                UPDATE workflow_runs
+                SET waiting_media = 1, node_outputs_json = ?, error = ?
+                WHERE id = ?
+                """,
+                (json.dumps(node_outputs, ensure_ascii=False), str(pending_exc)[:300], run_id),
+            )
+            conn.execute(
+                "UPDATE workflows SET last_status = 'waiting_media', updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ?",
+                (int(workflow_id),),
+            )
+        return {
+            "id": run_id,
+            "workflow_id": int(workflow_id),
+            "workspace_id": ws_id,
+            "status": "waiting_media",
+            "video_id": None,
             "node_outputs": node_outputs,
         }
     except Exception as exc:

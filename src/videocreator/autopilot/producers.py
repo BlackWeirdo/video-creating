@@ -263,6 +263,64 @@ def _produce_from_localize_trends(
     )
 
 
+def _produce_from_muse_video(
+    paths: AppPaths,
+    rule: dict[str, Any],
+) -> ProducedItem | None:
+    from videocreator.config import load_settings
+    from videocreator.muse_gateway.store import create_muse_task
+
+    rule_id = int(rule["id"])
+    ws_id = int(rule["workspace_id"])
+    ws = require_workspace(paths.db_file, ws_id)
+    if str(ws.get("content_policy") or "strict_footage") != "full_ai":
+        raise PermissionError("Autopilot muse_video requires full_ai workspace")
+
+    source_key = ""
+    prompt_text = ""
+    feed_url = str(rule.get("feed_url") or "").strip()
+    if feed_url:
+        for it in parse_rss_or_atom_items(feed_url):
+            if not already_processed_key(paths.db_file, rule_id, f"muse_rss:{it['source_key']}"):
+                source_key = f"muse_rss:{it['source_key']}"
+                prompt_text = f"{it['title']}. {it['summary'][:140]}".strip()
+                break
+    if not prompt_text:
+        trends = query_all(
+            paths.db_file,
+            "SELECT id, caption FROM trend_items WHERE workspace_id = ? ORDER BY score DESC, id DESC LIMIT 20",
+            (ws_id,),
+        )
+        for tr in trends:
+            cand_key = f"muse_trend:{tr['id']}"
+            if not already_processed_key(paths.db_file, rule_id, cand_key):
+                source_key = cand_key
+                prompt_text = str(tr.get("caption") or f"Cảnh xu hướng #{tr['id']}")[:180]
+                break
+    if not prompt_text:
+        return None
+
+    cfg = load_settings(paths.config_file).muse_gateway
+    ratio = str(rule.get("aspect_ratio") or "9:16")
+    create_muse_task(
+        paths.db_file,
+        workspace_id=ws_id,
+        kind="video",
+        model=cfg.default_video_model or "muse-video",
+        purpose="autopilot",
+        ref_type="autopilot_rule",
+        ref_id=rule_id,
+        prompt=prompt_text,
+        params={"duration": 8, "ratio": ratio if ratio in ("9:16", "16:9", "1:1") else "9:16"},
+        priority=0,
+    )
+    return ProducedItem(
+        source_key=source_key,
+        source_summary=prompt_text[:120],
+        video_id=None,
+    )
+
+
 def produce_autopilot_item(
     paths: AppPaths,
     rule: dict[str, Any],
@@ -282,4 +340,6 @@ def produce_autopilot_item(
         return _produce_from_suggestions(paths, rule, score_override=score_override)
     if mode == "localize_trends":
         return _produce_from_localize_trends(paths, rule)
+    if mode == "muse_video":
+        return _produce_from_muse_video(paths, rule)
     return None

@@ -45,6 +45,7 @@ class NovelCreateBody(BaseModel):
     title: str = ""
     source_text: str
     character_id: int | None = None
+    visual_source: str = "characters"
     style_preset: str = "tiktok_karaoke"
     aspect_ratio: str = "9:16"
     target_lang: str = "vi"
@@ -56,6 +57,7 @@ class NovelRenderBody(BaseModel):
     chapter_ids: list[int] | None = None
     force: bool = False
     sync: bool = False
+    visual_source: str | None = None
 
 
 class PodcastCreateBody(BaseModel):
@@ -131,6 +133,7 @@ async def api_v1_create_novel(request: Request, body: NovelCreateBody) -> JSONRe
             title=body.title,
             source_text=body.source_text,
             character_id=body.character_id,
+            visual_source=body.visual_source,
             style_preset=body.style_preset,
             aspect_ratio=body.aspect_ratio,
             target_lang=body.target_lang,
@@ -159,6 +162,13 @@ async def api_v1_render_novel(
     proj = get_novel_project(paths.db_file, project_id)
     if proj is None:
         raise HTTPException(status_code=404, detail=f"Novel project #{project_id} not found")
+    if body.visual_source:
+        vs = body.visual_source.strip().lower()
+        if vs not in ("characters", "muse_video"):
+            raise HTTPException(status_code=400, detail=f"Unsupported novel visual_source '{body.visual_source}'")
+        with get_conn(paths.db_file) as conn:
+            conn.execute("UPDATE novel_projects SET visual_source = ? WHERE id = ?", (vs, int(project_id)))
+
     if body.sync:
         try:
             done = render_novel_project(
@@ -166,6 +176,7 @@ async def api_v1_render_novel(
                 project_id,
                 chapter_ids=body.chapter_ids,
                 force=body.force,
+                visual_source=body.visual_source,
             )
         except PermissionError as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc

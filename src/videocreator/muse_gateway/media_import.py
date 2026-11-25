@@ -168,6 +168,11 @@ def import_completed_muse_task(
     if kind == "image":
         params = task_row.get("params") or {}
         ratio = str(params.get("ratio") or "9:16")
+        char_id = (
+            int(task_row["ref_id"])
+            if task_row.get("ref_type") == "character" and task_row.get("ref_id")
+            else None
+        )
         first_img_id: int | None = None
         first_rel = ""
         for idx, entry in enumerate(entries[:4]):
@@ -179,12 +184,12 @@ def import_completed_muse_task(
                     conn.execute(
                         """
                         INSERT INTO ai_images (
-                            workspace_id, prompt, seed, aspect_ratio, image_path,
+                            workspace_id, character_id, prompt, seed, aspect_ratio, image_path,
                             is_product_shot, provider, simulation_flags_json, status
                         )
-                        VALUES (?, ?, ?, ?, ?, 0, 'muse_image', '[]', 'ready')
+                        VALUES (?, ?, ?, ?, ?, ?, 0, 'muse_image', '[]', 'ready')
                         """,
-                        (ws_id, prompt, 1000 + task_id + idx, ratio, rel_png),
+                        (ws_id, char_id, prompt, 1000 + task_id + idx, ratio, rel_png),
                     ).lastrowid
                 )
             if first_img_id is None:

@@ -10,6 +10,7 @@ from videocreator.approvals import try_autopilot_approve
 from videocreator.db import get_conn, query_all, query_one, record_audit
 from videocreator.job_store import report_active_job_progress
 from videocreator.jsonutil import loads_or
+from videocreator.muse_gateway.studio_bridge import ensure_project_muse_shots
 from videocreator.paths import AppPaths
 from videocreator.pipeline.assembly import count_workspace_shots
 from videocreator.pipeline.batch_planner import (
@@ -34,6 +35,7 @@ def create_batch_run(
     source_kind: str,
     items: list[Any],
     ab_count: int = 2,
+    visual_source: str = "workspace_shots",
     style_presets: list[str] | None = None,
     aspect_ratio: str = "9:16",
     target_lang: str = "vi",
@@ -45,11 +47,19 @@ def create_batch_run(
         raise ValueError(f"Unsupported batch source_kind '{source_kind}'")
     if not items:
         raise ValueError("Batch items list cannot be empty")
+    vis_src = (visual_source or "workspace_shots").strip().lower()
+    if vis_src not in ("workspace_shots", "muse_video"):
+        raise ValueError(f"Unsupported batch visual_source '{visual_source}'")
     n_variants = max(1, min(3, int(ab_count)))
     ws = require_workspace(paths.db_file, workspace_id)
     policy = str(ws.get("content_policy") or "strict_footage")
 
-    if policy != "full_ai" and count_workspace_shots(paths.db_file, workspace_id) == 0:
+    if vis_src == "muse_video":
+        if policy == "strict_footage":
+            raise PermissionError(
+                "Workspace 'strict_footage' không cho phép dựng Batch bằng clip Muse AI."
+            )
+    elif policy != "full_ai" and count_workspace_shots(paths.db_file, workspace_id) == 0:
         raise PermissionError(
             f"Workspace '{policy}' yêu cầu có ít nhất 1 shot footage thật trước khi tạo Batch Video."
         )
@@ -67,16 +77,17 @@ def create_batch_run(
         cur = conn.execute(
             """
             INSERT INTO batch_runs (
-                workspace_id, title, source_kind, ab_count,
+                workspace_id, title, source_kind, ab_count, visual_source,
                 style_presets_json, aspect_ratio, target_lang, target_accounts_json, status
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'queued')
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued')
             """,
             (
                 int(workspace_id),
                 clean_title,
                 clean_kind,
                 n_variants,
+                vis_src,
                 json.dumps(validated_styles),
                 ratio,
                 t_lang,
@@ -138,6 +149,8 @@ def list_batch_runs(db_file: Path, *, workspace_id: int) -> list[dict[str, Any]]
     out: list[dict[str, Any]] = []
     for r in rows:
         item = dict(r)
+        if item.get("waiting_media"):
+            item["status"] = "waiting_media"
         item["style_presets"] = loads_or(r.get("style_presets_json"), [])
         item["target_accounts"] = loads_or(r.get("target_accounts_json"), [])
         counts = query_one(
@@ -182,6 +195,8 @@ def get_batch_run(db_file: Path, batch_id: int) -> dict[str, Any] | None:
         items_out.append(entry)
 
     out = dict(run_row)
+    if out.get("waiting_media"):
+        out["status"] = "waiting_media"
     out["style_presets"] = loads_or(run_row.get("style_presets_json"), [])
     out["target_accounts"] = loads_or(run_row.get("target_accounts_json"), [])
     out["items"] = items_out
@@ -214,6 +229,41 @@ def run_batch_run(
         (int(batch_id),),
     )
 
+    muse_shots: list[int] = []
+    if str(run_row.get("visual_source") or "workspace_shots") == "muse_video" and pending_items:
+        prompts_list: list[tuple[str, float]] = []
+        for it in pending_items:
+            ref = loads_or(it.get("source_ref_json"), {})
+            if ref.get("prompt"):
+                p_txt = f"{ref['prompt']} ({it.get('variant_label', 'A')})"
+            elif ref.get("product_id"):
+                pr = query_one(paths.db_file, "SELECT name FROM products WHERE id = ?", (int(ref["product_id"]),))
+                p_txt = f"Bối cảnh review {pr['name'] if pr else 'sản phẩm'} ({it.get('variant_label', 'A')})"
+            else:
+                p_txt = f"{run_row['title']} ({it.get('variant_label', 'A')})"
+            prompts_list.append((p_txt, 6.0))
+        maybe_shots, _partial = ensure_project_muse_shots(
+            paths,
+            workspace_id=int(run_row["workspace_id"]),
+            ref_type="batch_run",
+            ref_id=int(batch_id),
+            prompts_and_durations=prompts_list,
+            aspect_ratio=str(run_row.get("aspect_ratio") or "9:16"),
+        )
+        if maybe_shots is None:
+            with get_conn(paths.db_file) as conn:
+                conn.execute(
+                    "UPDATE batch_runs SET status = 'running', waiting_media = 1 WHERE id = ?",
+                    (int(batch_id),),
+                )
+            waiting = get_batch_run(paths.db_file, batch_id)
+            assert waiting is not None
+            return waiting
+        muse_shots = maybe_shots
+
+    with get_conn(paths.db_file) as conn:
+        conn.execute("UPDATE batch_runs SET waiting_media = 0 WHERE id = ?", (int(batch_id),))
+
     total_pending = max(1, len(pending_items))
     for idx, item in enumerate(pending_items):
         item_id = int(item["id"])
@@ -222,7 +272,12 @@ def run_batch_run(
             f"Đang dựng biến thể {idx + 1}/{total_pending} ({item.get('variant_label', 'A')})...",
         )
         try:
-            video_id = int(item["video_id"]) if item.get("video_id") is not None else plan_batch_item(paths, run_row, item)
+            forced_ids = [muse_shots[idx % len(muse_shots)]] if muse_shots else None
+            video_id = (
+                int(item["video_id"])
+                if item.get("video_id") is not None
+                else plan_batch_item(paths, run_row, item, forced_shot_ids=forced_ids)
+            )
             render_video(paths, video_id, auto_score=False, report_progress=False)
 
             v_after = query_one(
@@ -285,7 +340,7 @@ def run_batch_run(
     )
     with get_conn(paths.db_file) as conn:
         conn.execute(
-            "UPDATE batch_runs SET status = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ?",
+            "UPDATE batch_runs SET status = ?, waiting_media = 0, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ?",
             (final_status, int(batch_id)),
         )
     res = get_batch_run(paths.db_file, batch_id)

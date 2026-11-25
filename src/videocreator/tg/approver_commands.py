@@ -111,6 +111,24 @@ def _cmd_setup(action: TelegramAction, args: str) -> CommandResult:
     return False, "Lệnh /setup chỉ chạy được khi gõ trong nhóm Telegram có bot.", []
 
 
+def _cmd_muse_vid_proxy(action: TelegramAction, args: str) -> CommandResult:
+    from videocreator.tg.muse_commands import cmd_muse_vid
+
+    return cmd_muse_vid(action, args)
+
+
+def _cmd_muse_img_proxy(action: TelegramAction, args: str) -> CommandResult:
+    from videocreator.tg.muse_commands import cmd_muse_img
+
+    return cmd_muse_img(action, args)
+
+
+def _cmd_muse_voice_proxy(action: TelegramAction, args: str) -> CommandResult:
+    from videocreator.tg.muse_commands import cmd_muse_voice
+
+    return cmd_muse_voice(action, args)
+
+
 APPROVER_COMMANDS: dict[str, CommandHandler] = {
     "pause": _cmd_pause,
     "resume": _cmd_resume,
@@ -119,4 +137,7 @@ APPROVER_COMMANDS: dict[str, CommandHandler] = {
     "trends": _cmd_trends,
     "pending": _cmd_pending,
     "setup": _cmd_setup,
+    "vid": _cmd_muse_vid_proxy,
+    "img": _cmd_muse_img_proxy,
+    "voice": _cmd_muse_voice_proxy,
 }

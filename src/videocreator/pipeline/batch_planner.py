@@ -105,7 +105,13 @@ def build_ab_lines(
     return _fit_line(line1, lang, 1.4), _fit_line(line2, lang, 1.4)
 
 
-def plan_batch_item(paths: AppPaths, run_row: dict[str, Any], item_row: dict[str, Any]) -> int:
+def plan_batch_item(
+    paths: AppPaths,
+    run_row: dict[str, Any],
+    item_row: dict[str, Any],
+    *,
+    forced_shot_ids: list[int] | None = None,
+) -> int:
     ws_id = int(run_row["workspace_id"])
     ws = require_workspace(paths.db_file, ws_id)
     policy = str(ws.get("content_policy") or "strict_footage")
@@ -142,13 +148,21 @@ def plan_batch_item(paths: AppPaths, run_row: dict[str, Any], item_row: dict[str
         subject = prompt[:42]
         detail = prompt
 
-    shots = pick_shots_for_batch_item(
-        paths,
-        ws_id,
-        product_ids[0] if product_ids else None,
-        aspect_ratio,
-        policy,
-    )
+    if forced_shot_ids:
+        s0 = int(forced_shot_ids[0])
+        s1 = int(forced_shot_ids[1]) if len(forced_shot_ids) > 1 else s0
+        shots = [
+            {"shot_id": s0, "duration_s": 2.6},
+            {"shot_id": s1, "duration_s": 2.6},
+        ]
+    else:
+        shots = pick_shots_for_batch_item(
+            paths,
+            ws_id,
+            product_ids[0] if product_ids else None,
+            aspect_ratio,
+            policy,
+        )
     l1, l2 = build_ab_lines(subject=subject, detail=detail, hook_angle=hook_angle, lang=t_lang)
     shots[0]["text"] = l1
     shots[1]["text"] = l2

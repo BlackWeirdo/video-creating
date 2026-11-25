@@ -68,3 +68,11 @@ CREATE TABLE IF NOT EXISTS muse_storyboard_segments (
   status TEXT NOT NULL DEFAULT 'pending',
   UNIQUE(storyboard_id, idx)
 );
+
+ALTER TABLE news_projects ADD COLUMN visual_source TEXT NOT NULL DEFAULT 'characters';
+ALTER TABLE news_projects ADD COLUMN waiting_media INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE novel_projects ADD COLUMN visual_source TEXT NOT NULL DEFAULT 'characters';
+ALTER TABLE novel_projects ADD COLUMN waiting_media INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE batch_runs ADD COLUMN visual_source TEXT NOT NULL DEFAULT 'workspace_shots';
+ALTER TABLE batch_runs ADD COLUMN waiting_media INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE workflow_runs ADD COLUMN waiting_media INTEGER NOT NULL DEFAULT 0;

@@ -48,6 +48,9 @@ def register_muse_downstream_hook(hook: DownstreamHook) -> None:
 
 
 def run_downstream_hooks_for_task(paths: AppPaths, task_row: dict[str, Any]) -> None:
+    import videocreator.muse_gateway.storyboard  # noqa: F401
+    import videocreator.muse_gateway.studio_bridge  # noqa: F401
+
     for hook in list(_DOWNSTREAM_HOOKS):
         try:
             hook(paths, task_row)

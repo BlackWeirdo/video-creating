@@ -127,14 +127,16 @@ def resolve_novel_chapter_shots(
     proj: dict[str, Any],
     chapter: dict[str, Any],
     lines: list[dict[str, Any]],
+    *,
+    forced_shot_id: int | None = None,
 ) -> tuple[list[dict[str, Any]], bool]:
     ws_id = int(proj["workspace_id"])
     aspect_ratio = str(proj.get("aspect_ratio") or "9:16")
-    shot_ids: list[int] = []
+    shot_ids: list[int] = [int(forced_shot_id)] if forced_shot_id else []
     used_placeholder_image = False
 
     char_id = proj.get("character_id")
-    if char_id:
+    if char_id and not shot_ids:
         img = generate_ai_image(
             paths,
             workspace_id=ws_id,

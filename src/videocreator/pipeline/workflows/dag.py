@@ -13,6 +13,9 @@ VALID_NODE_KINDS: frozenset[str] = frozenset(
         "voice_node",
         "render_node",
         "publish_node",
+        "muse_video_node",
+        "muse_image_node",
+        "muse_voice_node",
     }
 )
 

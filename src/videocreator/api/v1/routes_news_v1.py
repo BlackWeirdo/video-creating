@@ -29,6 +29,7 @@ class NewsCreateBody(BaseModel):
     source_url: str = ""
     raw_text: str = ""
     character_id: int | None = None
+    visual_source: str = "characters"
     style_preset: str = "tiktok_karaoke"
     aspect_ratio: str = "9:16"
     target_lang: str = "vi"
@@ -39,6 +40,7 @@ class NewsPatchBody(BaseModel):
     title: str | None = None
     script: list[dict[str, Any]] | None = None
     character_id: int | None = None
+    visual_source: str | None = None
     style_preset: str | None = None
     aspect_ratio: str | None = None
 
@@ -46,6 +48,7 @@ class NewsPatchBody(BaseModel):
 class NewsRenderBody(BaseModel):
     sync: bool = False
     build_pack: bool = True
+    visual_source: str | None = None
 
 
 @router.get("/news/projects")
@@ -75,6 +78,7 @@ async def api_v1_create_news(
             source_url=body.source_url,
             raw_text=body.raw_text,
             character_id=body.character_id,
+            visual_source=body.visual_source,
             style_preset=body.style_preset,
             aspect_ratio=body.aspect_ratio,
             target_lang=body.target_lang,
@@ -99,15 +103,19 @@ async def api_v1_patch_news(
     request: Request, project_id: int, body: NewsPatchBody
 ) -> JSONResponse:
     paths: AppPaths = request.app.state.paths
-    proj = update_news_project(
-        paths,
-        project_id,
-        title=body.title,
-        script=body.script,
-        character_id=body.character_id,
-        style_preset=body.style_preset,
-        aspect_ratio=body.aspect_ratio,
-    )
+    try:
+        proj = update_news_project(
+            paths,
+            project_id,
+            title=body.title,
+            script=body.script,
+            character_id=body.character_id,
+            visual_source=body.visual_source,
+            style_preset=body.style_preset,
+            aspect_ratio=body.aspect_ratio,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     if proj is None:
         raise HTTPException(status_code=404, detail=f"News project #{project_id} not found")
     return JSONResponse({"project": proj})
@@ -134,9 +142,16 @@ async def api_v1_render_news(
     if proj is None:
         raise HTTPException(status_code=404, detail=f"News project #{project_id} not found")
     payload = body or NewsRenderBody()
+    if payload.visual_source:
+        try:
+            update_news_project(paths, project_id, visual_source=payload.visual_source)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
     if payload.sync:
         try:
-            done = render_news_project(paths, project_id, build_pack=payload.build_pack)
+            done = render_news_project(
+                paths, project_id, build_pack=payload.build_pack, visual_source=payload.visual_source
+            )
             return JSONResponse({"project": done, "job_id": None})
         except PermissionError as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
