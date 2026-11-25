@@ -7,6 +7,7 @@ from typing import Any
 
 from videocreator.db import get_conn, query_all, query_one, record_audit
 from videocreator.db_rows import hydrate_row
+from videocreator.jsonutil import loads_or
 from videocreator.paths import AppPaths
 from videocreator.trends.download import fetch_reference_video
 from videocreator.tts.syllables import count_syllables, max_syllables_for_duration
