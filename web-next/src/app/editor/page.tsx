@@ -2,9 +2,17 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Film, Play, Plus, Scissors, Trash2 } from "lucide-react";
+import { ExternalLink, Film, Play, Plus, Scissors, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { apiFetch, useWorkspace } from "@/lib/api";
 import { JobProgressBanner, useJobProgress } from "@/components/JobProgressBanner";
+import { PageHeader } from "@/components/vc/PageHeader";
+import { EmptyState } from "@/components/vc/StatCard";
+import { Card, SectionHeading } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { FieldLabel, SelectBox, TextInput } from "@/components/ui/form-controls";
+import { TabPanel, TabsBar, TabsRoot, TabTrigger } from "@/components/ui/overlays";
 
 interface MediaClip {
   id: number;
@@ -34,14 +42,13 @@ interface EditorProject {
 
 export default function EditorPage() {
   const { activeWorkspaceId } = useWorkspace();
-  const [tab, setTab] = useState<"freecut" | "timeline">("freecut");
   const [videos, setVideos] = useState<MediaClip[]>([]);
   const [shots, setShots] = useState<MediaClip[]>([]);
   const [selectedJob, setSelectedJob] = useState<string>("");
   const [projects, setProjects] = useState<EditorProject[]>([]);
   const [clips, setClips] = useState<TimelineClip[]>([]);
-  const [subText, setSubText] = useState("Tiêu đề Timeline Editor");
-  const [projTitle, setProjTitle] = useState("Bản dựng Đa track mới");
+  const [subText, setSubText] = useState("Tiêu đề bản dựng đa kênh");
+  const [projTitle, setProjTitle] = useState("Bản dựng đa lớp mới");
   const [activeJobId, setActiveJobId] = useState<number | null>(null);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
@@ -75,11 +82,13 @@ export default function EditorPage() {
 
   const { job: activeJob, isRunning: jobRunning } = useJobProgress(activeJobId, {
     onCompleted: () => {
-      setMsg("Đã xuất xong video Timeline Đa track!");
+      const done = "Đã xuất xong video ghép đa lớp!";
+      setMsg(done);
+      toast.success(done);
       void load();
     },
     onFailed: (j) => {
-      setErr(j.error || "Lỗi render Timeline");
+      setErr(j.error || "Lỗi xuất bản dựng");
       void load();
     },
   });
@@ -89,217 +98,286 @@ export default function EditorPage() {
     setErr("");
     setMsg("");
     try {
-      const cr = await apiFetch<{ project: EditorProject }>("/api/v1/editor/projects", {
-        method: "POST",
-        body: JSON.stringify({
-          workspace_id: activeWorkspaceId,
-          title: projTitle,
-          tracks: {
-            video_clips: clips,
-            audio_clips: [],
-            subtitles: subText.trim()
-              ? [{ start_s: 0.1, end_s: Math.max(2.0, clips.reduce((s, c) => s + c.duration_s, 0) - 0.1), text: subText }]
-              : [],
-          },
-        }),
-      });
+      const cr = await apiFetch<{ project: EditorProject }>(
+        "/api/v1/editor/projects",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            workspace_id: activeWorkspaceId,
+            title: projTitle,
+            tracks: {
+              video_clips: clips,
+              audio_clips: [],
+              subtitles: subText.trim()
+                ? [
+                    {
+                      start_s: 0.1,
+                      end_s: Math.max(
+                        2.0,
+                        clips.reduce((s, c) => s + c.duration_s, 0) - 0.1
+                      ),
+                      text: subText,
+                    },
+                  ]
+                : [],
+            },
+          }),
+        }
+      );
       const rn = await apiFetch<{ job_id: number }>(
         `/api/v1/editor/projects/${cr.project.id}/render`,
-        { method: "POST", body: JSON.stringify({ style_preset: "tiktok_karaoke", sync: false }) }
+        {
+          method: "POST",
+          body: JSON.stringify({ style_preset: "tiktok_karaoke", sync: false }),
+        }
       );
       setActiveJobId(rn.job_id);
-      setMsg(`Đã xếp hàng xuất video Timeline #${cr.project.id} (Job #${rn.job_id}).`);
+      const m = `Đã đưa bản dựng #${cr.project.id} vào hàng đợi xử lý (Tác vụ #${rn.job_id}).`;
+      setMsg(m);
+      toast.info(m);
       await load();
     } catch (e2) {
-      setErr(e2 instanceof Error ? e2.message : "Lỗi render Timeline");
+      setErr(e2 instanceof Error ? e2.message : "Lỗi xuất bản dựng");
     }
   };
 
-  const freecutUrl = selectedJob ? `/freecut/?job=${encodeURIComponent(selectedJob)}` : "/freecut/";
+  const freecutUrl = selectedJob
+    ? `/freecut/?job=${encodeURIComponent(selectedJob)}`
+    : "/freecut/";
 
   return (
     <div className="max-w-6xl mx-auto space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <Scissors className="w-6 h-6 text-rose-400" /> Trình dựng Timeline FreeCut (MIT)
-          </h1>
-          <p className="text-xs text-slate-400 mt-1">
-            Chỉnh sửa từng khung hình bằng FreeCut nhúng (`/api/editor/*`) hoặc ghép Đa track ngay trên máy chủ.
-          </p>
-        </div>
-        <div className="flex gap-2 text-xs">
-          <button
-            type="button"
-            onClick={() => setTab("freecut")}
-            className={`px-3 py-1.5 rounded-lg border cursor-pointer ${
-              tab === "freecut"
-                ? "bg-sky-500 text-slate-950 border-sky-400 font-semibold"
-                : "bg-[#111827] border-slate-700 text-slate-300"
-            }`}
-          >
-            FreeCut Studio (Nhúng)
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab("timeline")}
-            className={`px-3 py-1.5 rounded-lg border cursor-pointer ${
-              tab === "timeline"
-                ? "bg-sky-500 text-slate-950 border-sky-400 font-semibold"
-                : "bg-[#111827] border-slate-700 text-slate-300"
-            }`}
-          >
-            Ghép Đa Track FFmpeg ({projects.length})
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        icon={<Scissors className="w-5 h-5" />}
+        title="Trình Dựng Video Trực Quan (FreeCut)"
+        badges={
+          <Badge tone="cluster" className="tabular-nums">
+            {projects.length} bản dựng
+          </Badge>
+        }
+        description="Cắt ghép từng khung hình bằng trình dựng FreeCut nhúng sẵn hoặc nối nhanh nhiều đoạn Shot trên máy chủ."
+      />
 
       {msg && (
-        <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs rounded-lg px-4 py-2.5">
+        <div
+          role="status"
+          className="rounded-[11px] border border-[var(--st-emerald-bd)] bg-[var(--st-emerald-bg)] px-4 py-2.5 text-[13px] text-[var(--st-emerald-tx)]"
+        >
           {msg}
         </div>
       )}
       {err && (
-        <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs rounded-lg px-4 py-2.5">
+        <div
+          role="alert"
+          className="rounded-[11px] border border-[var(--st-rose-bd)] bg-[var(--st-rose-bg)] px-4 py-2.5 text-[13px] text-[var(--st-rose-tx)]"
+        >
           {err}
         </div>
       )}
+
       <JobProgressBanner
         job={activeJob}
         jobId={activeJobId}
-        label="Timeline FFmpeg"
+        label="Trình dựng đa lớp"
         onDismiss={() => setActiveJobId(null)}
       />
 
-      {tab === "freecut" ? (
-        <div className="space-y-3 text-xs">
-          <div className="flex items-center gap-3 bg-[#111827] border border-slate-800 rounded-xl p-3">
-            <span className="text-slate-300">Mở Video trong FreeCut:</span>
-            <select
-              value={selectedJob}
-              onChange={(e) => setSelectedJob(e.target.value)}
-              className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-1.5"
-            >
-              <option value="">-- Trình dựng trống --</option>
-              {videos.map((v) => (
-                <option key={v.id} value={String(v.id)}>
-                  Video #{v.id} ({v.duration_s ? `${v.duration_s}s` : "—"})
-                </option>
-              ))}
-            </select>
-            <a href={freecutUrl} target="_blank" rel="noreferrer" className="text-sky-400 hover:underline ml-auto">
-              Mở toàn màn hình ↗
-            </a>
-          </div>
-          <div className="rounded-xl overflow-hidden border border-slate-800 bg-black h-[640px]">
-            <iframe src={freecutUrl} title="FreeCut Studio" className="w-full h-full border-0" />
-          </div>
-        </div>
-      ) : (
-        <div className="grid lg:grid-cols-2 gap-4 text-xs">
-          <div className="bg-[#111827] border border-slate-800 rounded-xl p-4 space-y-3">
-            <h2 className="text-sm font-semibold text-white flex items-center gap-1.5">
-              <Film className="w-4 h-4 text-sky-400" /> Kho Shot &amp; Video Workspace
-            </h2>
-            <div className="space-y-1.5 max-h-64 overflow-y-auto">
-              {shots.map((s) => (
-                <div
-                  key={`s-${s.id}`}
-                  className="flex justify-between items-center bg-[#182235] rounded px-3 py-2"
-                >
-                  <span>
-                    Shot #{s.id} — {s.description || "Clip"}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setClips((prev) => [
-                        ...prev,
-                        { source_path: s.media_path || "", start_s: 0, duration_s: 2.5 },
-                      ])
-                    }
-                    className="px-2 py-1 rounded bg-sky-500/20 text-sky-300 cursor-pointer"
-                  >
-                    <Plus className="w-3 h-3 inline" /> Thêm
-                  </button>
-                </div>
-              ))}
-              {videos.map((v) => (
-                <div
-                  key={`v-${v.id}`}
-                  className="flex justify-between items-center bg-[#182235] rounded px-3 py-2"
-                >
-                  <span>
-                    Video #{v.id} ({v.duration_s ?? "?"}s)
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setClips((prev) => [
-                        ...prev,
-                        { source_path: v.output_path || "", start_s: 0, duration_s: v.duration_s || 2.5 },
-                      ])
-                    }
-                    className="px-2 py-1 rounded bg-emerald-500/20 text-emerald-300 cursor-pointer"
-                  >
-                    <Plus className="w-3 h-3 inline" /> Thêm
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
+      <TabsRoot defaultValue="freecut" className="space-y-4">
+        <TabsBar aria-label="Chế độ trình dựng">
+          <TabTrigger value="freecut">
+            <Scissors className="w-4 h-4" /> Trình dựng FreeCut (Nhúng)
+          </TabTrigger>
+          <TabTrigger value="timeline">
+            <Film className="w-4 h-4" /> Ghép Nhanh Đa Đoạn ({projects.length})
+          </TabTrigger>
+        </TabsBar>
 
-          <form
-            onSubmit={renderTimeline}
-            className="bg-[#111827] border border-slate-800 rounded-xl p-4 space-y-3"
-          >
-            <h2 className="text-sm font-semibold text-white">Chuỗi Timeline ({clips.length} clip)</h2>
-            <input
-              value={projTitle}
-              onChange={(e) => setProjTitle(e.target.value)}
-              className="w-full bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-            />
-            <div className="space-y-1.5">
-              {clips.map((c, idx) => (
-                <div key={idx} className="flex justify-between items-center bg-[#182235] rounded px-3 py-1.5">
-                  <span className="truncate">{c.source_path} ({c.duration_s}s)</span>
-                  <button
-                    type="button"
-                    onClick={() => setClips((prev) => prev.filter((_, i) => i !== idx))}
-                    className="text-slate-400 hover:text-rose-400 cursor-pointer"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              ))}
+        <TabPanel value="freecut" className="space-y-3">
+          <Card className="flex flex-wrap items-center justify-between gap-3 p-3.5">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <FieldLabel htmlFor="ed-pick-vid" className="mb-0">
+                Mở Video trong FreeCut:
+              </FieldLabel>
+              <SelectBox
+                id="ed-pick-vid"
+                value={selectedJob}
+                onChange={(e) => setSelectedJob(e.target.value)}
+                className="w-64 min-h-[34px] py-1"
+              >
+                <option value="">-- Bàn dựng trống --</option>
+                {videos.map((v) => (
+                  <option key={v.id} value={String(v.id)}>
+                    Video #{v.id} ({v.duration_s ? `${v.duration_s}s` : "—"})
+                  </option>
+                ))}
+              </SelectBox>
             </div>
-            <input
-              value={subText}
-              onChange={(e) => setSubText(e.target.value)}
-              placeholder="Chữ phụ đề chạy xuyên suốt..."
-              className="w-full bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
+            <Button asChild size="sm" variant="secondary">
+              <a href={freecutUrl} target="_blank" rel="noreferrer">
+                <ExternalLink className="w-3.5 h-3.5" /> Mở cửa sổ lớn
+              </a>
+            </Button>
+          </Card>
+
+          <div className="h-[640px] overflow-hidden rounded-[14px] border border-[var(--border-strong)] bg-black shadow-[var(--shadow-md)]">
+            <iframe
+              src={freecutUrl}
+              title="FreeCut Studio"
+              className="h-full w-full border-0"
             />
-            <button
-              type="submit"
-              disabled={clips.length === 0 || jobRunning}
-              className="px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold cursor-pointer disabled:opacity-40"
-            >
-              <Play className="w-3.5 h-3.5 inline mr-1" />{" "}
-              {jobRunning ? "Đang xuất..." : "Xuất Video Đa Track"}
-            </button>
-            {projects.slice(0, 3).map((p) => (
-              <div key={p.id} className="text-[11px] text-slate-400 flex justify-between pt-1">
-                <span>#{p.id} {p.title} ({p.status})</span>
-                {p.output_video_id && (
-                  <Link href={`/videos/${p.output_video_id}`} className="text-sky-400 hover:underline">
-                    Video #{p.output_video_id}
-                  </Link>
+          </div>
+        </TabPanel>
+
+        <TabPanel value="timeline">
+          <div className="grid lg:grid-cols-2 gap-4">
+            <Card className="space-y-3">
+              <SectionHeading>
+                <Film className="w-4 h-4 text-[var(--c-icon)]" /> Kho Cảnh Quay &amp; Video Workspace
+              </SectionHeading>
+
+              {shots.length === 0 && videos.length === 0 ? (
+                <EmptyState title="Chưa có cảnh quay hoặc video nào để ghép" />
+              ) : (
+                <div className="space-y-2 max-h-80 overflow-y-auto">
+                  {shots.map((s) => (
+                    <div
+                      key={`s-${s.id}`}
+                      className="flex items-center justify-between gap-2 rounded-[9px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-2 text-[13px]"
+                    >
+                      <span className="truncate">
+                        Shot #{s.id} — {s.description || "Đoạn quay"}
+                      </span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        onClick={() =>
+                          setClips((prev) => [
+                            ...prev,
+                            {
+                              source_path: s.media_path || "",
+                              start_s: 0,
+                              duration_s: 2.5,
+                            },
+                          ])
+                        }
+                      >
+                        <Plus className="w-3.5 h-3.5" /> Thêm
+                      </Button>
+                    </div>
+                  ))}
+                  {videos.map((v) => (
+                    <div
+                      key={`v-${v.id}`}
+                      className="flex items-center justify-between gap-2 rounded-[9px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-2 text-[13px]"
+                    >
+                      <span className="tabular-nums">
+                        Video #{v.id} ({v.duration_s ?? "?"}s)
+                      </span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="emerald"
+                        onClick={() =>
+                          setClips((prev) => [
+                            ...prev,
+                            {
+                              source_path: v.output_path || "",
+                              start_s: 0,
+                              duration_s: v.duration_s || 2.5,
+                            },
+                          ])
+                        }
+                      >
+                        <Plus className="w-3.5 h-3.5" /> Thêm
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+
+            <Card tinted>
+              <form onSubmit={renderTimeline} className="space-y-3.5">
+                <SectionHeading className="tabular-nums">
+                  Chuỗi Nối Đoạn ({clips.length} đoạn)
+                </SectionHeading>
+
+                <div>
+                  <FieldLabel htmlFor="ed-title">Tên bản dựng</FieldLabel>
+                  <TextInput
+                    id="ed-title"
+                    value={projTitle}
+                    onChange={(e) => setProjTitle(e.target.value)}
+                  />
+                </div>
+
+                {clips.length > 0 && (
+                  <div className="space-y-1.5 max-h-44 overflow-y-auto">
+                    {clips.map((c, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center justify-between gap-2 rounded-[9px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[12.5px]"
+                      >
+                        <span className="truncate">
+                          {c.source_path} ({c.duration_s}s)
+                        </span>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          aria-label="Gỡ đoạn"
+                          onClick={() =>
+                            setClips((prev) => prev.filter((_, i) => i !== idx))
+                          }
+                        >
+                          <Trash2 className="w-4 h-4 text-rose-400" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
                 )}
-              </div>
-            ))}
-          </form>
-        </div>
-      )}
+
+                <div>
+                  <FieldLabel htmlFor="ed-sub">Dòng phụ đề chạy xuyên suốt</FieldLabel>
+                  <TextInput
+                    id="ed-sub"
+                    value={subText}
+                    onChange={(e) => setSubText(e.target.value)}
+                  />
+                </div>
+
+                <Button
+                  type="submit"
+                  disabled={clips.length === 0 || jobRunning}
+                >
+                  <Play className="w-4 h-4" />{" "}
+                  {jobRunning ? "Đang xuất..." : "Xuất Video Đa Đoạn"}
+                </Button>
+
+                {projects.slice(0, 3).map((p) => (
+                  <div
+                    key={p.id}
+                    className="flex items-center justify-between border-t border-[var(--border-subtle)] pt-2 text-[12.5px] text-[var(--text-muted)]"
+                  >
+                    <span>
+                      #{p.id} {p.title} ({p.status})
+                    </span>
+                    {p.output_video_id && (
+                      <Link
+                        href={`/videos/${p.output_video_id}`}
+                        className="font-semibold text-[var(--c-tx)] hover:underline"
+                      >
+                        Video #{p.output_video_id} →
+                      </Link>
+                    )}
+                  </div>
+                ))}
+              </form>
+            </Card>
+          </div>
+        </TabPanel>
+      </TabsRoot>
     </div>
   );
 }

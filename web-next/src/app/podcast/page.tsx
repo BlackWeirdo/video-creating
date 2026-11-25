@@ -2,9 +2,21 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import { Mic, Play, Plus } from "lucide-react";
+import { toast } from "sonner";
 import { apiFetch, useWorkspace } from "@/lib/api";
 import { JobProgressBanner, useJobProgress } from "@/components/JobProgressBanner";
 import { SimulationBadge } from "@/components/SimulationBadge";
+import { PageHeader } from "@/components/vc/PageHeader";
+import { EmptyState } from "@/components/vc/StatCard";
+import { Card, SectionHeading } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  FieldLabel,
+  SelectBox,
+  TextareaBox,
+  TextInput,
+} from "@/components/ui/form-controls";
 
 interface PodcastProject {
   id: number;
@@ -53,7 +65,7 @@ export default function PodcastStudioPage() {
   const [hostBVoice, setHostBVoice] = useState("vi-VN-NamMinhNeural");
   const [aspectRatio, setAspectRatio] = useState("16:9");
   const [waveformStyle, setWaveformStyle] = useState("spectrum");
-  const [accentColor, setAccentColor] = useState("#38bdf8");
+  const [accentColor, setAccentColor] = useState("#a78bfa");
   const [scriptText, setScriptText] = useState("");
   const [renderingId, setRenderingId] = useState<number | null>(null);
   const [activeJobId, setActiveJobId] = useState<number | null>(null);
@@ -84,14 +96,14 @@ export default function PodcastStudioPage() {
 
   const { job: activeJob, isRunning: jobRunning } = useJobProgress(activeJobId, {
     onCompleted: () => {
-      setMsg(
-        `Đã xuất xong video Sóng nhạc Podcast #${renderingId ?? ""} (Avatar sáng theo lượt nói + -14 LUFS + QC).`
-      );
+      const done = `Đã xuất xong video Podcast #${renderingId ?? ""} (Avatar sáng theo lượt nói + chuẩn -14 LUFS).`;
+      setMsg(done);
+      toast.success(done);
       setRenderingId(null);
       void load();
     },
     onFailed: (j) => {
-      setErr(j.error || "Lỗi dựng Podcast trong hàng đợi");
+      setErr(j.error || "Lỗi xuất Podcast");
       setRenderingId(null);
       void load();
     },
@@ -110,27 +122,32 @@ export default function PodcastStudioPage() {
     setErr("");
     setMsg("");
     try {
-      const res = await apiFetch<{ project: PodcastProject }>("/api/v1/podcasts/projects", {
-        method: "POST",
-        body: JSON.stringify({
-          workspace_id: activeWorkspaceId,
-          title: title || "Podcast Audio Spectrum",
-          host_a_name: hostA,
-          host_b_name: hostB,
-          host_a_voice: hostAVoice,
-          host_b_voice: hostBVoice,
-          aspect_ratio: aspectRatio,
-          waveform_style: waveformStyle,
-          accent_color: accentColor,
-          script_text: scriptText,
-        }),
-      });
+      const res = await apiFetch<{ project: PodcastProject }>(
+        "/api/v1/podcasts/projects",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            workspace_id: activeWorkspaceId,
+            title: title || "Podcast Đối Thoại",
+            host_a_name: hostA,
+            host_b_name: hostB,
+            host_a_voice: hostAVoice,
+            host_b_voice: hostBVoice,
+            aspect_ratio: aspectRatio,
+            waveform_style: waveformStyle,
+            accent_color: accentColor,
+            script_text: scriptText,
+          }),
+        }
+      );
       setTitle("");
       setScriptText("");
-      setMsg(`Đã tạo tập Podcast #${res.project.id} (${res.project.aspect_ratio}).`);
+      const m = `Đã tạo tập Podcast #${res.project.id} (${res.project.aspect_ratio}).`;
+      setMsg(m);
+      toast.success(m);
       await load();
     } catch (e2) {
-      setErr(e2 instanceof Error ? e2.message : "Không thể tạo Podcast");
+      setErr(e2 instanceof Error ? e2.message : "Không thể tạo tập Podcast");
     }
   };
 
@@ -139,172 +156,224 @@ export default function PodcastStudioPage() {
     setErr("");
     setMsg("");
     try {
-      const res = await apiFetch<{ job_id: number }>(`/api/v1/podcasts/projects/${pid}/render`, {
-        method: "POST",
-        body: JSON.stringify({ sync: false }),
-      });
+      const res = await apiFetch<{ job_id: number }>(
+        `/api/v1/podcasts/projects/${pid}/render`,
+        {
+          method: "POST",
+          body: JSON.stringify({ sync: false }),
+        }
+      );
       setActiveJobId(res.job_id);
-      setMsg(`Đã xếp hàng dựng Podcast #${pid} (Job #${res.job_id}) — đang theo dõi trực tiếp qua SSE.`);
+      const m = `Đã đưa tập Podcast #${pid} vào hàng đợi xuất video (Tác vụ #${res.job_id}).`;
+      setMsg(m);
+      toast.info(m);
       await load();
     } catch (e2) {
-      setErr(e2 instanceof Error ? e2.message : "Lỗi dựng Podcast");
+      setErr(e2 instanceof Error ? e2.message : "Lỗi xuất Podcast");
       setRenderingId(null);
     }
   };
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-          <Mic className="w-6 h-6 text-sky-400" /> Studio Sóng nhạc Podcast (16:9 / 9:16 / 1:1)
-        </h1>
-        <p className="text-xs text-slate-400 mt-1">
-          Hội thoại 2 Host bằng giọng thật Edge TTS / VieNeu / Giọng Kênh MC, ảnh đại diện sáng lên theo đúng lượt nói và phổ âm thanh chuẩn -14 LUFS.
-        </p>
-      </div>
+      <PageHeader
+        icon={<Mic className="w-5 h-5" />}
+        title="Podcast Sóng Nhạc Đối Thoại 2 MC"
+        badges={
+          <Badge tone="cluster" className="tabular-nums">
+            {projects.length} tập Podcast
+          </Badge>
+        }
+        description="Đối thoại tự nhiên giữa 2 người dẫn (Edge TTS / VieNeu CPU / Giọng Kênh MC), vòng sáng đại diện bật theo đúng người đang nói và sóng nhạc chuẩn -14 LUFS."
+      />
 
       {msg && (
-        <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs rounded-lg px-4 py-2.5">
+        <div
+          role="status"
+          className="rounded-[11px] border border-[var(--st-emerald-bd)] bg-[var(--st-emerald-bg)] px-4 py-2.5 text-[13px] text-[var(--st-emerald-tx)]"
+        >
           {msg}
         </div>
       )}
       {err && (
-        <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs rounded-lg px-4 py-2.5">
+        <div
+          role="alert"
+          className="rounded-[11px] border border-[var(--st-rose-bd)] bg-[var(--st-rose-bg)] px-4 py-2.5 text-[13px] text-[var(--st-rose-tx)]"
+        >
           {err}
         </div>
       )}
+
       <JobProgressBanner
         job={activeJob}
         jobId={activeJobId}
-        label={renderingId ? `Podcast #${renderingId}` : "Podcast Studio"}
+        label={renderingId ? `Podcast #${renderingId}` : "Studio Podcast"}
         onDismiss={() => setActiveJobId(null)}
       />
 
-      <form
-        onSubmit={createPodcast}
-        className="bg-[#111827] border border-slate-800 rounded-xl p-5 space-y-3 text-xs"
-      >
-        <div className="grid md:grid-cols-3 gap-3">
-          <input
-            required
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Tiêu đề tập Podcast"
-            className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-          />
-          <input
-            value={hostA}
-            onChange={(e) => setHostA(e.target.value)}
-            placeholder="Tên Host A"
-            className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-          />
-          <input
-            value={hostB}
-            onChange={(e) => setHostB(e.target.value)}
-            placeholder="Tên Host B"
-            className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-          />
-          <select
-            value={hostAVoice}
-            onChange={(e) => setHostAVoice(e.target.value)}
-            className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-          >
-            {voiceChoices.map((v) => (
-              <option key={`a-${v.value}`} value={v.value}>
-                Giọng Host A: {v.label}
-              </option>
-            ))}
-          </select>
-          <select
-            value={hostBVoice}
-            onChange={(e) => setHostBVoice(e.target.value)}
-            className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-          >
-            {voiceChoices.map((v) => (
-              <option key={`b-${v.value}`} value={v.value}>
-                Giọng Host B: {v.label}
-              </option>
-            ))}
-          </select>
-          <select
-            value={aspectRatio}
-            onChange={(e) => setAspectRatio(e.target.value)}
-            className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-          >
-            <option value="16:9">16:9 YouTube Ngang (Mặc định Podcast)</option>
-            <option value="9:16">9:16 Shorts / TikTok</option>
-            <option value="1:1">1:1 Vuông</option>
-          </select>
-          <select
-            value={waveformStyle}
-            onChange={(e) => setWaveformStyle(e.target.value)}
-            className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2 md:col-span-2"
-          >
-            <option value="spectrum">Phổ tần số AI Spectrum (showfreqs)</option>
-            <option value="bars">Cột tần số Logarit (bars)</option>
-            <option value="cline">Sóng trung tâm mượt (cline)</option>
-            <option value="p2p">Sóng biên độ Đỉnh-Đỉnh (p2p)</option>
-            <option value="line">Đường sóng mảnh (line)</option>
-          </select>
-          <input
-            value={accentColor}
-            onChange={(e) => setAccentColor(e.target.value)}
-            placeholder="#38bdf8"
-            className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2 font-mono"
-          />
-        </div>
-        <textarea
-          required
-          rows={4}
-          value={scriptText}
-          onChange={(e) => setScriptText(e.target.value)}
-          placeholder={"Mỗi dòng là một lượt thoại luân phiên giữa Host A và Host B..."}
-          className="w-full bg-[#182235] border border-slate-700 rounded-lg p-3"
-        />
-        <button
-          type="submit"
-          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold cursor-pointer"
-        >
-          <Plus className="w-4 h-4" /> Tạo Tập Podcast
-        </button>
-      </form>
+      <Card tinted>
+        <form onSubmit={createPodcast} className="space-y-4">
+          <SectionHeading>
+            <Plus className="w-4 h-4 text-[var(--c-icon)]" /> Tạo Tập Podcast Mới
+          </SectionHeading>
 
-      <div className="grid md:grid-cols-2 gap-4">
-        {projects.map((p) => (
-          <div
-            key={p.id}
-            className="bg-[#111827] border border-slate-800 rounded-xl p-4 space-y-3 text-xs"
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <div className="font-semibold text-white text-sm">{p.title}</div>
-                <div className="text-[11px] text-slate-400">
-                  {p.aspect_ratio} • Sóng: {p.waveform_style} • {p.host_a_name} &amp; {p.host_b_name} •{" "}
-                  <span className="text-sky-300">{p.status}</span>
-                </div>
-              </div>
-              <button
-                type="button"
-                disabled={jobRunning && renderingId === p.id}
-                onClick={() => void renderPodcast(p.id)}
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold cursor-pointer disabled:opacity-50"
-              >
-                <Play className="w-3.5 h-3.5" />{" "}
-                {jobRunning && renderingId === p.id ? "Đang dựng..." : "Render"}
-              </button>
-            </div>
-            {p.video_url && (
-              <video
-                controls
-                preload="metadata"
-                src={p.video_url}
-                className="w-full max-h-56 rounded bg-black"
+          <div className="grid md:grid-cols-3 gap-3.5">
+            <div>
+              <FieldLabel htmlFor="pd-title">Tiêu đề tập Podcast *</FieldLabel>
+              <TextInput
+                id="pd-title"
+                required
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="VD: Chuyện Nghề Chế Tác Bạc Thủ Công"
               />
-            )}
-            <SimulationBadge flags={p.simulation_flags} />
+            </div>
+            <div>
+              <FieldLabel htmlFor="pd-ha">Tên Người dẫn A</FieldLabel>
+              <TextInput
+                id="pd-ha"
+                value={hostA}
+                onChange={(e) => setHostA(e.target.value)}
+              />
+            </div>
+            <div>
+              <FieldLabel htmlFor="pd-hb">Tên Người dẫn B</FieldLabel>
+              <TextInput
+                id="pd-hb"
+                value={hostB}
+                onChange={(e) => setHostB(e.target.value)}
+              />
+            </div>
+            <div>
+              <FieldLabel htmlFor="pd-va">Giọng Người dẫn A</FieldLabel>
+              <SelectBox
+                id="pd-va"
+                value={hostAVoice}
+                onChange={(e) => setHostAVoice(e.target.value)}
+              >
+                {voiceChoices.map((v) => (
+                  <option key={`a-${v.value}`} value={v.value}>
+                    {v.label}
+                  </option>
+                ))}
+              </SelectBox>
+            </div>
+            <div>
+              <FieldLabel htmlFor="pd-vb">Giọng Người dẫn B</FieldLabel>
+              <SelectBox
+                id="pd-vb"
+                value={hostBVoice}
+                onChange={(e) => setHostBVoice(e.target.value)}
+              >
+                {voiceChoices.map((v) => (
+                  <option key={`b-${v.value}`} value={v.value}>
+                    {v.label}
+                  </option>
+                ))}
+              </SelectBox>
+            </div>
+            <div>
+              <FieldLabel htmlFor="pd-ratio">Tỷ lệ khung hình</FieldLabel>
+              <SelectBox
+                id="pd-ratio"
+                value={aspectRatio}
+                onChange={(e) => setAspectRatio(e.target.value)}
+              >
+                <option value="16:9">16:9 Ngang (YouTube Podcast)</option>
+                <option value="9:16">9:16 Dọc (Shorts / TikTok)</option>
+                <option value="1:1">1:1 Vuông</option>
+              </SelectBox>
+            </div>
+            <div className="md:col-span-2">
+              <FieldLabel htmlFor="pd-wave">Kiểu hiệu ứng sóng âm</FieldLabel>
+              <SelectBox
+                id="pd-wave"
+                value={waveformStyle}
+                onChange={(e) => setWaveformStyle(e.target.value)}
+              >
+                <option value="spectrum">Phổ tần số chuyển động (Spectrum)</option>
+                <option value="bars">Cột tần số nhịp điệu (Bars)</option>
+                <option value="cline">Sóng trung tâm mượt (Cline)</option>
+                <option value="p2p">Sóng biên độ Đỉnh–Đỉnh (P2P)</option>
+                <option value="line">Đường sóng thanh mảnh (Line)</option>
+              </SelectBox>
+            </div>
+            <div>
+              <FieldLabel htmlFor="pd-color">Màu sóng âm trên video</FieldLabel>
+              <TextInput
+                id="pd-color"
+                value={accentColor}
+                onChange={(e) => setAccentColor(e.target.value)}
+                className="font-mono"
+              />
+            </div>
           </div>
-        ))}
-      </div>
+
+          <div>
+            <FieldLabel htmlFor="pd-script">
+              Kịch bản đối thoại * (mỗi dòng là 1 lượt nói luân phiên A và B)
+            </FieldLabel>
+            <TextareaBox
+              id="pd-script"
+              required
+              rows={4}
+              value={scriptText}
+              onChange={(e) => setScriptText(e.target.value)}
+              placeholder="Chào mừng các bạn quay lại chuyên mục hôm nay..."
+            />
+          </div>
+
+          <Button type="submit">
+            <Plus className="w-4 h-4" /> Tạo Tập Podcast
+          </Button>
+        </form>
+      </Card>
+
+      {projects.length === 0 ? (
+        <EmptyState
+          icon={<Mic className="w-5 h-5" />}
+          title="Chưa có tập Podcast nào"
+          description="Tạo tập Podcast đầu tiên ở biểu mẫu trên để xuất video sóng nhạc."
+        />
+      ) : (
+        <div className="grid md:grid-cols-2 gap-4">
+          {projects.map((p) => (
+            <Card key={p.id} className="space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <div className="text-[15px] font-bold text-[var(--text-primary)]">
+                    #{p.id} — {p.title}
+                  </div>
+                  <div className="mt-0.5 text-[12px] text-[var(--text-muted)]">
+                    {p.aspect_ratio} • Sóng: {p.waveform_style} • {p.host_a_name} &amp;{" "}
+                    {p.host_b_name} •{" "}
+                    <strong className="text-[var(--c-tx)]">{p.status}</strong>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="emerald"
+                  disabled={jobRunning && renderingId === p.id}
+                  onClick={() => void renderPodcast(p.id)}
+                >
+                  <Play className="w-3.5 h-3.5" />{" "}
+                  {jobRunning && renderingId === p.id ? "Đang dựng..." : "Xuất MP4"}
+                </Button>
+              </div>
+              {p.video_url && (
+                <video
+                  controls
+                  preload="metadata"
+                  src={p.video_url}
+                  className="w-full max-h-56 rounded-[9px] bg-black"
+                />
+              )}
+              <SimulationBadge flags={p.simulation_flags} />
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

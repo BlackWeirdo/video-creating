@@ -283,51 +283,19 @@ body {
   border-radius: 999px;
 }
 
-/* =========================================================================
-   5. WAVE-2 LIGHT MODE COMPATIBILITY BRIDGE
-      (Ensures the 16 untouched Wave-2 pages remain crisp in Light Mode)
-   ========================================================================= */
-html:not(.dark) main .bg-\[\#111827\] {
-  background-color: var(--bg-card) !important;
-  box-shadow: var(--shadow-sm);
+/* React Flow (@xyflow/react) Theme Sync */
+.react-flow {
+  --xy-background-color-default: var(--bg-canvas);
+  --xy-node-background-color-default: var(--bg-card);
+  --xy-node-color-default: var(--text-primary);
+  --xy-node-border-default: 1px solid var(--c-bd);
+  --xy-controls-button-background-color-default: var(--bg-elevated);
+  --xy-controls-button-color-default: var(--text-primary);
+  --xy-controls-button-border-color-default: var(--border-subtle);
 }
-html:not(.dark) main .bg-\[\#182235\],
-html:not(.dark) main .bg-\[\#0b0f17\],
-html:not(.dark) main .bg-\[\#090d14\] {
-  background-color: var(--bg-elevated) !important;
-}
-html:not(.dark) main .border-slate-800,
-html:not(.dark) main .border-slate-800\/80,
-html:not(.dark) main .border-slate-700,
-html:not(.dark) main .border-slate-700\/70,
-html:not(.dark) main .border-slate-700\/80 {
-  border-color: var(--border-strong) !important;
-}
-html:not(.dark) main .text-white {
-  color: var(--text-primary) !important;
-}
-html:not(.dark) main .text-slate-100,
-html:not(.dark) main .text-slate-200,
-html:not(.dark) main .text-slate-300 {
-  color: var(--text-secondary) !important;
-}
-html:not(.dark) main .text-slate-400,
-html:not(.dark) main .text-slate-500 {
-  color: var(--text-muted) !important;
-}
-html:not(.dark) main .bg-slate-800,
-html:not(.dark) main .bg-slate-900 {
-  background-color: var(--bg-elevated) !important;
-  color: var(--text-primary) !important;
-}
-html:not(.dark) main .text-sky-300 { color: #0369a1 !important; }
-html:not(.dark) main .text-emerald-300 { color: #065f46 !important; }
-html:not(.dark) main .text-amber-300 { color: #92400e !important; }
-html:not(.dark) main .text-rose-300 { color: #9f1239 !important; }
-html:not(.dark) main .text-purple-300 { color: #5b21b6 !important; }
 
 /* =========================================================================
-   6. REDUCED MOTION ACCESSIBILITY
+   5. REDUCED MOTION ACCESSIBILITY
    ========================================================================= */
 @media (prefers-reduced-motion: reduce) {
   *,

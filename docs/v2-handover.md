@@ -1,8 +1,9 @@
 # Tài liệu Tổng kết Bàn giao Kỹ thuật — Video Creator V2
 
-- **Nhánh bàn giao**: `v2` (phiên bản `2.0.0`, trạng thái cây thư mục sạch, chưa push remote)
+- **Nhánh bàn giao**: `ui-redesign` (phiên bản `2.1.0`, nâng cấp toàn diện UI/UX từ nhánh `v2` `2.0.0`)
 - **Tài liệu đặc tả gốc**: `docs/video-creator-v2-spec.md`
-- **Bộ cài Offline**: `installer/dist/VideoCreatorV2Setup.exe` (**596.1 MB**, SHA-256: `0b8b45c6328049ef56c504fa0c7935e6dea536ca3d91dc34caa9a5c5d3c9622d`)
+- **Bộ cài Offline `2.1.0` (`ui-redesign`)**: `installer/dist/VideoCreatorV2Setup.exe` (**596.7 MB**, SHA-256: `04cc03f90659248f3666619c87ae7808c8000418743867f8956456db9e30d94f`)
+- **Bản sao lưu Bộ cài `2.0.0` (`v2` gốc)**: `installer/dist/VideoCreatorV2Setup_2.0.0_v2.exe` (**596.1 MB**, SHA-256: `0b8b45c6328049ef56c504fa0c7935e6dea536ca3d91dc34caa9a5c5d3c9622d`)
 
 ---
 
@@ -74,8 +75,12 @@ flowchart TD
 - **Các Studio chuyên biệt khác**: `podcast_studio.py`, `novel_studio.py`, `news_studio.py`, `characters.py`, `batch_studio.py`, `editor.py`, `workflow_engine.py`, `lipsync_studio.py`, và gói `autopilot/` (`sources.py`, `rules.py`).
 
 ### 3.3. Tầng API, Giao diện Next.js 15 & Bộ cài
-- **API v1 REST + SSE**: `src/videocreator/api/v1/` (15 file router tách theo miền nghiệp vụ).
-- **Frontend Next.js 15 App Router**: `web-next/src/` (`AppShell.tsx`, `JobProgressBanner.tsx`, `SimulationBadge.tsx`, cấu hình lint `web-next/eslint.config.mjs`).
+- **API v1 REST + SSE**: `src/videocreator/api/v1/` (15 file router tách theo miền nghiệp vụ; `routes_system.py` phát thêm `nav_counts` có cache TTL 5 giây cho huy hiệu menu: `approvals_pending`, `suggestions_new`, `failed_routes`).
+- **Frontend Next.js 15 App Router (UI/UX Redesign trên nhánh `ui-redesign`)**:
+  - **Hệ thống Token & Chủ đề Sáng / Tối / Hệ thống**: `web-next/src/app/globals.css` định nghĩa bộ semantic tokens chuẩn WCAG 2.1 AA (`>= 5.18:1`) kèm 5 màu định danh cụm chức năng (`source` cam, `produce` xanh dương, `adapt` tím, `edit` hồng, `publish` xanh ngọc), phông chữ `Be Vietnam Pro` đóng gói offline (`@fontsource/be-vietnam-pro`), và theme `.react-flow` cho trang Workflow Node.
+  - **AppShell mô-đun & Điều hướng phân cụm**: `web-next/src/config/navigation.ts` + `src/components/shell/{Sidebar,NavItem,WorkspaceSwitcher,CommandPalette,QueueBar}.tsx` + `src/components/AppShell.tsx` (gom 5 cụm đóng/mở được, ghim *Yêu thích*, tự thu gọn thanh icon `68px` dưới `1100px`, bảng lệnh nhanh `Ctrl+K` tìm kiếm bỏ dấu tiếng Việt, thanh trạng thái 1 hàng ngôn ngữ đời thường).
+  - **Bộ UI Primitives & Domain Components**: `src/components/ui/{button,card,badge,form-controls,overlays}.tsx` (dựa trên Radix UI), `src/components/vc/{ThemeProvider,PolicyBadge,PageHeader,StatCard}.tsx`, `JobProgressBanner.tsx`, `SimulationBadge.tsx`.
+  - **Các Studio lớn đã tách mô-đun**: `src/app/localize/{page,useLocalizeProject,types,CreateLocalizeForm,SpeakerVoicePanel,BilingualSegmentsTable}.tsx` và `src/app/settings/{page,types,AppearanceAndWorkerTab,AiKeysPoolTab,LocalModelsManagerTab,BackupRestoreTab}.tsx`.
 - **Đóng gói Windows Offline**: `installer/stage_bundle.ps1`, `installer/videocreator.iss`, `installer/post_install.ps1`, `installer/post_install.cmd`, `installer/launch.vbs`.
 
 ---
@@ -113,9 +118,9 @@ flowchart TD
 - `src/videocreator/autopilot/rules.py` (677 dòng) → tách `crud.py` và `runner.py`.
 - `src/videocreator/api/v1/routes_resources.py` (644 dòng) & `routes_production.py` (568 dòng) → tách theo từng tài nguyên (`workspaces`, `products`, `footage`, `videos`).
 
-### Ưu tiên 2 — Tách Component cho 2 trang Next.js lớn nhất
-- `web-next/src/app/localize/page.tsx` (793 dòng) → tách `CreateLocalizeForm`, `SpeakerVoicePanel`, `BilingualSegmentsTable`, `HardsubBoxPreview`, `VoiceCloneConsentModal`.
-- `web-next/src/app/settings/page.tsx` (684 dòng) → tách `AiKeysPoolTab`, `LocalModelsManagerTab`, `BackupRestoreTab`.
+### Đã hoàn tất trên nhánh `ui-redesign` — Tách Component & Thiết kế lại toàn bộ UI/UX
+- Đã tách nhỏ `web-next/src/app/localize/` (`page.tsx`, `useLocalizeProject.ts`, `types.ts`, `CreateLocalizeForm.tsx`, `SpeakerVoicePanel.tsx`, `BilingualSegmentsTable.tsx`), `web-next/src/app/settings/` (`page.tsx`, `types.ts`, `AppearanceAndWorkerTab.tsx`, `AiKeysPoolTab.tsx`, `LocalModelsManagerTab.tsx`, `BackupRestoreTab.tsx`) và `web-next/src/components/shell/` (`Sidebar.tsx`, `NavItem.tsx`, `WorkspaceSwitcher.tsx`, `CommandPalette.tsx`, `QueueBar.tsx`).
+- Đã chuyển đổi toàn bộ **20/20 trang Next.js** sang hệ semantic tokens Sáng / Tối / Hệ thống (`0` mã màu hex cứng trên toàn bộ `web-next/src/`).
 
 ### Ưu tiên 3 — Dọn tầng UI Jinja2/HTMX cũ (V1) & Nâng cấp Ảnh AI thật
 - Khi chốt chuyển 100% sang Next.js Studio UI, có thể nâng cấp các bài test V1 cũ sang `/api/v1/*` rồi xóa `src/videocreator/api/routes_*.py` (ngoài `v1/`) và `src/videocreator/web/templates/`.

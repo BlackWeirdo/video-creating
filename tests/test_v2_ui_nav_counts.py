@@ -120,21 +120,12 @@ def test_sse_nav_counts_pending_approvals_suggestions_and_failed_routes(tmp_path
         assert refreshed["approvals_pending"] == 3
 
 
-def test_wave1_ui_files_have_no_hardcoded_hex_classes() -> None:
+def test_all_web_next_ui_files_have_no_hardcoded_hex_classes() -> None:
     web_src = REPO_ROOT / "web-next" / "src"
-    targets = [
-        web_src / "components",
-        web_src / "app" / "page.tsx",
-        web_src / "app" / "localize",
-        web_src / "app" / "approval",
-        web_src / "app" / "settings",
-    ]
     hex_class_re = re.compile(r"(?:bg|text|border)-\[#[0-9a-fA-F]{3,8}\]")
     offenders: list[str] = []
-    for t in targets:
-        files = [t] if t.is_file() else sorted(t.rglob("*.ts*"))
-        for f in files:
-            txt = f.read_text(encoding="utf-8")
-            if hex_class_re.search(txt):
-                offenders.append(f.relative_to(REPO_ROOT).as_posix())
-    assert offenders == [], f"Found hardcoded hex Tailwind classes in Wave 1 UI files: {offenders}"
+    for f in sorted(web_src.rglob("*.ts*")):
+        txt = f.read_text(encoding="utf-8")
+        if hex_class_re.search(txt):
+            offenders.append(f.relative_to(REPO_ROOT).as_posix())
+    assert offenders == [], f"Found hardcoded hex Tailwind classes in UI files: {offenders}"

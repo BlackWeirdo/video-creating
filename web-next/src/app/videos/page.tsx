@@ -2,8 +2,15 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Clapperboard, Plus } from "lucide-react";
+import { CheckCircle2, Clapperboard, Plus } from "lucide-react";
+import { toast } from "sonner";
 import { apiFetch, useWorkspace } from "@/lib/api";
+import { PageHeader } from "@/components/vc/PageHeader";
+import { EmptyState } from "@/components/vc/StatCard";
+import { Card, SectionHeading } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { FieldLabel, SelectBox, TextInput } from "@/components/ui/form-controls";
 
 interface ShotOption {
   id: number;
@@ -47,9 +54,15 @@ export default function VideosPage() {
   const load = useCallback(async () => {
     try {
       const [vRes, sRes, stRes] = await Promise.all([
-        apiFetch<{ videos: VideoSummary[] }>(`/api/v1/videos?workspace_id=${activeWorkspaceId}`),
-        apiFetch<{ shots: ShotOption[] }>(`/api/v1/shots?workspace_id=${activeWorkspaceId}`),
-        apiFetch<{ styles: StyleOption[] }>(`/api/v1/styles?workspace_id=${activeWorkspaceId}`),
+        apiFetch<{ videos: VideoSummary[] }>(
+          `/api/v1/videos?workspace_id=${activeWorkspaceId}`
+        ),
+        apiFetch<{ shots: ShotOption[] }>(
+          `/api/v1/shots?workspace_id=${activeWorkspaceId}`
+        ),
+        apiFetch<{ styles: StyleOption[] }>(
+          `/api/v1/styles?workspace_id=${activeWorkspaceId}`
+        ),
       ]);
       setVideos(vRes.videos || []);
       setShots(sRes.shots || []);
@@ -79,7 +92,9 @@ export default function VideosPage() {
     try {
       const shotObj = shots.find((s) => s.id === selectedShotId);
       const startS = shotObj ? shotObj.start_s : 0.0;
-      const durS = shotObj ? Math.max(1.5, Math.min(5.0, shotObj.end_s - shotObj.start_s)) : 3.0;
+      const durS = shotObj
+        ? Math.max(1.5, Math.min(5.0, shotObj.end_s - shotObj.start_s))
+        : 3.0;
       await apiFetch("/api/v1/videos", {
         method: "POST",
         body: JSON.stringify({
@@ -90,134 +105,186 @@ export default function VideosPage() {
           plan: {
             title: title || "Video mới",
             shots: selectedShotId
-              ? [{ shot_id: selectedShotId, start_s: startS, duration_s: durS, text: lineText }]
+              ? [
+                  {
+                    shot_id: selectedShotId,
+                    start_s: startS,
+                    duration_s: durS,
+                    text: lineText,
+                  },
+                ]
               : [],
           },
         }),
       });
       setTitle("");
       setLineText("");
+      toast.success("Đã khởi tạo kịch bản video mới.");
       await load();
     } catch (e2) {
-      setErr(e2 instanceof Error ? e2.message : "Không thể tạo video");
+      setErr(e2 instanceof Error ? e2.message : "Không thể tạo kịch bản video");
     }
   };
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-          <Clapperboard className="w-6 h-6 text-sky-400" /> Sản xuất & Kịch bản Video
-        </h1>
-        <p className="text-xs text-slate-400 mt-1">
-          Lập kế hoạch video, biên tập lời thoại kèm đồng hồ âm tiết, dựng FFmpeg + đổi Style nhanh.
-        </p>
-      </div>
+      <PageHeader
+        icon={<Clapperboard className="w-5 h-5" />}
+        title="Kịch bản & Sản Xuất Video"
+        badges={
+          <Badge tone="cluster" className="tabular-nums">
+            {videos.length} kịch bản
+          </Badge>
+        }
+        description="Lập kịch bản gắn cảnh quay thật, biên tập lời bình khớp hạn mức âm tiết, xuất video chuẩn -14 LUFS và đổi phong cách phụ đề nhanh."
+      />
 
       {err && (
-        <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs rounded-lg px-4 py-2.5">
+        <div
+          role="alert"
+          className="rounded-[11px] border border-[var(--st-rose-bd)] bg-[var(--st-rose-bg)] px-4 py-2.5 text-[13px] text-[var(--st-rose-tx)]"
+        >
           {err}
         </div>
       )}
 
-      <form
-        onSubmit={handleCreate}
-        className="bg-[#111827] border border-slate-800 rounded-xl p-5 space-y-4 text-xs"
-      >
-        <h2 className="text-sm font-semibold text-white flex items-center gap-1.5">
-          <Plus className="w-4 h-4 text-sky-400" /> Lập Plan Video Mới
-        </h2>
-        <div className="grid md:grid-cols-4 gap-3">
-          <input
-            required
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Tiêu đề video..."
-            className="md:col-span-2 bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-          />
-          <select
-            value={styleId}
-            onChange={(e) => setStyleId(e.target.value)}
-            className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-          >
-            {styles.map((st) => (
-              <option key={st.id} value={st.id}>
-                {st.name}
-              </option>
-            ))}
-          </select>
-          <select
-            value={ratio}
-            onChange={(e) => setRatio(e.target.value as "9:16" | "16:9" | "1:1")}
-            className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-          >
-            <option value="9:16">9:16 Dọc</option>
-            <option value="16:9">16:9 Ngang</option>
-            <option value="1:1">1:1 Vuông</option>
-          </select>
-        </div>
-        <div className="grid md:grid-cols-3 gap-3">
-          <select
-            value={selectedShotId}
-            onChange={(e) => setSelectedShotId(Number(e.target.value))}
-            className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-          >
-            <option value={0}>-- Chọn Shot đầu tiên --</option>
-            {shots.map((s) => (
-              <option key={s.id} value={s.id}>
-                Shot #{s.id}: {s.description || `${s.start_s}s-${s.end_s}s`}
-              </option>
-            ))}
-          </select>
-          <select
-            value={voiceLang}
-            onChange={(e) => setVoiceLang(e.target.value as "none" | "vi" | "en")}
-            className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-          >
-            <option value="vi">Giọng đọc Tiếng Việt</option>
-            <option value="en">Giọng đọc English</option>
-            <option value="none">Không lồng tiếng (chỉ nhạc/gốc)</option>
-          </select>
-          <input
-            value={lineText}
-            onChange={(e) => setLineText(e.target.value)}
-            placeholder="Lời bình / phụ đề cho cảnh..."
-            className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-          />
-        </div>
-        <button
-          type="submit"
-          className="px-4 py-2 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold cursor-pointer"
-        >
-          Tạo Video Plan
-        </button>
-      </form>
+      <Card tinted>
+        <form onSubmit={handleCreate} className="space-y-4">
+          <SectionHeading>
+            <Plus className="w-4 h-4 text-[var(--c-icon)]" /> Khởi Tạo Kịch Bản Video Mới
+          </SectionHeading>
 
-      <div className="grid md:grid-cols-3 gap-4">
-        {videos.map((v) => (
-          <Link
-            key={v.id}
-            href={`/videos/${v.id}`}
-            className="bg-[#111827] border border-slate-800 hover:border-sky-500/40 rounded-xl p-4 space-y-2.5 transition-colors block text-xs"
-          >
-            <div className="flex items-center justify-between">
-              <span className="font-semibold text-white truncate">
-                #{v.id} — {v.plan?.title || "Chưa đặt tiêu đề"}
-              </span>
-              <span className="px-2 py-0.5 rounded bg-slate-800 text-sky-300 text-[10px]">
-                {v.status}
-              </span>
+          <div className="grid md:grid-cols-4 gap-3.5">
+            <div className="md:col-span-2">
+              <FieldLabel htmlFor="vid-title">Tiêu đề video *</FieldLabel>
+              <TextInput
+                id="vid-title"
+                required
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="VD: 3 lý do nên chọn bạc S925 phủ bạch kim..."
+              />
             </div>
-            <div className="text-slate-400">
-              Style: <strong className="text-slate-200">{v.style_preset}</strong> •{" "}
-              {v.aspect_ratio} • {v.duration_s ? `${v.duration_s.toFixed(1)}s` : "Chưa dựng"}
+            <div>
+              <FieldLabel htmlFor="vid-style">Phong cách phụ đề</FieldLabel>
+              <SelectBox
+                id="vid-style"
+                value={styleId}
+                onChange={(e) => setStyleId(e.target.value)}
+              >
+                {styles.map((st) => (
+                  <option key={st.id} value={st.id}>
+                    {st.name}
+                  </option>
+                ))}
+              </SelectBox>
             </div>
-            {v.qc?.passed === true && (
-              <div className="text-[11px] text-emerald-400">✓ QC FFmpeg Đạt chuẩn</div>
-            )}
-          </Link>
-        ))}
-      </div>
+            <div>
+              <FieldLabel htmlFor="vid-ratio">Tỷ lệ khung hình</FieldLabel>
+              <SelectBox
+                id="vid-ratio"
+                value={ratio}
+                onChange={(e) =>
+                  setRatio(e.target.value as "9:16" | "16:9" | "1:1")
+                }
+              >
+                <option value="9:16">9:16 Dọc (Shorts / Reels)</option>
+                <option value="16:9">16:9 Ngang (YouTube)</option>
+                <option value="1:1">1:1 Vuông</option>
+              </SelectBox>
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-3.5">
+            <div>
+              <FieldLabel htmlFor="vid-shot">Cảnh mở đầu (Shot)</FieldLabel>
+              <SelectBox
+                id="vid-shot"
+                value={selectedShotId}
+                onChange={(e) => setSelectedShotId(Number(e.target.value))}
+              >
+                <option value={0}>-- Chọn cảnh quay đầu tiên --</option>
+                {shots.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    Shot #{s.id}: {s.description || `${s.start_s}s–${s.end_s}s`}
+                  </option>
+                ))}
+              </SelectBox>
+            </div>
+            <div>
+              <FieldLabel htmlFor="vid-voice">Ngôn ngữ giọng đọc</FieldLabel>
+              <SelectBox
+                id="vid-voice"
+                value={voiceLang}
+                onChange={(e) =>
+                  setVoiceLang(e.target.value as "none" | "vi" | "en")
+                }
+              >
+                <option value="vi">Giọng đọc Tiếng Việt</option>
+                <option value="en">Giọng đọc Tiếng Anh</option>
+                <option value="none">Không lồng tiếng (chỉ nhạc nền)</option>
+              </SelectBox>
+            </div>
+            <div>
+              <FieldLabel htmlFor="vid-line">Lời bình / phụ đề mở đầu</FieldLabel>
+              <TextInput
+                id="vid-line"
+                value={lineText}
+                onChange={(e) => setLineText(e.target.value)}
+                placeholder="Nhập câu dẫn mở đầu..."
+              />
+            </div>
+          </div>
+
+          <Button type="submit">Tạo Kịch Bản Video</Button>
+        </form>
+      </Card>
+
+      {videos.length === 0 ? (
+        <EmptyState
+          icon={<Clapperboard className="w-5 h-5" />}
+          title="Chưa có kịch bản video nào"
+          description="Điền biểu mẫu phía trên để tạo kịch bản đầu tiên cho Workspace này."
+        />
+      ) : (
+        <div className="grid md:grid-cols-3 gap-4">
+          {videos.map((v) => (
+            <Link key={v.id} href={`/videos/${v.id}`} className="block group">
+              <Card className="h-full space-y-2.5 group-hover:border-[var(--c-bd)] transition-all">
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-[14px] font-bold text-[var(--text-primary)] line-clamp-1">
+                    #{v.id} — {v.plan?.title || "Chưa đặt tiêu đề"}
+                  </span>
+                  <Badge
+                    tone={
+                      v.status === "approved" || v.status === "posted"
+                        ? "emerald"
+                        : v.status === "failed"
+                          ? "rose"
+                          : "sky"
+                    }
+                  >
+                    {v.status}
+                  </Badge>
+                </div>
+                <div className="text-[12.5px] text-[var(--text-muted)] tabular-nums">
+                  Phong cách:{" "}
+                  <strong className="text-[var(--text-secondary)]">
+                    {v.style_preset}
+                  </strong>{" "}
+                  • {v.aspect_ratio} •{" "}
+                  {v.duration_s ? `${v.duration_s.toFixed(1)}s` : "Chưa xuất"}
+                </div>
+                {v.qc?.passed === true && (
+                  <div className="inline-flex items-center gap-1 text-[12px] font-semibold text-[var(--st-emerald-tx)]">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Kiểm định kỹ thuật đạt chuẩn
+                  </div>
+                )}
+              </Card>
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

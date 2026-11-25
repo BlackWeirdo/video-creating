@@ -2,7 +2,15 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import { FolderKanban, Plus, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { apiFetch, useWorkspace } from "@/lib/api";
+import { PageHeader } from "@/components/vc/PageHeader";
+import { EmptyState } from "@/components/vc/StatCard";
+import { Card, SectionHeading } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { FieldLabel, TextareaBox, TextInput } from "@/components/ui/form-controls";
+import { ModalDialog } from "@/components/ui/overlays";
 
 interface Product {
   id: number;
@@ -12,6 +20,14 @@ interface Product {
   facts: Record<string, string>;
   hidden: number;
 }
+
+const FACT_LABELS: Record<string, string> = {
+  stone: "Đá / Chi tiết",
+  size: "Kích thước",
+  craftsmanship: "Chế tác",
+  price: "Giá bán",
+  notes: "Ghi chú",
+};
 
 export default function ProductsPage() {
   const { activeWorkspaceId } = useWorkspace();
@@ -23,6 +39,7 @@ export default function ProductsPage() {
   const [craftsmanship, setCraftsmanship] = useState("");
   const [price, setPrice] = useState("");
   const [notes, setNotes] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
   const [err, setErr] = useState("");
 
   const load = useCallback(async () => {
@@ -33,7 +50,7 @@ export default function ProductsPage() {
       setProducts(data.products || []);
       setErr("");
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Lỗi tải sản phẩm");
+      setErr(e instanceof Error ? e.message : "Lỗi tải danh mục sản phẩm");
     }
   }, [activeWorkspaceId]);
 
@@ -61,127 +78,202 @@ export default function ProductsPage() {
       setCraftsmanship("");
       setPrice("");
       setNotes("");
+      toast.success("Đã lưu sản phẩm & bộ dữ kiện chuẩn.");
       await load();
     } catch (e2) {
       setErr(e2 instanceof Error ? e2.message : "Không thể thêm sản phẩm");
     }
   };
 
-  const handleDelete = async (id: number) => {
-    await apiFetch(`/api/v1/products/${id}`, { method: "DELETE" });
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    await apiFetch(`/api/v1/products/${deleteTarget.id}`, { method: "DELETE" });
+    toast.success(`Đã ẩn sản phẩm "${deleteTarget.name}".`);
+    setDeleteTarget(null);
     await load();
   };
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-          <FolderKanban className="w-6 h-6 text-emerald-400" /> Sản phẩm & Dữ kiện Chuẩn
-        </h1>
-        <p className="text-xs text-slate-400 mt-1">
-          Mọi thông số vật liệu, kích thước, giá bán tại đây là nguồn chuẩn để kiểm duyệt lời thoại AI (`BR-PRD-04`).
-        </p>
-      </div>
+      <PageHeader
+        icon={<FolderKanban className="w-5 h-5" />}
+        title="Sản phẩm & Bộ Dữ Kiện Xác Thực"
+        badges={
+          <Badge tone="cluster" className="tabular-nums">
+            {products.length} sản phẩm
+          </Badge>
+        }
+        description="Mọi thông số chất liệu, kích thước và giá niêm yết tại đây là nguồn sự thật duy nhất để AI đối chiếu lời thoại, ngăn bịa đặt thông tin."
+      />
 
       {err && (
-        <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs rounded-lg px-4 py-2.5">
+        <div
+          role="alert"
+          className="rounded-[11px] border border-[var(--st-rose-bd)] bg-[var(--st-rose-bg)] px-4 py-2.5 text-[13px] text-[var(--st-rose-tx)]"
+        >
           {err}
         </div>
       )}
 
-      <form
-        onSubmit={handleCreate}
-        className="bg-[#111827] border border-slate-800 rounded-xl p-5 space-y-4"
-      >
-        <h2 className="text-sm font-semibold text-white flex items-center gap-1.5">
-          <Plus className="w-4 h-4 text-sky-400" /> Thêm Sản Phẩm Mới
-        </h2>
-        <div className="grid md:grid-cols-2 gap-3 text-xs">
-          <input
-            required
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Tên sản phẩm *"
-            className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-          />
-          <input
-            value={material}
-            onChange={(e) => setMaterial(e.target.value)}
-            placeholder="Chất liệu (VD: Bạc S925 nguyên khối)"
-            className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-          />
-          <input
-            value={stone}
-            onChange={(e) => setStone(e.target.value)}
-            placeholder="Đá / Chi tiết đính"
-            className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-          />
-          <input
-            value={size}
-            onChange={(e) => setSize(e.target.value)}
-            placeholder="Kích thước / Trọng lượng"
-            className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-          />
-          <input
-            value={craftsmanship}
-            onChange={(e) => setCraftsmanship(e.target.value)}
-            placeholder="Kỹ thuật chế tác"
-            className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-          />
-          <input
-            value={price}
-            onChange={(e) => setPrice(e.target.value)}
-            placeholder="Giá bán niêm yết"
-            className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-          />
-        </div>
-        <textarea
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          placeholder="Ghi chú xác thực bổ sung..."
-          rows={2}
-          className="w-full bg-[#182235] border border-slate-700 rounded-lg px-3 py-2 text-xs"
-        />
-        <button
-          type="submit"
-          className="px-4 py-2 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold text-xs cursor-pointer"
-        >
-          Lưu Sản phẩm
-        </button>
-      </form>
+      <Card tinted>
+        <form onSubmit={handleCreate} className="space-y-4">
+          <SectionHeading>
+            <Plus className="w-4 h-4 text-[var(--c-icon)]" /> Thêm Sản Phẩm Mới
+          </SectionHeading>
 
-      <div className="grid md:grid-cols-2 gap-4">
-        {products.map((p) => (
-          <div
-            key={p.id}
-            className="bg-[#111827] border border-slate-800 rounded-xl p-4 space-y-2 text-xs"
-          >
-            <div className="flex items-start justify-between">
-              <div>
-                <h3 className="text-sm font-semibold text-white">{p.name}</h3>
-                {p.material && <div className="text-sky-300 mt-0.5">{p.material}</div>}
-              </div>
-              <button
-                onClick={() => void handleDelete(p.id)}
-                className="text-slate-400 hover:text-rose-400 cursor-pointer"
-                title="Xóa / Ẩn sản phẩm"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
+          <div className="grid md:grid-cols-2 gap-3.5">
+            <div>
+              <FieldLabel htmlFor="prd-name">Tên sản phẩm *</FieldLabel>
+              <TextInput
+                id="prd-name"
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="VD: Dây chuyền Bạc Hồ Điệp S925"
+              />
             </div>
-            <div className="grid grid-cols-2 gap-1.5 text-slate-400 pt-1">
-              {Object.entries(p.facts || {}).map(
-                ([k, v]) =>
-                  v && (
-                    <div key={k} className="truncate">
-                      <span className="text-slate-500">{k}:</span> {v}
-                    </div>
-                  )
-              )}
+            <div>
+              <FieldLabel htmlFor="prd-mat">Chất liệu chính</FieldLabel>
+              <TextInput
+                id="prd-mat"
+                value={material}
+                onChange={(e) => setMaterial(e.target.value)}
+                placeholder="VD: Bạc S925 nguyên khối phủ bạch kim"
+              />
+            </div>
+            <div>
+              <FieldLabel htmlFor="prd-stone">Đá / Chi tiết đính kèm</FieldLabel>
+              <TextInput
+                id="prd-stone"
+                value={stone}
+                onChange={(e) => setStone(e.target.value)}
+                placeholder="VD: Đá CZ 5A giác cắt kim cương"
+              />
+            </div>
+            <div>
+              <FieldLabel htmlFor="prd-size">Kích thước / Trọng lượng</FieldLabel>
+              <TextInput
+                id="prd-size"
+                value={size}
+                onChange={(e) => setSize(e.target.value)}
+                placeholder="VD: Dây 40+5cm • 3.8g"
+              />
+            </div>
+            <div>
+              <FieldLabel htmlFor="prd-craft">Kỹ thuật chế tác</FieldLabel>
+              <TextInput
+                id="prd-craft"
+                value={craftsmanship}
+                onChange={(e) => setCraftsmanship(e.target.value)}
+                placeholder="VD: Đánh bóng gương thủ công"
+              />
+            </div>
+            <div>
+              <FieldLabel htmlFor="prd-price">Giá bán niêm yết</FieldLabel>
+              <TextInput
+                id="prd-price"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                placeholder="VD: 389.000đ"
+              />
             </div>
           </div>
-        ))}
-      </div>
+
+          <div>
+            <FieldLabel htmlFor="prd-notes">
+              Ghi chú bảo hành &amp; cam kết được phép nhắc trong video
+            </FieldLabel>
+            <TextareaBox
+              id="prd-notes"
+              rows={2}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="VD: Bảo hành làm sáng trọn đời, đổi trả 7 ngày..."
+            />
+          </div>
+
+          <Button type="submit">Lưu Sản Phẩm</Button>
+        </form>
+      </Card>
+
+      {products.length === 0 ? (
+        <EmptyState
+          icon={<FolderKanban className="w-5 h-5" />}
+          title="Chưa có sản phẩm nào trong Workspace"
+          description="Khai báo ít nhất 1 sản phẩm để AI viết kịch bản đúng thông số thật."
+        />
+      ) : (
+        <div className="grid md:grid-cols-2 gap-4">
+          {products.map((p) => (
+            <Card key={p.id} className="space-y-2.5">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <h3 className="text-[15px] font-bold text-[var(--text-primary)]">
+                    {p.name}
+                  </h3>
+                  {p.material && (
+                    <Badge tone="cluster" className="mt-1">
+                      {p.material}
+                    </Badge>
+                  )}
+                </div>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  aria-label={`Xóa sản phẩm ${p.name}`}
+                  onClick={() => setDeleteTarget(p)}
+                >
+                  <Trash2 className="w-4 h-4 text-rose-400" />
+                </Button>
+              </div>
+              <div className="grid grid-cols-2 gap-2 pt-1 text-[12.5px]">
+                {Object.entries(p.facts || {}).map(
+                  ([k, v]) =>
+                    v && (
+                      <div key={k} className="truncate text-[var(--text-secondary)]">
+                        <span className="text-[var(--text-muted)]">
+                          {FACT_LABELS[k] || k}:{" "}
+                        </span>
+                        {v}
+                      </div>
+                    )
+                )}
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <ModalDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(o) => {
+          if (!o) setDeleteTarget(null);
+        }}
+        title="Ẩn sản phẩm khỏi danh mục"
+        description={
+          deleteTarget
+            ? `Bạn có chắc muốn ẩn sản phẩm "${deleteTarget.name}" khỏi Workspace hiện tại không?`
+            : ""
+        }
+      >
+        <div className="flex justify-end gap-2 pt-2">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => setDeleteTarget(null)}
+          >
+            Hủy
+          </Button>
+          <Button
+            type="button"
+            variant="danger"
+            onClick={() => void confirmDelete()}
+          >
+            Ẩn sản phẩm
+          </Button>
+        </div>
+      </ModalDialog>
     </div>
   );
 }

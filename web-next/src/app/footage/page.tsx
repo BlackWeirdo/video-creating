@@ -1,8 +1,15 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
-import { Film, Save, Upload } from "lucide-react";
+import { Film, FolderInput, Save, Upload } from "lucide-react";
+import { toast } from "sonner";
 import { apiFetch, useWorkspace } from "@/lib/api";
+import { PageHeader } from "@/components/vc/PageHeader";
+import { EmptyState } from "@/components/vc/StatCard";
+import { Card, SectionHeading } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { FieldLabel, SwitchToggle, TextInput } from "@/components/ui/form-controls";
 
 interface FootageItem {
   id: number;
@@ -44,8 +51,12 @@ export default function FootagePage() {
   const load = useCallback(async () => {
     try {
       const [fRes, sRes] = await Promise.all([
-        apiFetch<{ footage: FootageItem[] }>(`/api/v1/footage?workspace_id=${activeWorkspaceId}`),
-        apiFetch<{ shots: ShotItem[] }>(`/api/v1/shots?workspace_id=${activeWorkspaceId}`),
+        apiFetch<{ footage: FootageItem[] }>(
+          `/api/v1/footage?workspace_id=${activeWorkspaceId}`
+        ),
+        apiFetch<{ shots: ShotItem[] }>(
+          `/api/v1/shots?workspace_id=${activeWorkspaceId}`
+        ),
       ]);
       setFootage(fRes.footage || []);
       setShots(sRes.shots || []);
@@ -56,7 +67,7 @@ export default function FootagePage() {
       setFocusMap(fm);
       setErr("");
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Lỗi tải footage/shots");
+      setErr(e instanceof Error ? e.message : "Lỗi tải kho Footage & Shot");
     }
   }, [activeWorkspaceId]);
 
@@ -77,10 +88,11 @@ export default function FootagePage() {
       fd.append("enqueue_analysis", "true");
       await apiFetch("/api/v1/footage/upload", { method: "POST", body: fd });
       setUploadFile(null);
-      setMsg("Đã tải lên footage mới.");
+      setMsg("Đã tải lên video gốc và xếp hàng phân tích cảnh.");
+      toast.success("Đã tải lên video quay thô.");
       await load();
     } catch (e2) {
-      setErr(e2 instanceof Error ? e2.message : "Upload thất bại");
+      setErr(e2 instanceof Error ? e2.message : "Tải lên thất bại");
     }
   };
 
@@ -99,10 +111,11 @@ export default function FootagePage() {
         }),
       });
       setLocalPath("");
-      setMsg("Đã nạp file từ máy cục bộ.");
+      setMsg("Đã nạp tệp video từ ổ đĩa cục bộ.");
+      toast.success("Đã nạp tệp cục bộ.");
       await load();
     } catch (e2) {
-      setErr(e2 instanceof Error ? e2.message : "Import local thất bại");
+      setErr(e2 instanceof Error ? e2.message : "Nạp tệp cục bộ thất bại");
     }
   };
 
@@ -111,151 +124,204 @@ export default function FootagePage() {
       method: "PATCH",
       body: JSON.stringify({ focus_x: focusMap[shotId] ?? 0.5 }),
     });
-    setMsg(`Đã lưu focus_x cho Shot #${shotId}.`);
+    const m = `Đã lưu tâm khung dọc cho Shot #${shotId}.`;
+    setMsg(m);
+    toast.success(m);
     await load();
   };
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-          <Film className="w-6 h-6 text-sky-400" /> Footage & Kho Shot Cắt Cảnh
-        </h1>
-        <p className="text-xs text-slate-400 mt-1">
-          Nạp video quay thô thật của thương hiệu và tinh chỉnh tọa độ tâm `focus_x` khi dựng khung dọc `9:16`.
-        </p>
-      </div>
+      <PageHeader
+        icon={<Film className="w-5 h-5" />}
+        title="Kho Footage Quay Thật & Thư Viện Shot"
+        badges={
+          <Badge tone="cluster" className="tabular-nums">
+            {footage.length} video gốc • {shots.length} cảnh cắt
+          </Badge>
+        }
+        description="Nạp video quay thô thực tế của thương hiệu để AI tự tách cảnh (Shot) và tinh chỉnh tâm khung ngang sang dọc 9:16."
+      />
 
       {msg && (
-        <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs rounded-lg px-4 py-2.5">
+        <div
+          role="status"
+          className="rounded-[11px] border border-[var(--st-emerald-bd)] bg-[var(--st-emerald-bg)] px-4 py-2.5 text-[13px] text-[var(--st-emerald-tx)]"
+        >
           {msg}
         </div>
       )}
       {err && (
-        <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs rounded-lg px-4 py-2.5">
+        <div
+          role="alert"
+          className="rounded-[11px] border border-[var(--st-rose-bd)] bg-[var(--st-rose-bg)] px-4 py-2.5 text-[13px] text-[var(--st-rose-tx)]"
+        >
           {err}
         </div>
       )}
 
       <div className="grid md:grid-cols-2 gap-4">
-        <form
-          onSubmit={handleUpload}
-          className="bg-[#111827] border border-slate-800 rounded-xl p-4 space-y-3 text-xs"
-        >
-          <h2 className="font-semibold text-sm text-white flex items-center gap-1.5">
-            <Upload className="w-4 h-4 text-sky-400" /> Tải lên Video Quay Thô
-          </h2>
-          <input
-            type="file"
-            accept=".mp4,.mov,.mkv,.webm"
-            onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
-            className="w-full bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-          />
-          <label className="flex items-center gap-2 text-slate-300">
-            <input
-              type="checkbox"
-              checked={noProduct}
-              onChange={(e) => setNoProduct(e.target.checked)}
-            />
-            Cảnh B-roll / quy trình (không gắn sản phẩm cụ thể)
-          </label>
-          <button
-            type="submit"
-            disabled={!uploadFile}
-            className="px-4 py-2 rounded-lg bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-slate-950 font-semibold cursor-pointer"
-          >
-            Tải lên & Phân tích Shot
-          </button>
-        </form>
-
-        <form
-          onSubmit={handleImportLocal}
-          className="bg-[#111827] border border-slate-800 rounded-xl p-4 space-y-3 text-xs"
-        >
-          <h2 className="font-semibold text-sm text-white">Nạp Đường Dẫn Cục Bộ</h2>
-          <input
-            required
-            value={localPath}
-            onChange={(e) => setLocalPath(e.target.value)}
-            placeholder="C:\Videos\clip_san_pham.mp4"
-            className="w-full bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-          />
-          <button
-            type="submit"
-            className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 font-medium cursor-pointer"
-          >
-            Import Local File
-          </button>
-        </form>
-      </div>
-
-      {/* Footage Grid */}
-      <div className="bg-[#111827] border border-slate-800 rounded-xl p-4 space-y-3">
-        <h2 className="text-sm font-semibold text-white">
-          Danh sách Footage ({footage.length})
-        </h2>
-        <div className="grid md:grid-cols-3 gap-3 text-xs">
-          {footage.map((f) => (
-            <div key={f.id} className="bg-[#182235] border border-slate-700/70 rounded-lg p-3 space-y-2">
-              {f.media_url && (
-                <video
-                  src={f.media_url}
-                  controls
-                  className="w-full h-36 object-cover rounded bg-black"
-                />
-              )}
-              <div className="flex justify-between text-slate-300">
-                <span>Footage #{f.id}</span>
-                <span>{f.duration_s.toFixed(1)}s • {f.orientation}</span>
-              </div>
-              <div className="text-[11px] text-slate-400">
-                Trạng thái: {f.status} ({f.width}x{f.height})
-              </div>
+        <Card tinted>
+          <form onSubmit={handleUpload} className="space-y-3.5">
+            <SectionHeading>
+              <Upload className="w-4 h-4 text-[var(--c-icon)]" /> Tải lên Video Quay Thô
+            </SectionHeading>
+            <div>
+              <FieldLabel htmlFor="ft-file">Chọn tệp video (.mp4, .mov, .mkv)</FieldLabel>
+              <input
+                id="ft-file"
+                type="file"
+                accept=".mp4,.mov,.mkv,.webm"
+                onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                className="block w-full rounded-[8px] border border-[var(--border-strong)] bg-[var(--bg-input)] px-3 py-2 text-[13px] text-[var(--text-secondary)] file:mr-3 file:rounded-md file:border file:border-[var(--border-subtle)] file:bg-[var(--bg-elevated)] file:px-3 file:py-1 file:text-[12px] file:font-semibold file:text-[var(--text-primary)] file:cursor-pointer"
+              />
             </div>
-          ))}
-        </div>
+
+            <div className="flex items-center gap-2.5">
+              <SwitchToggle
+                id="ft-broll"
+                checked={noProduct}
+                onCheckedChange={setNoProduct}
+              />
+              <label
+                htmlFor="ft-broll"
+                className="text-[13px] text-[var(--text-secondary)] cursor-pointer"
+              >
+                Cảnh hậu trường / quy trình (không gắn sản phẩm cố định)
+              </label>
+            </div>
+
+            <Button type="submit" disabled={!uploadFile}>
+              Tải lên &amp; Phân tích Cảnh
+            </Button>
+          </form>
+        </Card>
+
+        <Card>
+          <form onSubmit={handleImportLocal} className="space-y-3.5">
+            <SectionHeading>
+              <FolderInput className="w-4 h-4 text-[var(--c-icon)]" /> Nạp Đường Dẫn Ổ Đĩa Cục Bộ
+            </SectionHeading>
+            <div>
+              <FieldLabel htmlFor="ft-local-path">
+                Đường dẫn tuyệt đối tới tệp trên máy *
+              </FieldLabel>
+              <TextInput
+                id="ft-local-path"
+                required
+                value={localPath}
+                onChange={(e) => setLocalPath(e.target.value)}
+                placeholder="VD: D:\Footage\quay_san_pham_01.mp4"
+              />
+            </div>
+            <Button type="submit" variant="secondary">
+              Nạp Tệp Cục Bộ
+            </Button>
+          </form>
+        </Card>
       </div>
 
-      {/* Shots Library */}
-      <div className="bg-[#111827] border border-slate-800 rounded-xl p-4 space-y-3">
-        <h2 className="text-sm font-semibold text-white">Kho Shot ({shots.length})</h2>
-        <div className="grid md:grid-cols-2 gap-3 text-xs">
-          {shots.map((s) => (
-            <div key={s.id} className="bg-[#182235] border border-slate-700/70 rounded-lg p-3 space-y-2">
-              <div className="flex justify-between font-medium text-white">
-                <span>
-                  Shot #{s.id} ({s.start_s.toFixed(1)}s–{s.end_s.toFixed(1)}s)
-                </span>
-                <span className="text-amber-300">★ {s.quality}/5</span>
+      <Card className="space-y-3.5">
+        <SectionHeading className="tabular-nums">
+          Danh sách Video Gốc ({footage.length})
+        </SectionHeading>
+        {footage.length === 0 ? (
+          <EmptyState
+            icon={<Film className="w-5 h-5" />}
+            title="Chưa có video quay thô nào"
+            description="Tải lên các đoạn quay sản phẩm thật để hệ thống tự cắt thành kho Shot."
+          />
+        ) : (
+          <div className="grid md:grid-cols-3 gap-3.5">
+            {footage.map((f) => (
+              <div
+                key={f.id}
+                className="rounded-[12px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3 space-y-2"
+              >
+                {f.media_url && (
+                  <div className="aspect-video w-full overflow-hidden rounded-[8px] bg-black">
+                    <video
+                      src={f.media_url}
+                      controls
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                )}
+                <div className="flex items-center justify-between text-[13px] font-semibold text-[var(--text-primary)] tabular-nums">
+                  <span>Footage #{f.id}</span>
+                  <Badge tone="neutral">
+                    {f.duration_s.toFixed(1)}s • {f.orientation}
+                  </Badge>
+                </div>
+                <div className="text-[12px] text-[var(--text-muted)] tabular-nums">
+                  Trạng thái: {f.status} ({f.width}×{f.height})
+                </div>
               </div>
-              <div className="text-slate-300">{s.description || "Chưa có mô tả"}</div>
-              <div className="flex items-center gap-3 pt-1">
-                <label className="text-[11px] text-slate-400 shrink-0">
-                  Focus X ({(focusMap[s.id] ?? 0.5).toFixed(2)}):
-                </label>
-                <input
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.05}
-                  value={focusMap[s.id] ?? 0.5}
-                  onChange={(e) =>
-                    setFocusMap((prev) => ({ ...prev, [s.id]: Number(e.target.value) }))
-                  }
-                  className="flex-1"
-                />
-                <button
-                  type="button"
-                  onClick={() => void saveFocus(s.id)}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30 cursor-pointer"
-                >
-                  <Save className="w-3 h-3" /> Lưu
-                </button>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      <Card className="space-y-3.5">
+        <SectionHeading className="tabular-nums">
+          Kho Cảnh Cắt Shot ({shots.length})
+        </SectionHeading>
+        {shots.length === 0 ? (
+          <EmptyState title="Chưa có cảnh cắt Shot nào" />
+        ) : (
+          <div className="grid md:grid-cols-2 gap-3.5">
+            {shots.map((s) => (
+              <div
+                key={s.id}
+                className="rounded-[12px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3.5 space-y-2.5"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <strong className="text-[13.5px] text-[var(--text-primary)] tabular-nums">
+                    Shot #{s.id} ({s.start_s.toFixed(1)}s – {s.end_s.toFixed(1)}s)
+                  </strong>
+                  <Badge tone="amber" className="tabular-nums">
+                    Chất lượng {s.quality}/5
+                  </Badge>
+                </div>
+                <div className="text-[13px] text-[var(--text-secondary)]">
+                  {s.description || "Chưa có mô tả cảnh"}
+                </div>
+                <div className="flex items-center gap-3 pt-1">
+                  <label
+                    htmlFor={`focus-shot-${s.id}`}
+                    className="text-[12px] text-[var(--text-muted)] shrink-0 tabular-nums"
+                  >
+                    Tâm X ({(focusMap[s.id] ?? 0.5).toFixed(2)}):
+                  </label>
+                  <input
+                    id={`focus-shot-${s.id}`}
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    value={focusMap[s.id] ?? 0.5}
+                    onChange={(e) =>
+                      setFocusMap((prev) => ({
+                        ...prev,
+                        [s.id]: Number(e.target.value),
+                      }))
+                    }
+                    className="flex-1 accent-[var(--c-solid)]"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => void saveFocus(s.id)}
+                  >
+                    <Save className="w-3.5 h-3.5" /> Lưu
+                  </Button>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      </div>
+            ))}
+          </div>
+        )}
+      </Card>
     </div>
   );
 }

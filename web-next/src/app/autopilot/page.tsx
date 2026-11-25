@@ -1,8 +1,20 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
-import { Bot, Play, Trash2 } from "lucide-react";
+import { Bot, Play, Plus, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { apiFetch, useWorkspace } from "@/lib/api";
+import { PageHeader } from "@/components/vc/PageHeader";
+import { EmptyState } from "@/components/vc/StatCard";
+import { Card, SectionHeading } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  FieldLabel,
+  SelectBox,
+  SwitchToggle,
+  TextInput,
+} from "@/components/ui/form-controls";
 
 interface AutopilotRule {
   id: number;
@@ -35,7 +47,8 @@ export default function AutopilotPage() {
   const [runs, setRuns] = useState<AutopilotRun[]>([]);
 
   const [name, setName] = useState("");
-  const [sourceMode, setSourceMode] = useState<"suggestions" | "products_ab" | "rss_feed" | "localize_trends">("products_ab");
+  const [sourceMode, setSourceMode] =
+    useState<AutopilotRule["source_mode"]>("products_ab");
   const [feedUrl, setFeedUrl] = useState("");
   const [dailyCap, setDailyCap] = useState(3);
   const [minScore, setMinScore] = useState(8.0);
@@ -56,7 +69,7 @@ export default function AutopilotPage() {
       setRuns(runRes.runs || []);
       setErr("");
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Lỗi tải Autopilot");
+      setErr(e instanceof Error ? e.message : "Lỗi tải Kênh tự động");
     }
   }, [activeWorkspaceId]);
 
@@ -82,19 +95,25 @@ export default function AutopilotPage() {
       });
       setName("");
       setFeedUrl("");
-      setMsg("Đã thêm quy tắc Kênh Autopilot.");
+      setMsg("Đã thêm quy tắc Kênh tự động mới.");
+      toast.success("Đã lưu quy tắc tự động.");
       await load();
     } catch (e2) {
-      setErr(e2 instanceof Error ? e2.message : "Không thể tạo rule");
+      setErr(e2 instanceof Error ? e2.message : "Không thể tạo quy tắc");
     }
   };
 
   const triggerRule = async (id: number) => {
-    const res = await apiFetch<{ job_id: number }>(`/api/v1/autopilot/rules/${id}/trigger`, {
-      method: "POST",
-      body: JSON.stringify({ sync: false, force: true }),
-    });
-    setMsg(`Đã kích hoạt Autopilot Rule #${id} (Job #${res.job_id}).`);
+    const res = await apiFetch<{ job_id: number }>(
+      `/api/v1/autopilot/rules/${id}/trigger`,
+      {
+        method: "POST",
+        body: JSON.stringify({ sync: false, force: true }),
+      }
+    );
+    const m = `Đã kích hoạt quy tắc #${id} (Tác vụ #${res.job_id}).`;
+    setMsg(m);
+    toast.info(m);
   };
 
   const toggleRule = async (r: AutopilotRule) => {
@@ -107,152 +126,201 @@ export default function AutopilotPage() {
 
   const removeRule = async (id: number) => {
     await apiFetch(`/api/v1/autopilot/rules/${id}`, { method: "DELETE" });
+    toast.success("Đã xóa quy tắc tự động.");
     await load();
   };
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-          <Bot className="w-6 h-6 text-emerald-400" /> Kênh Tự Chạy (Channel Autopilot)
-        </h1>
-        <p className="text-xs text-slate-400 mt-1">
-          Tự động lấy bài RSS / Sản phẩm / Xu hướng → Render → QC → Tự xếp lịch nếu đạt điểm ngưỡng &amp; giới hạn daily_cap.
-        </p>
-      </div>
+      <PageHeader
+        icon={<Bot className="w-5 h-5" />}
+        title="Kênh Tự Động Sản Xuất & Lên Lịch (Autopilot)"
+        badges={
+          <Badge tone="cluster" className="tabular-nums">
+            {rules.length} quy tắc • {runs.length} lượt chạy
+          </Badge>
+        }
+        description="Tự động lấy nguồn từ Sản phẩm, Đề xuất xu hướng hoặc RSS → Dựng video → Kiểm định kỹ thuật → Tự xếp lịch đăng khi vượt điểm tối thiểu."
+      />
 
       {msg && (
-        <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs rounded-lg px-4 py-2.5">
+        <div
+          role="status"
+          className="rounded-[11px] border border-[var(--st-emerald-bd)] bg-[var(--st-emerald-bg)] px-4 py-2.5 text-[13px] text-[var(--st-emerald-tx)]"
+        >
           {msg}
         </div>
       )}
       {err && (
-        <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs rounded-lg px-4 py-2.5">
+        <div
+          role="alert"
+          className="rounded-[11px] border border-[var(--st-rose-bd)] bg-[var(--st-rose-bg)] px-4 py-2.5 text-[13px] text-[var(--st-rose-tx)]"
+        >
           {err}
         </div>
       )}
 
-      <form
-        onSubmit={createRule}
-        className="bg-[#111827] border border-slate-800 rounded-xl p-5 space-y-3 text-xs"
-      >
-        <h2 className="text-sm font-semibold text-white">Tạo Quy Tắc Autopilot</h2>
-        <div className="grid md:grid-cols-4 gap-3">
-          <input
-            required
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Tên luồng tự chạy"
-            className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-          />
-          <select
-            value={sourceMode}
-            onChange={(e) => setSourceMode(e.target.value as AutopilotRule["source_mode"])}
-            className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-          >
-            <option value="products_ab">Sản phẩm A/B</option>
-            <option value="suggestions">Đề xuất Xu hướng</option>
-            <option value="rss_feed">Nguồn RSS / Atom Feed</option>
-            <option value="localize_trends">Việt hóa Xu hướng</option>
-          </select>
-          <input
-            type="number"
-            min={1}
-            max={20}
-            value={dailyCap}
-            onChange={(e) => setDailyCap(Number(e.target.value))}
-            placeholder="Giới hạn ngày"
-            className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-          />
-          <input
-            type="number"
-            step="0.1"
-            min={1}
-            max={10}
-            value={minScore}
-            onChange={(e) => setMinScore(Number(e.target.value))}
-            placeholder="Điểm tối thiểu auto-đăng"
-            className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-          />
-        </div>
-        {sourceMode === "rss_feed" && (
-          <input
-            required
-            value={feedUrl}
-            onChange={(e) => setFeedUrl(e.target.value)}
-            placeholder="URL RSS/Atom hoặc đường dẫn file .xml nội bộ..."
-            className="w-full bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-          />
-        )}
-        <button
-          type="submit"
-          className="px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold cursor-pointer"
-        >
-          Lưu Quy Tắc Autopilot
-        </button>
-      </form>
+      <Card tinted>
+        <form onSubmit={createRule} className="space-y-4">
+          <SectionHeading>
+            <Plus className="w-4 h-4 text-[var(--c-icon)]" /> Tạo Quy Tắc Tự Động Mới
+          </SectionHeading>
 
-      <div className="bg-[#111827] border border-slate-800 rounded-xl p-4 space-y-3 text-xs">
-        <h3 className="font-semibold text-white">Danh sách Quy tắc ({rules.length})</h3>
-        {rules.map((r) => (
-          <div
-            key={r.id}
-            className="bg-[#182235] border border-slate-700/70 rounded-lg p-3 flex items-center justify-between gap-3"
-          >
+          <div className="grid md:grid-cols-4 gap-3.5">
             <div>
-              <div className="font-semibold text-white">
-                {r.name}{" "}
-                <span className="text-[11px] text-sky-300 font-normal">
-                  ({r.source_mode} • cap {r.daily_cap}/ngày • min {r.min_quality_score.toFixed(1)})
-                </span>
-              </div>
-              <div className="text-[11px] text-slate-400">
-                Trạng thái cuối: {r.last_status} • Đã sinh: {r.total_generated}
-                {r.last_error ? ` • Lỗi: ${r.last_error}` : ""}
-              </div>
+              <FieldLabel htmlFor="ap-name">Tên luồng tự động *</FieldLabel>
+              <TextInput
+                id="ap-name"
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="VD: Lịch đăng Shorts mỗi sáng"
+              />
             </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={() => void toggleRule(r)}
-                className={`px-2.5 py-1 rounded border cursor-pointer ${
-                  r.enabled
-                    ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
-                    : "bg-slate-800 border-slate-700 text-slate-400"
-                }`}
+            <div>
+              <FieldLabel htmlFor="ap-mode">Nguồn kịch bản</FieldLabel>
+              <SelectBox
+                id="ap-mode"
+                value={sourceMode}
+                onChange={(e) =>
+                  setSourceMode(e.target.value as AutopilotRule["source_mode"])
+                }
               >
-                {r.enabled ? "Đang bật" : "Đã tắt"}
-              </button>
-              <button
-                type="button"
-                onClick={() => void triggerRule(r.id)}
-                className="px-2.5 py-1 rounded bg-sky-500/20 text-sky-300 cursor-pointer"
-              >
-                <Play className="w-3 h-3 inline mr-1" /> Chạy ngay
-              </button>
-              <button
-                type="button"
-                onClick={() => void removeRule(r.id)}
-                className="text-slate-400 hover:text-rose-400 cursor-pointer"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
+                <option value="products_ab">Biến thể Sản phẩm A/B</option>
+                <option value="suggestions">Đề xuất từ Xu hướng</option>
+                <option value="rss_feed">Nguồn tin RSS / Atom</option>
+                <option value="localize_trends">Việt hóa Xu hướng</option>
+              </SelectBox>
+            </div>
+            <div>
+              <FieldLabel htmlFor="ap-cap">Giới hạn video / ngày</FieldLabel>
+              <TextInput
+                id="ap-cap"
+                type="number"
+                min={1}
+                max={20}
+                value={dailyCap}
+                onChange={(e) => setDailyCap(Number(e.target.value))}
+                className="tabular-nums"
+              />
+            </div>
+            <div>
+              <FieldLabel htmlFor="ap-score">Điểm tối thiểu tự đăng</FieldLabel>
+              <TextInput
+                id="ap-score"
+                type="number"
+                step="0.1"
+                min={1}
+                max={10}
+                value={minScore}
+                onChange={(e) => setMinScore(Number(e.target.value))}
+                className="tabular-nums"
+              />
             </div>
           </div>
-        ))}
-      </div>
 
-      <div className="bg-[#111827] border border-slate-800 rounded-xl p-4 space-y-2 text-xs">
-        <h3 className="font-semibold text-white">Nhật ký Chạy Autopilot ({runs.length})</h3>
-        {runs.map((run) => (
-          <div key={run.id} className="flex justify-between py-1.5 border-b border-slate-800/70">
-            <span className="text-slate-300">
-              Rule #{run.rule_id} • {run.source_summary || "—"} ({run.detail})
-            </span>
-            <span className="text-emerald-300">{run.status}</span>
+          {sourceMode === "rss_feed" && (
+            <div>
+              <FieldLabel htmlFor="ap-rss">Địa chỉ nguồn RSS / Atom *</FieldLabel>
+              <TextInput
+                id="ap-rss"
+                required
+                value={feedUrl}
+                onChange={(e) => setFeedUrl(e.target.value)}
+                placeholder="https://..."
+              />
+            </div>
+          )}
+
+          <Button type="submit">Lưu Quy Tắc</Button>
+        </form>
+      </Card>
+
+      <Card className="space-y-3.5">
+        <SectionHeading className="tabular-nums">
+          Danh sách Quy tắc ({rules.length})
+        </SectionHeading>
+        {rules.length === 0 ? (
+          <EmptyState title="Chưa có quy tắc tự động nào" />
+        ) : (
+          <div className="space-y-2.5">
+            {rules.map((r) => (
+              <div
+                key={r.id}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-[11px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3.5"
+              >
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <strong className="text-[14px] text-[var(--text-primary)]">
+                      {r.name}
+                    </strong>
+                    <Badge tone="sky">{r.source_mode}</Badge>
+                    <Badge tone="neutral" className="tabular-nums">
+                      Tối đa {r.daily_cap}/ngày • Điểm ≥ {r.min_quality_score.toFixed(1)}
+                    </Badge>
+                  </div>
+                  <div className="mt-1 text-[12px] text-[var(--text-muted)] tabular-nums">
+                    Trạng thái cuối: {r.last_status} • Đã xuất: {r.total_generated} video
+                    {r.last_error ? ` • Lỗi: ${r.last_error}` : ""}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2.5">
+                  <SwitchToggle
+                    checked={r.enabled}
+                    onCheckedChange={() => void toggleRule(r)}
+                    aria-label={`Bật hoặc tắt quy tắc ${r.name}`}
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => void triggerRule(r.id)}
+                  >
+                    <Play className="w-3.5 h-3.5 text-[var(--c-icon)]" /> Chạy ngay
+                  </Button>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    aria-label={`Xóa quy tắc ${r.name}`}
+                    onClick={() => void removeRule(r.id)}
+                  >
+                    <Trash2 className="w-4 h-4 text-rose-400" />
+                  </Button>
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        )}
+      </Card>
+
+      <Card className="space-y-3">
+        <SectionHeading className="tabular-nums">
+          Nhật ký Chạy Tự Động ({runs.length})
+        </SectionHeading>
+        {runs.length === 0 ? (
+          <p className="text-[13px] text-[var(--text-muted)]">
+            Chưa có lượt chạy tự động nào được ghi nhận.
+          </p>
+        ) : (
+          <div className="divide-y divide-[var(--border-subtle)]">
+            {runs.map((run) => (
+              <div
+                key={run.id}
+                className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-[13px]"
+              >
+                <span className="text-[var(--text-secondary)]">
+                  Quy tắc #{run.rule_id} • {run.source_summary || "—"} ({run.detail})
+                </span>
+                <Badge tone={run.status === "failed" ? "rose" : "emerald"}>
+                  {run.status}
+                </Badge>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
     </div>
   );
 }

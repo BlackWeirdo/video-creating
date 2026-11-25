@@ -2,7 +2,18 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import { Music, Palette, Plus, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { apiFetch, useWorkspace } from "@/lib/api";
+import { PageHeader } from "@/components/vc/PageHeader";
+import { Card, SectionHeading } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  FieldLabel,
+  SelectBox,
+  SwitchToggle,
+  TextInput,
+} from "@/components/ui/form-controls";
 
 interface StylePreset {
   id: string;
@@ -43,14 +54,18 @@ export default function VideoStylePage() {
   const load = useCallback(async () => {
     try {
       const [sRes, aRes] = await Promise.all([
-        apiFetch<{ styles: StylePreset[] }>(`/api/v1/styles?workspace_id=${activeWorkspaceId}`),
-        apiFetch<{ assets: AudioAsset[] }>(`/api/v1/assets?workspace_id=${activeWorkspaceId}`),
+        apiFetch<{ styles: StylePreset[] }>(
+          `/api/v1/styles?workspace_id=${activeWorkspaceId}`
+        ),
+        apiFetch<{ assets: AudioAsset[] }>(
+          `/api/v1/assets?workspace_id=${activeWorkspaceId}`
+        ),
       ]);
       setStyles(sRes.styles || []);
       setAssets(aRes.assets || []);
       setErr("");
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Lỗi tải Style/Audio");
+      setErr(e instanceof Error ? e.message : "Lỗi tải Phong cách & Âm thanh");
     }
   }, [activeWorkspaceId]);
 
@@ -77,14 +92,16 @@ export default function VideoStylePage() {
       setName("");
       setIntroText("");
       setOutroText("");
+      toast.success("Đã lưu mẫu phong cách phụ đề mới.");
       await load();
     } catch (e2) {
-      setErr(e2 instanceof Error ? e2.message : "Không thể tạo Style");
+      setErr(e2 instanceof Error ? e2.message : "Không thể tạo mẫu phong cách");
     }
   };
 
   const handleDeleteStyle = async (id: string) => {
     await apiFetch(`/api/v1/styles/${id}`, { method: "DELETE" });
+    toast.success("Đã xóa mẫu phong cách.");
     await load();
   };
 
@@ -97,173 +114,212 @@ export default function VideoStylePage() {
     fd.append("kind", audioKind);
     await apiFetch("/api/v1/assets/upload", { method: "POST", body: fd });
     setAudioFile(null);
+    toast.success("Đã nạp tệp âm thanh mới.");
     await load();
   };
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-          <Palette className="w-6 h-6 text-purple-400" /> Video Style Engine & Nhạc/SFX
-        </h1>
-        <p className="text-xs text-slate-400 mt-1">
-          6 kiểu phụ đề ASS nhảy chữ, Auto-Ducking nhạc nền `sidechaincompress` và chuẩn hóa `-14 LUFS`.
-        </p>
-      </div>
+      <PageHeader
+        icon={<Palette className="w-5 h-5" />}
+        title="Phong Cách Phụ Đề & Thư Viện Âm Thanh"
+        badges={
+          <Badge tone="cluster" className="tabular-nums">
+            {styles.length} mẫu chữ • {assets.length} tệp âm thanh
+          </Badge>
+        }
+        description="Thiết kế 6 kiểu phụ đề nhảy chữ Karaoke, tự động hạ nhỏ nhạc nền khi có giọng đọc (Auto-Ducking) và chuẩn hóa âm lượng -14 LUFS."
+      />
 
       {err && (
-        <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs rounded-lg px-4 py-2.5">
+        <div
+          role="alert"
+          className="rounded-[11px] border border-[var(--st-rose-bd)] bg-[var(--st-rose-bg)] px-4 py-2.5 text-[13px] text-[var(--st-rose-tx)]"
+        >
           {err}
         </div>
       )}
 
       <div className="grid md:grid-cols-2 gap-4">
-        <form
-          onSubmit={handleCreateStyle}
-          className="bg-[#111827] border border-slate-800 rounded-xl p-5 space-y-3 text-xs"
-        >
-          <h2 className="text-sm font-semibold text-white flex items-center gap-1.5">
-            <Plus className="w-4 h-4 text-sky-400" /> Tạo Style Preset Mới
-          </h2>
-          <input
-            required
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Tên preset (VD: Review Nhanh S925)"
-            className="w-full bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-          />
-          <div className="grid grid-cols-2 gap-3">
-            <select
-              value={subStyle}
-              onChange={(e) => setSubStyle(e.target.value)}
-              className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-            >
-              <option value="karaoke_highlight">Karaoke Highlight (\kf)</option>
-              <option value="tiktok_pop">TikTok Pop Nảy Chữ</option>
-              <option value="box_highlight">Hộp Nền Đậm</option>
-              <option value="neon_glow">Neon Glow Hai Lớp</option>
-              <option value="minimal_bottom">Tối Giản Tinh Tế</option>
-              <option value="bilingual">Song Ngữ Việt - Anh</option>
-            </select>
-            <input
-              type="text"
-              value={highlightColor}
-              onChange={(e) => setHighlightColor(e.target.value)}
-              placeholder="#FFE082"
-              className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <input
-              value={introText}
-              onChange={(e) => setIntroText(e.target.value)}
-              placeholder="Chữ Intro mở đầu (tuỳ chọn)"
-              className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-            />
-            <input
-              value={outroText}
-              onChange={(e) => setOutroText(e.target.value)}
-              placeholder="Chữ Outro kết thúc (tuỳ chọn)"
-              className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-            />
-          </div>
-          <label className="flex items-center gap-2 text-slate-300">
-            <input
-              type="checkbox"
-              checked={ducking}
-              onChange={(e) => setDucking(e.target.checked)}
-            />
-            Bật Auto-Ducking nhạc nền khi có giọng đọc
-          </label>
-          <button
-            type="submit"
-            className="px-4 py-2 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold cursor-pointer"
-          >
-            Lưu Style Preset
-          </button>
-        </form>
+        <Card tinted>
+          <form onSubmit={handleCreateStyle} className="space-y-3.5">
+            <SectionHeading>
+              <Plus className="w-4 h-4 text-[var(--c-icon)]" /> Tạo Mẫu Phong Cách Mới
+            </SectionHeading>
 
-        <form
-          onSubmit={handleUploadAsset}
-          className="bg-[#111827] border border-slate-800 rounded-xl p-5 space-y-3 text-xs"
-        >
-          <h2 className="text-sm font-semibold text-white flex items-center gap-1.5">
-            <Music className="w-4 h-4 text-emerald-400" /> Nạp Nhạc nền & SFX ({assets.length})
-          </h2>
-          <div className="flex gap-2">
-            <select
-              value={audioKind}
-              onChange={(e) => setAudioKind(e.target.value as "music" | "sfx")}
-              className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-            >
-              <option value="music">Nhạc nền (BGM)</option>
-              <option value="sfx">Hiệu ứng (SFX)</option>
-            </select>
-            <input
-              type="file"
-              accept=".mp3,.wav,.m4a,.aac,.ogg,.flac"
-              onChange={(e) => setAudioFile(e.target.files?.[0] || null)}
-              className="flex-1 bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-            />
-            <button
-              type="submit"
-              disabled={!audioFile}
-              className="px-3.5 py-2 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 cursor-pointer"
-            >
-              Tải lên
-            </button>
-          </div>
-          <div className="space-y-1.5 max-h-40 overflow-y-auto pt-1">
-            {assets.map((a) => (
-              <div
-                key={a.id}
-                className="flex items-center justify-between bg-[#182235] rounded px-3 py-1.5"
-              >
-                <span>
-                  <strong className="text-sky-300 uppercase">{a.kind}</strong> • {a.title} (
-                  {a.duration_s.toFixed(1)}s)
-                </span>
-                {a.media_url && <audio controls src={a.media_url} className="h-7 w-40" />}
+            <div>
+              <FieldLabel htmlFor="st-name">Tên mẫu phong cách *</FieldLabel>
+              <TextInput
+                id="st-name"
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="VD: Karaoke Vàng Nổi Bật"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <FieldLabel htmlFor="st-sub">Kiểu hiển thị phụ đề</FieldLabel>
+                <SelectBox
+                  id="st-sub"
+                  value={subStyle}
+                  onChange={(e) => setSubStyle(e.target.value)}
+                >
+                  <option value="karaoke_highlight">Karaoke tô màu từng từ</option>
+                  <option value="tiktok_pop">Chữ nảy nhịp điệu TikTok</option>
+                  <option value="box_highlight">Hộp nền đậm tương phản</option>
+                  <option value="neon_glow">Phát sáng Neon hai lớp</option>
+                  <option value="minimal_bottom">Tối giản tinh tế</option>
+                  <option value="bilingual">Song ngữ hai dòng</option>
+                </SelectBox>
               </div>
-            ))}
-          </div>
-        </form>
+              <div>
+                <FieldLabel htmlFor="st-color">Mã màu nhấn từ khóa</FieldLabel>
+                <TextInput
+                  id="st-color"
+                  value={highlightColor}
+                  onChange={(e) => setHighlightColor(e.target.value)}
+                  className="font-mono"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <FieldLabel htmlFor="st-intro">Chữ mở đầu (tùy chọn)</FieldLabel>
+                <TextInput
+                  id="st-intro"
+                  value={introText}
+                  onChange={(e) => setIntroText(e.target.value)}
+                />
+              </div>
+              <div>
+                <FieldLabel htmlFor="st-outro">Chữ kết thúc (tùy chọn)</FieldLabel>
+                <TextInput
+                  id="st-outro"
+                  value={outroText}
+                  onChange={(e) => setOutroText(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5">
+              <SwitchToggle
+                id="st-duck"
+                checked={ducking}
+                onCheckedChange={setDucking}
+              />
+              <label
+                htmlFor="st-duck"
+                className="text-[13px] text-[var(--text-secondary)] cursor-pointer"
+              >
+                Tự động hạ nhỏ nhạc nền khi có lời thoại
+              </label>
+            </div>
+
+            <Button type="submit">Lưu Mẫu Phong Cách</Button>
+          </form>
+        </Card>
+
+        <Card className="space-y-3.5">
+          <form onSubmit={handleUploadAsset} className="space-y-3.5">
+            <SectionHeading className="tabular-nums">
+              <Music className="w-4 h-4 text-[var(--c-icon)]" /> Nhạc Nền &amp; Hiệu Ứng Âm Thanh ({assets.length})
+            </SectionHeading>
+
+            <div className="grid sm:grid-cols-2 gap-3">
+              <div>
+                <FieldLabel htmlFor="au-kind">Phân loại âm thanh</FieldLabel>
+                <SelectBox
+                  id="au-kind"
+                  value={audioKind}
+                  onChange={(e) =>
+                    setAudioKind(e.target.value as "music" | "sfx")
+                  }
+                >
+                  <option value="music">Nhạc nền (BGM)</option>
+                  <option value="sfx">Hiệu ứng chuyển cảnh (SFX)</option>
+                </SelectBox>
+              </div>
+              <div>
+                <FieldLabel htmlFor="au-file">Chọn tệp âm thanh</FieldLabel>
+                <input
+                  id="au-file"
+                  type="file"
+                  accept=".mp3,.wav,.m4a,.aac,.ogg,.flac"
+                  onChange={(e) => setAudioFile(e.target.files?.[0] || null)}
+                  className="block w-full text-[12.5px] text-[var(--text-secondary)] file:mr-2 file:rounded-md file:border file:border-[var(--border-strong)] file:bg-[var(--bg-elevated)] file:px-2.5 file:py-1.5 file:text-[12px] file:font-semibold file:text-[var(--text-primary)] file:cursor-pointer"
+                />
+              </div>
+            </div>
+
+            <Button type="submit" variant="emerald" disabled={!audioFile}>
+              Tải lên Thư Viện
+            </Button>
+          </form>
+
+          {assets.length > 0 && (
+            <div className="space-y-2 max-h-48 overflow-y-auto pt-1">
+              {assets.map((a) => (
+                <div
+                  key={a.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-[9px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-2 text-[12.5px]"
+                >
+                  <span>
+                    <Badge tone="sky" className="uppercase mr-2 text-[11px]">
+                      {a.kind}
+                    </Badge>
+                    <strong className="text-[var(--text-primary)]">{a.title}</strong>{" "}
+                    <span className="text-[var(--text-muted)] tabular-nums">
+                      ({a.duration_s.toFixed(1)}s)
+                    </span>
+                  </span>
+                  {a.media_url && (
+                    <audio controls src={a.media_url} className="h-7 w-44" />
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
       </div>
 
-      <div className="grid md:grid-cols-3 gap-4 text-xs">
+      <div className="grid md:grid-cols-3 gap-4">
         {styles.map((s) => (
-          <div
-            key={s.id}
-            className="bg-[#111827] border border-slate-800 rounded-xl p-4 space-y-2"
-          >
-            <div className="flex items-center justify-between">
-              <span className="font-semibold text-white">{s.name}</span>
+          <Card key={s.id} className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <strong className="text-[14.5px] text-[var(--text-primary)]">
+                {s.name}
+              </strong>
               {!s.is_builtin ? (
-                <button
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  aria-label={`Xóa mẫu ${s.name}`}
                   onClick={() => void handleDeleteStyle(s.id)}
-                  className="text-slate-400 hover:text-rose-400 cursor-pointer"
                 >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+                  <Trash2 className="w-4 h-4 text-rose-400" />
+                </Button>
               ) : (
-                <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400">
-                  Mặc định
-                </span>
+                <Badge tone="neutral">Có sẵn</Badge>
               )}
             </div>
-            <div className="text-slate-400">
-              Kiểu chữ: <span className="text-sky-300">{s.subtitle_style}</span>
+            <div className="text-[12.5px] text-[var(--text-muted)]">
+              Kiểu chữ:{" "}
+              <strong className="text-[var(--c-tx)]">{s.subtitle_style}</strong>
             </div>
-            <div className="flex items-center gap-2 text-slate-400">
+            <div className="flex items-center gap-2 text-[12.5px] text-[var(--text-muted)]">
               <span>Màu nhấn:</span>
               <span
-                className="inline-block w-3.5 h-3.5 rounded-full border border-white/30"
+                className="inline-block h-4 w-4 rounded-full border border-[var(--border-strong)]"
                 style={{ backgroundColor: s.highlight_color }}
               />
-              <span>{s.highlight_color}</span>
-              <span>• Ducking: {s.ducking_enabled ? "Bật" : "Tắt"}</span>
+              <span className="font-mono">{s.highlight_color}</span>
+              <span>• Hạ nhạc: {s.ducking_enabled ? "Bật" : "Tắt"}</span>
             </div>
-          </div>
+          </Card>
         ))}
       </div>
     </div>

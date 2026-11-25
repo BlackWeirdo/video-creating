@@ -2,8 +2,24 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { CheckCircle2, Cpu, KeyRound, Layers, Rocket, RotateCcw, Sparkles, Volume2 } from "lucide-react";
+import {
+  CheckCircle2,
+  Cpu,
+  Eye,
+  EyeOff,
+  KeyRound,
+  Layers,
+  Rocket,
+  RotateCcw,
+  Volume2,
+} from "lucide-react";
+import { toast } from "sonner";
 import { apiFetch, useWorkspace, Workspace } from "@/lib/api";
+import { PageHeader, PipelineStepItem } from "@/components/vc/PageHeader";
+import { Card, SectionHeading } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { FieldLabel, SelectBox, TextInput } from "@/components/ui/form-controls";
 
 interface OnboardingStatus {
   wizard_completed: boolean;
@@ -36,22 +52,23 @@ export default function WelcomeWizardPage() {
   const [step, setStep] = useState(1);
   const [status, setStatus] = useState<OnboardingStatus | null>(null);
 
-  // Step 2: Workspace setup
   const [wsMode, setWsMode] = useState<"update" | "create">("update");
   const [wsName, setWsName] = useState("");
   const [wsNiche, setWsNiche] = useState("general");
-  const [wsPolicy, setWsPolicy] = useState<Workspace["content_policy"]>("strict_footage");
-  const [wsApproval, setWsApproval] = useState<Workspace["approval_mode"]>("single");
-  const [wsRatio, setWsRatio] = useState<Workspace["default_aspect_ratio"]>("9:16");
+  const [wsPolicy, setWsPolicy] =
+    useState<Workspace["content_policy"]>("strict_footage");
+  const [wsApproval, setWsApproval] =
+    useState<Workspace["approval_mode"]>("single");
+  const [wsRatio, setWsRatio] =
+    useState<Workspace["default_aspect_ratio"]>("9:16");
 
-  // Step 3: AI & Budget
   const [dailyUsd, setDailyUsd] = useState(5.0);
   const [apiFallback, setApiFallback] = useState("ask");
   const [geminiKey, setGeminiKey] = useState("");
   const [anthropicKey, setAnthropicKey] = useState("");
   const [apifyToken, setApifyToken] = useState("");
+  const [showKeys, setShowKeys] = useState(false);
 
-  // Step 4: Voice & Timezone
   const [viProvider, setViProvider] = useState("edge");
   const [viVoice, setViVoice] = useState("vi-VN-HoaiMyNeural-Female");
   const [timezone, setTimezone] = useState("Asia/Ho_Chi_Minh");
@@ -78,7 +95,9 @@ export default function WelcomeWizardPage() {
       setViVoice(s.defaults.vi_voice || "vi-VN-HoaiMyNeural-Female");
       setErr("");
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Không tải được trạng thái Onboarding");
+      setErr(
+        e instanceof Error ? e.message : "Không tải được trạng thái thiết lập"
+      );
     }
   }, []);
 
@@ -96,26 +115,29 @@ export default function WelcomeWizardPage() {
       if (anthropicKey.trim()) secrets.ANTHROPIC_API_KEY = anthropicKey.trim();
       if (apifyToken.trim()) secrets.APIFY_API_TOKEN = apifyToken.trim();
 
-      const res = await apiFetch<OnboardingStatus>("/api/v1/onboarding/complete", {
-        method: "POST",
-        body: JSON.stringify({
-          workspace: {
-            mode: wsMode,
-            id: status?.active_workspace_id || 1,
-            name: wsName,
-            niche: wsNiche,
-            content_policy: wsPolicy,
-            approval_mode: wsApproval,
-            default_aspect_ratio: wsRatio,
-          },
-          daily_usd: dailyUsd,
-          api_fallback: apiFallback,
-          timezone,
-          vi_provider: viProvider,
-          vi_voice: viVoice,
-          secrets,
-        }),
-      });
+      const res = await apiFetch<OnboardingStatus>(
+        "/api/v1/onboarding/complete",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            workspace: {
+              mode: wsMode,
+              id: status?.active_workspace_id || 1,
+              name: wsName,
+              niche: wsNiche,
+              content_policy: wsPolicy,
+              approval_mode: wsApproval,
+              default_aspect_ratio: wsRatio,
+            },
+            daily_usd: dailyUsd,
+            api_fallback: apiFallback,
+            timezone,
+            vi_provider: viProvider,
+            vi_voice: viVoice,
+            secrets,
+          }),
+        }
+      );
       setStatus(res);
       await refreshWorkspaces();
       if (res.active_workspace_id) {
@@ -127,52 +149,78 @@ export default function WelcomeWizardPage() {
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event("vc:onboarding-updated"));
       }
-      setMsg("Hoàn tất thiết lập ban đầu! Bạn có thể bắt đầu sản xuất video ngay.");
+      const ok =
+        "Hoàn tất thiết lập ban đầu! Bạn có thể bắt đầu sản xuất video ngay.";
+      setMsg(ok);
+      toast.success(ok);
     } catch (e2) {
-      setErr(e2 instanceof Error ? e2.message : "Lỗi hoàn tất Welcome Wizard");
+      setErr(e2 instanceof Error ? e2.message : "Lỗi hoàn tất hướng dẫn thiết lập");
     } finally {
       setSaving(false);
     }
   };
 
+  const steps: PipelineStepItem[] = [
+    {
+      title: "1. Kiểm tra Máy",
+      subtitle: "FFmpeg, Node, yt-dlp",
+      state: step > 1 ? "done" : step === 1 ? "active" : "idle",
+    },
+    {
+      title: "2. Thương hiệu",
+      subtitle: "Workspace & Chính sách",
+      state: step > 2 ? "done" : step === 2 ? "active" : "idle",
+    },
+    {
+      title: "3. Khóa AI & Quỹ",
+      subtitle: "Mã hóa cục bộ",
+      state: step > 3 ? "done" : step === 3 ? "active" : "idle",
+    },
+    {
+      title: "4. Giọng & Hoàn tất",
+      subtitle: "Tiếng Việt & Múi giờ",
+      state: status?.wizard_completed && step === 4 ? "done" : step === 4 ? "active" : "idle",
+    },
+  ];
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <Sparkles className="w-6 h-6 text-sky-400" /> Welcome Wizard — Video Creator V2
-          </h1>
-          <p className="text-xs text-slate-400 mt-1">
-            Thiết lập nhanh môi trường máy trạm độc lập, Workspace đầu tiên, AI Keys &amp; Giọng đọc mặc định.
-          </p>
-        </div>
-        {status?.wizard_completed && (
-          <button
-            type="button"
-            onClick={async () => {
-              const s = await apiFetch<OnboardingStatus>("/api/v1/onboarding/reset", {
-                method: "POST",
-              });
-              setStatus(s);
-              if (typeof window !== "undefined") {
-                window.dispatchEvent(new Event("vc:onboarding-updated"));
-              }
-              setStep(1);
-            }}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs cursor-pointer"
-          >
-            <RotateCcw className="w-3.5 h-3.5" /> Chạy lại từ bước 1
-          </button>
-        )}
-      </div>
+      <PageHeader
+        icon={<Rocket className="w-5 h-5" />}
+        title="Hướng Dẫn Thiết Lập Nhanh — Video Creator V2"
+        description="Kiểm tra công cụ dựng phim đóng gói sẵn trên máy, tạo Workspace đầu tiên, mã hóa khóa API và chọn giọng đọc mặc định."
+        steps={steps}
+        actions={
+          status?.wizard_completed ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={async () => {
+                const s = await apiFetch<OnboardingStatus>(
+                  "/api/v1/onboarding/reset",
+                  { method: "POST" }
+                );
+                setStatus(s);
+                if (typeof window !== "undefined") {
+                  window.dispatchEvent(new Event("vc:onboarding-updated"));
+                }
+                setStep(1);
+              }}
+            >
+              <RotateCcw className="w-3.5 h-3.5" /> Chạy lại từ bước 1
+            </Button>
+          ) : undefined
+        }
+      />
 
-      {/* Stepper Header */}
-      <div className="grid grid-cols-4 gap-2 text-xs">
+      {/* Clickable Step Tabs */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
         {[
-          { id: 1, title: "1. Kiểm tra Máy", icon: Cpu },
-          { id: 2, title: "2. Workspace", icon: Layers },
-          { id: 3, title: "3. AI Keys & Quỹ", icon: KeyRound },
-          { id: 4, title: "4. Giọng & Xong", icon: Volume2 },
+          { id: 1, title: "Bước 1: Kiểm tra Máy", icon: Cpu },
+          { id: 2, title: "Bước 2: Workspace", icon: Layers },
+          { id: 3, title: "Bước 3: Khóa AI", icon: KeyRound },
+          { id: 4, title: "Bước 4: Giọng & Xong", icon: Volume2 },
         ].map((item) => {
           const Icon = item.icon;
           const active = step === item.id;
@@ -181,95 +229,111 @@ export default function WelcomeWizardPage() {
               key={item.id}
               type="button"
               onClick={() => setStep(item.id)}
-              className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-left cursor-pointer ${
+              className={`flex items-center gap-2 rounded-[10px] border px-3 py-2.5 text-left text-[13px] cursor-pointer transition-colors ${
                 active
-                  ? "bg-sky-500/20 border-sky-400/50 text-sky-200 font-semibold"
-                  : "bg-[#111827] border-slate-800 text-slate-400 hover:text-slate-200"
+                  ? "border-[var(--c-bd)] bg-[var(--c-soft)] text-[var(--c-tx)] font-bold"
+                  : "border-[var(--border-subtle)] bg-[var(--bg-card)] text-[var(--text-secondary)] hover:border-[var(--c-bd)]"
               }`}
             >
               <Icon className="w-4 h-4 shrink-0" />
-              <span>{item.title}</span>
+              <span className="truncate">{item.title}</span>
             </button>
           );
         })}
       </div>
 
       {msg && (
-        <div className="bg-emerald-500/15 border border-emerald-500/40 text-emerald-200 text-xs rounded-lg px-4 py-3 flex items-center justify-between gap-3">
-          <span className="flex items-center gap-2">
+        <div
+          role="status"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-[11px] border border-[var(--st-emerald-bd)] bg-[var(--st-emerald-bg)] px-4 py-3 text-[13.5px] text-[var(--st-emerald-tx)]"
+        >
+          <span className="inline-flex items-center gap-2 font-semibold">
             <CheckCircle2 className="w-4 h-4" /> {msg}
           </span>
-          <Link
-            href="/"
-            className="px-3 py-1 rounded bg-emerald-500 text-slate-950 font-semibold"
-          >
-            Vào Tổng quan →
-          </Link>
+          <Button asChild size="sm" variant="emerald">
+            <Link href="/">Vào Tổng quan →</Link>
+          </Button>
         </div>
       )}
       {err && (
-        <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs rounded-lg px-4 py-2.5">
+        <div
+          role="alert"
+          className="rounded-[11px] border border-[var(--st-rose-bd)] bg-[var(--st-rose-bg)] px-4 py-2.5 text-[13px] text-[var(--st-rose-tx)]"
+        >
           {err}
         </div>
       )}
 
-      {/* Step 1: Runtime Health */}
       {step === 1 && status && (
-        <div className="bg-[#111827] border border-slate-800 rounded-xl p-5 space-y-4 text-xs">
-          <h2 className="text-sm font-semibold text-white">Kiểm tra Thành phần Cục bộ trên Máy</h2>
+        <Card tinted className="space-y-4">
+          <SectionHeading>
+            Kiểm tra Công cụ Đóng Gói Cục Bộ trên Máy Trạm
+          </SectionHeading>
           <div className="grid md:grid-cols-2 gap-3">
             {[
-              { name: "FFmpeg Renderer", ok: status.runtime.ffmpeg_ready, note: status.runtime.ffmpeg_path },
-              { name: "FFprobe Inspector", ok: status.runtime.ffprobe_ready, note: "Đo thời lượng & codec MP4" },
-              { name: "Node 24 LTS UI Runtime", ok: status.runtime.node_ready, note: status.runtime.node_path || "Next.js & Remotion" },
-              { name: "yt-dlp Trend Downloader", ok: status.runtime.ytdlp_ready, note: "Tải video tham khảo & nguồn Việt hóa" },
+              {
+                name: "Bộ kết xuất video FFmpeg",
+                ok: status.runtime.ffmpeg_ready,
+                note: status.runtime.ffmpeg_path,
+              },
+              {
+                name: "Bộ đo kiểm âm lượng FFprobe",
+                ok: status.runtime.ffprobe_ready,
+                note: "Đo thời lượng & chuẩn -14 LUFS",
+              },
+              {
+                name: "Môi trường giao diện Node 24 LTS",
+                ok: status.runtime.node_ready,
+                note: status.runtime.node_path || "Next.js 15 & Remotion",
+              },
+              {
+                name: "Trình tải nguồn tham khảo yt-dlp",
+                ok: status.runtime.ytdlp_ready,
+                note: "Hỗ trợ xu hướng & nguồn Việt hóa",
+              },
             ].map((chk) => (
               <div
                 key={chk.name}
-                className="bg-[#182235] border border-slate-800 rounded-lg p-3 flex items-center justify-between gap-2"
+                className="flex items-center justify-between gap-2 rounded-[10px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3.5"
               >
                 <div className="min-w-0">
-                  <div className="font-semibold text-white">{chk.name}</div>
-                  <div className="text-[11px] text-slate-400 truncate">{chk.note}</div>
+                  <div className="text-[13.5px] font-bold text-[var(--text-primary)]">
+                    {chk.name}
+                  </div>
+                  <div className="truncate text-[12px] text-[var(--text-muted)]">
+                    {chk.note}
+                  </div>
                 </div>
-                <span
-                  className={`px-2 py-0.5 rounded-full text-[11px] font-semibold shrink-0 ${
-                    chk.ok
-                      ? "bg-emerald-500/20 text-emerald-300"
-                      : "bg-amber-500/20 text-amber-300"
-                  }`}
-                >
+                <Badge tone={chk.ok ? "emerald" : "amber"}>
                   {chk.ok ? "Sẵn sàng" : "Thiếu"}
-                </span>
+                </Badge>
               </div>
             ))}
           </div>
           <div className="flex justify-end">
-            <button
-              type="button"
-              onClick={() => setStep(2)}
-              className="px-4 py-2 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold cursor-pointer"
-            >
-              Tiếp tục: Workspace →
-            </button>
+            <Button type="button" onClick={() => setStep(2)}>
+              Tiếp tục: Thương hiệu →
+            </Button>
           </div>
-        </div>
+        </Card>
       )}
 
-      {/* Step 2: Workspace & Policy */}
       {step === 2 && (
-        <div className="bg-[#111827] border border-slate-800 rounded-xl p-5 space-y-4 text-xs">
-          <h2 className="text-sm font-semibold text-white">Cấu hình Workspace Đầu tiên &amp; Chính sách Nội dung</h2>
-          <div className="flex gap-3">
-            <label className="flex items-center gap-1.5 cursor-pointer">
+        <Card tinted className="space-y-4">
+          <SectionHeading>
+            Cấu hình Thương Hiệu Đầu Tiên &amp; Chính sách Nội dung
+          </SectionHeading>
+          <div className="flex flex-wrap gap-4 text-[13px]">
+            <label className="inline-flex items-center gap-2 cursor-pointer">
               <input
                 type="radio"
                 checked={wsMode === "update"}
                 onChange={() => setWsMode("update")}
+                className="accent-[var(--c-solid)]"
               />
-              Cập nhật Workspace hiện tại
+              <span>Cập nhật Workspace hiện tại</span>
             </label>
-            <label className="flex items-center gap-1.5 cursor-pointer">
+            <label className="inline-flex items-center gap-2 cursor-pointer">
               <input
                 type="radio"
                 checked={wsMode === "create"}
@@ -277,217 +341,249 @@ export default function WelcomeWizardPage() {
                   setWsMode("create");
                   setWsName("");
                 }}
+                className="accent-[var(--c-solid)]"
               />
-              Tạo Workspace mới riêng biệt
+              <span>Tạo mới một Workspace riêng</span>
             </label>
           </div>
-          <div className="grid md:grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <label className="text-slate-300">Tên thương hiệu / Dự án</label>
-              <input
+
+          <div className="grid md:grid-cols-2 gap-3.5">
+            <div>
+              <FieldLabel htmlFor="wz-name">Tên thương hiệu / Dự án</FieldLabel>
+              <TextInput
+                id="wz-name"
                 value={wsName}
                 onChange={(e) => setWsName(e.target.value)}
                 placeholder="VD: Trang Sức Bạc S925"
-                className="w-full bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
               />
             </div>
-            <div className="space-y-1">
-              <label className="text-slate-300">Ngành hàng / Chủ đề</label>
-              <input
+            <div>
+              <FieldLabel htmlFor="wz-niche">Ngành hàng / Chủ đề</FieldLabel>
+              <TextInput
+                id="wz-niche"
                 value={wsNiche}
                 onChange={(e) => setWsNiche(e.target.value)}
-                className="w-full bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
               />
             </div>
-            <div className="space-y-1">
-              <label className="text-slate-300">Chính sách Nội dung</label>
-              <select
+            <div>
+              <FieldLabel htmlFor="wz-policy">Chính sách Nội dung</FieldLabel>
+              <SelectBox
+                id="wz-policy"
                 value={wsPolicy}
-                onChange={(e) => setWsPolicy(e.target.value as Workspace["content_policy"])}
-                className="w-full bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
+                onChange={(e) =>
+                  setWsPolicy(e.target.value as Workspace["content_policy"])
+                }
               >
-                <option value="strict_footage">Strict Footage (100% footage thật - BR-PRD-01)</option>
-                <option value="hybrid_remix">Hybrid Remix (Việt hóa + chèn shot thật)</option>
-                <option value="full_ai">Full AI (Tiểu thuyết, Tin tức, Podcast, Reup)</option>
-              </select>
+                <option value="strict_footage">
+                  Strict Footage (100% cảnh quay sản phẩm thật)
+                </option>
+                <option value="hybrid_remix">
+                  Hybrid Remix (Việt hóa + chèn cảnh quay thật)
+                </option>
+                <option value="full_ai">
+                  Full AI (Truyện, Bản tin, Podcast, Việt hóa)
+                </option>
+              </SelectBox>
             </div>
-            <div className="space-y-1">
-              <label className="text-slate-300">Khung hình &amp; Duyệt bài mặc định</label>
+            <div>
+              <FieldLabel htmlFor="wz-ratio">
+                Tỷ lệ khung hình &amp; Chế độ duyệt
+              </FieldLabel>
               <div className="grid grid-cols-2 gap-2">
-                <select
+                <SelectBox
+                  id="wz-ratio"
                   value={wsRatio}
-                  onChange={(e) => setWsRatio(e.target.value as Workspace["default_aspect_ratio"])}
-                  className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
+                  onChange={(e) =>
+                    setWsRatio(
+                      e.target.value as Workspace["default_aspect_ratio"]
+                    )
+                  }
                 >
                   <option value="9:16">9:16 Dọc</option>
                   <option value="16:9">16:9 Ngang</option>
                   <option value="1:1">1:1 Vuông</option>
-                </select>
-                <select
+                </SelectBox>
+                <SelectBox
+                  aria-label="Chế độ duyệt mặc định"
                   value={wsApproval}
-                  onChange={(e) => setWsApproval(e.target.value as Workspace["approval_mode"])}
-                  className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
+                  onChange={(e) =>
+                    setWsApproval(e.target.value as Workspace["approval_mode"])
+                  }
                 >
                   <option value="single">Duyệt từng bài</option>
-                  <option value="bulk">Duyệt theo lô</option>
-                  <option value="autopilot">Autopilot theo QC</option>
-                </select>
+                  <option value="bulk">Duyệt hàng loạt</option>
+                  <option value="autopilot">Tự động đăng</option>
+                </SelectBox>
               </div>
             </div>
           </div>
+
           <div className="flex justify-between">
-            <button
-              type="button"
-              onClick={() => setStep(1)}
-              className="px-3 py-2 rounded-lg bg-slate-800 text-slate-300 cursor-pointer"
-            >
+            <Button type="button" variant="secondary" onClick={() => setStep(1)}>
               ← Quay lại
-            </button>
-            <button
-              type="button"
-              onClick={() => setStep(3)}
-              className="px-4 py-2 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold cursor-pointer"
-            >
-              Tiếp tục: AI Keys →
-            </button>
+            </Button>
+            <Button type="button" onClick={() => setStep(3)}>
+              Tiếp tục: Khóa AI →
+            </Button>
           </div>
-        </div>
+        </Card>
       )}
 
-      {/* Step 3: AI Keys & Budget */}
       {step === 3 && (
-        <div className="bg-[#111827] border border-slate-800 rounded-xl p-5 space-y-4 text-xs">
-          <h2 className="text-sm font-semibold text-white">Mã hóa API Keys &amp; Ngân sách Ngày</h2>
-          <p className="text-slate-400">
-            Khóa đã lưu trên máy: {(status?.configured_secrets || []).join(", ") || "Chưa có (có thể bỏ qua và dùng chế độ offline/subscription)."}
+        <Card tinted className="space-y-4">
+          <div className="flex items-center justify-between gap-2">
+            <SectionHeading>
+              Mã hóa Khóa API &amp; Hạn mức Chi tiêu Ngày
+            </SectionHeading>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => setShowKeys((v) => !v)}
+            >
+              {showKeys ? (
+                <>
+                  <EyeOff className="w-4 h-4" /> Ẩn khóa
+                </>
+              ) : (
+                <>
+                  <Eye className="w-4 h-4" /> Hiện khóa
+                </>
+              )}
+            </Button>
+          </div>
+
+          <p className="text-[12.5px] text-[var(--text-muted)]">
+            Khóa đã lưu trên máy:{" "}
+            {(status?.configured_secrets || []).join(", ") ||
+              "Chưa đặt (có thể bỏ qua và dùng mô hình nội bộ trên CPU)."}
           </p>
-          <div className="grid md:grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <label className="text-slate-300">Trần chi phí API / ngày (USD)</label>
-              <input
+
+          <div className="grid md:grid-cols-2 gap-3.5">
+            <div>
+              <FieldLabel htmlFor="wz-usd">Hạn mức chi phí API / ngày (USD)</FieldLabel>
+              <TextInput
+                id="wz-usd"
                 type="number"
                 step="0.5"
                 value={dailyUsd}
                 onChange={(e) => setDailyUsd(Number(e.target.value))}
-                className="w-full bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
+                className="tabular-nums"
               />
             </div>
-            <div className="space-y-1">
-              <label className="text-slate-300">Chính sách vượt gói thuê bao</label>
-              <select
+            <div>
+              <FieldLabel htmlFor="wz-fb">Chế độ vượt gói thuê bao</FieldLabel>
+              <SelectBox
+                id="wz-fb"
                 value={apiFallback}
                 onChange={(e) => setApiFallback(e.target.value)}
-                className="w-full bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
               >
-                <option value="ask">Hỏi trước khi dùng API trả phí (ask)</option>
-                <option value="auto">Tự chuyển API khi hết quota gói (auto)</option>
-                <option value="never">Không bao giờ gọi API ngoài gói (never)</option>
-              </select>
+                <option value="ask">Hỏi xác nhận trước khi gọi API trả phí</option>
+                <option value="auto">Tự động chuyển sang API khi hết hạn mức</option>
+                <option value="never">Không bao giờ gọi API ngoài gói</option>
+              </SelectBox>
             </div>
-            <div className="space-y-1">
-              <label className="text-slate-300">Gemini API Key (tùy chọn)</label>
-              <input
-                type="password"
+            <div>
+              <FieldLabel htmlFor="wz-gem">Khóa Gemini API (tùy chọn)</FieldLabel>
+              <TextInput
+                id="wz-gem"
+                type={showKeys ? "text" : "password"}
                 value={geminiKey}
                 onChange={(e) => setGeminiKey(e.target.value)}
                 placeholder="AIza..."
-                className="w-full bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
               />
             </div>
-            <div className="space-y-1">
-              <label className="text-slate-300">Anthropic Claude Key (tùy chọn)</label>
-              <input
-                type="password"
+            <div>
+              <FieldLabel htmlFor="wz-ant">Khóa Anthropic Claude (tùy chọn)</FieldLabel>
+              <TextInput
+                id="wz-ant"
+                type={showKeys ? "text" : "password"}
                 value={anthropicKey}
                 onChange={(e) => setAnthropicKey(e.target.value)}
                 placeholder="sk-ant-..."
-                className="w-full bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
               />
             </div>
-            <div className="space-y-1 md:col-span-2">
-              <label className="text-slate-300">Apify Token (quét Trend Facebook/TikTok/IG, tùy chọn)</label>
-              <input
-                type="password"
+            <div className="md:col-span-2">
+              <FieldLabel htmlFor="wz-apf">
+                Mã Apify (quét xu hướng mạng xã hội, tùy chọn)
+              </FieldLabel>
+              <TextInput
+                id="wz-apf"
+                type={showKeys ? "text" : "password"}
                 value={apifyToken}
                 onChange={(e) => setApifyToken(e.target.value)}
                 placeholder="apify_api_..."
-                className="w-full bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
               />
             </div>
           </div>
+
           <div className="flex justify-between">
-            <button
-              type="button"
-              onClick={() => setStep(2)}
-              className="px-3 py-2 rounded-lg bg-slate-800 text-slate-300 cursor-pointer"
-            >
+            <Button type="button" variant="secondary" onClick={() => setStep(2)}>
               ← Quay lại
-            </button>
-            <button
-              type="button"
-              onClick={() => setStep(4)}
-              className="px-4 py-2 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold cursor-pointer"
-            >
+            </Button>
+            <Button type="button" onClick={() => setStep(4)}>
               Tiếp tục: Giọng đọc →
-            </button>
+            </Button>
           </div>
-        </div>
+        </Card>
       )}
 
-      {/* Step 4: Voice & Finish */}
       {step === 4 && (
-        <div className="bg-[#111827] border border-slate-800 rounded-xl p-5 space-y-4 text-xs">
-          <h2 className="text-sm font-semibold text-white">Giọng đọc Tiếng Việt Mặc định &amp; Múi giờ</h2>
-          <div className="grid md:grid-cols-3 gap-3">
-            <div className="space-y-1">
-              <label className="text-slate-300">TTS Provider</label>
-              <select
+        <Card tinted className="space-y-4">
+          <SectionHeading>
+            Giọng Đọc Tiếng Việt Mặc Định &amp; Múi Giờ Lịch Đăng
+          </SectionHeading>
+          <div className="grid md:grid-cols-3 gap-3.5">
+            <div>
+              <FieldLabel htmlFor="wz-prov">Bộ tổng hợp giọng đọc</FieldLabel>
+              <SelectBox
+                id="wz-prov"
                 value={viProvider}
                 onChange={(e) => setViProvider(e.target.value)}
-                className="w-full bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
               >
-                <option value="edge">Edge TTS (trực tuyến miễn phí — mặc định)</option>
-              </select>
+                <option value="edge">Edge TTS (Trực tuyến miễn phí)</option>
+              </SelectBox>
             </div>
-            <div className="space-y-1">
-              <label className="text-slate-300">Giọng Tiếng Việt</label>
-              <select
+            <div>
+              <FieldLabel htmlFor="wz-voice">Giọng đọc Tiếng Việt</FieldLabel>
+              <SelectBox
+                id="wz-voice"
                 value={viVoice}
                 onChange={(e) => setViVoice(e.target.value)}
-                className="w-full bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
               >
-                <option value="vi-VN-HoaiMyNeural-Female">Hoài My (Nữ miền Bắc)</option>
-                <option value="vi-VN-NamMinhNeural-Male">Nam Minh (Nam)</option>
-              </select>
+                <option value="vi-VN-HoaiMyNeural-Female">
+                  Hoài My (Nữ tự nhiên)
+                </option>
+                <option value="vi-VN-NamMinhNeural-Male">
+                  Nam Minh (Nam trầm rõ)
+                </option>
+              </SelectBox>
             </div>
-            <div className="space-y-1">
-              <label className="text-slate-300">Múi giờ Lịch đăng</label>
-              <input
+            <div>
+              <FieldLabel htmlFor="wz-tz">Múi giờ lịch đăng</FieldLabel>
+              <TextInput
+                id="wz-tz"
                 value={timezone}
                 onChange={(e) => setTimezone(e.target.value)}
-                className="w-full bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
               />
             </div>
           </div>
-          <div className="flex justify-between">
-            <button
-              type="button"
-              onClick={() => setStep(3)}
-              className="px-3 py-2 rounded-lg bg-slate-800 text-slate-300 cursor-pointer"
-            >
+
+          <div className="flex justify-between pt-2">
+            <Button type="button" variant="secondary" onClick={() => setStep(3)}>
               ← Quay lại
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="emerald"
               disabled={saving}
               onClick={() => void finishWizard()}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold cursor-pointer disabled:opacity-50"
             >
               <Rocket className="w-4 h-4" />{" "}
-              {saving ? "Đang lưu cấu hình..." : "Hoàn tất Welcome Wizard"}
-            </button>
+              {saving ? "Đang lưu cấu hình..." : "Hoàn Tất Thiết Lập"}
+            </Button>
           </div>
-        </div>
+        </Card>
       )}
     </div>
   );

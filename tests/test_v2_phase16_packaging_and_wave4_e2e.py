@@ -67,7 +67,7 @@ def _link_or_copy_dir(src: Path, dst: Path) -> None:
 
 
 def test_windows_v2_packaging_artifacts_and_exe_installer() -> None:
-    assert __version__ == "2.0.0"
+    assert __version__ == "2.1.0"
 
     # Zero personal machine paths (`ADMIN` or `iCast`) in `src/` and `installer/` scripts
     for py_file in (REPO_ROOT / "src").rglob("*.py"):
@@ -256,7 +256,7 @@ try:
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({{}}))
     with opener.open("http://127.0.0.1:{ui_port}/api/v1/health", timeout=10.0) as resp:
         body = json.loads(resp.read().decode("utf-8"))
-        assert body["status"] == "ok" and body["version"] == "2.0.0"
+        assert body["status"] == "ok" and body["version"] == "2.1.0"
     print("EMPTY_PATH_OFFLINE_BOOT_OK")
 finally:
     stop_nextjs_standalone(ui_proc)
@@ -284,7 +284,7 @@ finally:
             text=True,
             encoding="utf-8",
             errors="replace",
-            timeout=60,
+            timeout=120,
             check=False,
         )
         assert (

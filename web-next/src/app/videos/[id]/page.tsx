@@ -3,8 +3,29 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Download, Play, RefreshCw, Save, Volume2 } from "lucide-react";
+import {
+  ArrowLeft,
+  Clapperboard,
+  Download,
+  Play,
+  RefreshCw,
+  Save,
+  Volume2,
+} from "lucide-react";
+import { toast } from "sonner";
 import { apiFetch } from "@/lib/api";
+import { JobProgressBanner, useJobProgress } from "@/components/JobProgressBanner";
+import { PageHeader } from "@/components/vc/PageHeader";
+import { EmptyState } from "@/components/vc/StatCard";
+import { Card, SectionHeading } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  FieldLabel,
+  SelectBox,
+  TextareaBox,
+  TextInput,
+} from "@/components/ui/form-controls";
 
 interface SyllableEntry {
   shot_index: number;
@@ -28,7 +49,12 @@ interface VideoDetail {
   duration_s: number | null;
   plan: {
     title?: string;
-    shots?: Array<{ shot_id: number; start_s: number; duration_s: number; text: string }>;
+    shots?: Array<{
+      shot_id: number;
+      start_s: number;
+      duration_s: number;
+      text: string;
+    }>;
   };
   qc: {
     passed?: boolean;
@@ -59,12 +85,15 @@ export default function VideoDetailPage() {
   const [ratio, setRatio] = useState<"9:16" | "16:9" | "1:1">("9:16");
   const [voiceLang, setVoiceLang] = useState<"none" | "vi" | "en">("vi");
   const [ttsAudioUrl, setTtsAudioUrl] = useState<string | null>(null);
+  const [activeJobId, setActiveJobId] = useState<number | null>(null);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
 
   const load = useCallback(async () => {
     try {
-      const res = await apiFetch<{ video: VideoDetail }>(`/api/v1/videos/${videoId}`);
+      const res = await apiFetch<{ video: VideoDetail }>(
+        `/api/v1/videos/${videoId}`
+      );
       const v = res.video;
       setVideo(v);
       setTitle(v.plan?.title || "");
@@ -87,22 +116,39 @@ export default function VideoDetailPage() {
     void load();
   }, [load]);
 
+  const { job: activeJob } = useJobProgress(activeJobId, {
+    onCompleted: () => {
+      const done = "Đã hoàn tất xuất video thành phẩm!";
+      setMsg(done);
+      toast.success(done);
+      void load();
+    },
+    onFailed: (j) => {
+      setErr(j.error || "Tác vụ dựng video gặp lỗi");
+      void load();
+    },
+  });
+
   const handleSavePlan = async () => {
     setErr("");
     setMsg("");
     try {
-      const res = await apiFetch<{ video: VideoDetail }>(`/api/v1/videos/${videoId}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          title,
-          shots,
-          style_preset: styleId,
-          aspect_ratio: ratio,
-          voice_lang: voiceLang,
-        }),
-      });
+      const res = await apiFetch<{ video: VideoDetail }>(
+        `/api/v1/videos/${videoId}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            title,
+            shots,
+            style_preset: styleId,
+            aspect_ratio: ratio,
+            voice_lang: voiceLang,
+          }),
+        }
+      );
       setVideo(res.video);
-      setMsg("Đã lưu kịch bản và cập nhật ngân sách âm tiết.");
+      setMsg("Đã lưu kịch bản và cập nhật đồng hồ âm tiết.");
+      toast.success("Đã lưu kịch bản.");
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Lỗi lưu kịch bản");
     }
@@ -123,7 +169,7 @@ export default function VideoDetailPage() {
       );
       setTtsAudioUrl(data.audio_url);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Không thể đọc thử giọng TTS");
+      setErr(e instanceof Error ? e.message : "Không thể đọc thử giọng");
     }
   };
 
@@ -135,7 +181,10 @@ export default function VideoDetailPage() {
         `/api/v1/videos/${videoId}/render`,
         { method: "POST", body: JSON.stringify({ sync: false }) }
       );
-      setMsg(`Đã gửi job dựng video vào làn Compute (Job #${res.job_id}).`);
+      if (res.job_id) setActiveJobId(res.job_id);
+      const m = `Đã đưa tác vụ dựng video vào hàng đợi xử lý (#${res.job_id}).`;
+      setMsg(m);
+      toast.info(m);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Không thể dựng video");
     }
@@ -147,17 +196,23 @@ export default function VideoDetailPage() {
     try {
       const res = await apiFetch<{ job_id?: number; mode: string }>(
         `/api/v1/videos/${videoId}/restyle`,
-        { method: "POST", body: JSON.stringify({ style_preset: styleId, sync: false }) }
+        {
+          method: "POST",
+          body: JSON.stringify({ style_preset: styleId, sync: false }),
+        }
       );
-      setMsg(`Đã xếp hàng đợi đổi Style sang "${styleId}" (Job #${res.job_id}).`);
+      if (res.job_id) setActiveJobId(res.job_id);
+      const m = `Đã đưa vào hàng đợi đổi phong cách sang "${styleId}" (#${res.job_id}).`;
+      setMsg(m);
+      toast.info(m);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Không thể đổi style");
+      setErr(e instanceof Error ? e.message : "Không thể đổi phong cách");
     }
   };
 
   if (!video) {
     return (
-      <div className="max-w-5xl mx-auto text-sm text-slate-400">
+      <div className="max-w-5xl mx-auto py-8 text-[14px] text-[var(--text-muted)]">
         {err || "Đang tải chi tiết video..."}
       </div>
     );
@@ -165,152 +220,172 @@ export default function VideoDetailPage() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <Link
-            href="/videos"
-            className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </Link>
-          <div>
-            <h1 className="text-xl font-bold text-white">
-              Video #{video.id} — {video.plan?.title || "Biên tập"}
-            </h1>
-            <div className="text-xs text-slate-400">
-              Trạng thái: <strong className="text-sky-300">{video.status}</strong> •{" "}
-              {video.duration_s ? `${video.duration_s.toFixed(1)}s` : "Chưa xuất MP4"}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-2 text-xs">
-          <button
-            onClick={() => void handleSavePlan()}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 cursor-pointer"
-          >
-            <Save className="w-3.5 h-3.5" /> Lưu Kịch bản
-          </button>
-          <button
-            onClick={() => void handleRender()}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold cursor-pointer"
-          >
-            <Play className="w-3.5 h-3.5" /> Dựng Video
-          </button>
-          <button
-            onClick={() => void handleRestyle()}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 border border-purple-500/40 cursor-pointer"
-          >
-            <RefreshCw className="w-3.5 h-3.5" /> Đổi Style Nhanh
-          </button>
-          {video.output_url && (
-            <a
-              href={`/api/v1/videos/${video.id}/publish-pack`}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+      <PageHeader
+        icon={<Clapperboard className="w-5 h-5" />}
+        title={`Video #${video.id} — ${video.plan?.title || "Biên tập kịch bản"}`}
+        badges={
+          <>
+            <Badge tone="cluster">{video.status}</Badge>
+            <Badge tone="neutral" className="tabular-nums">
+              {video.duration_s
+                ? `${video.duration_s.toFixed(1)}s`
+                : "Chưa xuất MP4"}
+            </Badge>
+          </>
+        }
+        actions={
+          <>
+            <Button asChild size="sm" variant="ghost">
+              <Link href="/videos">
+                <ArrowLeft className="w-4 h-4" /> Danh sách
+              </Link>
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() => void handleSavePlan()}
             >
-              <Download className="w-3.5 h-3.5" /> Tải Gói .zip
-            </a>
-          )}
-        </div>
-      </div>
+              <Save className="w-3.5 h-3.5" /> Lưu Kịch bản
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() => void handleRestyle()}
+            >
+              <RefreshCw className="w-3.5 h-3.5" /> Đổi Phong cách
+            </Button>
+            {video.output_url && (
+              <Button asChild size="sm" variant="emerald">
+                <a href={`/api/v1/videos/${video.id}/publish-pack`}>
+                  <Download className="w-3.5 h-3.5" /> Gói 5 MXH (.zip)
+                </a>
+              </Button>
+            )}
+            <Button type="button" size="sm" onClick={() => void handleRender()}>
+              <Play className="w-3.5 h-3.5" /> Dựng Video
+            </Button>
+          </>
+        }
+      />
 
       {msg && (
-        <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs rounded-lg px-4 py-2.5">
+        <div
+          role="status"
+          className="rounded-[11px] border border-[var(--st-emerald-bd)] bg-[var(--st-emerald-bg)] px-4 py-2.5 text-[13px] text-[var(--st-emerald-tx)]"
+        >
           {msg}
         </div>
       )}
       {err && (
-        <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs rounded-lg px-4 py-2.5">
+        <div
+          role="alert"
+          className="rounded-[11px] border border-[var(--st-rose-bd)] bg-[var(--st-rose-bg)] px-4 py-2.5 text-[13px] text-[var(--st-rose-tx)]"
+        >
           {err}
         </div>
       )}
 
-      <div className="grid md:grid-cols-5 gap-6">
-        {/* Script & Style Controls */}
-        <div className="md:col-span-3 bg-[#111827] border border-slate-800 rounded-xl p-5 space-y-4 text-xs">
-          <div className="grid grid-cols-3 gap-3">
+      <JobProgressBanner
+        job={activeJob}
+        jobId={activeJobId}
+        label={`Video #${video.id}`}
+        onDismiss={() => setActiveJobId(null)}
+      />
+
+      <div className="grid lg:grid-cols-5 gap-5">
+        <Card tinted className="lg:col-span-3 space-y-4">
+          <div className="grid sm:grid-cols-3 gap-3">
             <div>
-              <label className="text-slate-400 block mb-1">Tiêu đề</label>
-              <input
+              <FieldLabel htmlFor="vd-title">Tiêu đề</FieldLabel>
+              <TextInput
+                id="vd-title"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="w-full bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
               />
             </div>
             <div>
-              <label className="text-slate-400 block mb-1">Style Preset</label>
-              <select
+              <FieldLabel htmlFor="vd-style">Phong cách phụ đề</FieldLabel>
+              <SelectBox
+                id="vd-style"
                 value={styleId}
                 onChange={(e) => setStyleId(e.target.value)}
-                className="w-full bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
               >
                 {styles.map((st) => (
                   <option key={st.id} value={st.id}>
                     {st.name}
                   </option>
                 ))}
-              </select>
+              </SelectBox>
             </div>
             <div>
-              <label className="text-slate-400 block mb-1">Khung hình & Voice</label>
-              <div className="flex gap-1.5">
-                <select
+              <FieldLabel htmlFor="vd-ratio">Khung hình &amp; Giọng đọc</FieldLabel>
+              <div className="flex gap-2">
+                <SelectBox
+                  id="vd-ratio"
                   value={ratio}
-                  onChange={(e) => setRatio(e.target.value as "9:16" | "16:9" | "1:1")}
-                  className="flex-1 bg-[#182235] border border-slate-700 rounded-lg px-2 py-2"
+                  onChange={(e) =>
+                    setRatio(e.target.value as "9:16" | "16:9" | "1:1")
+                  }
                 >
                   <option value="9:16">9:16</option>
                   <option value="16:9">16:9</option>
                   <option value="1:1">1:1</option>
-                </select>
-                <select
+                </SelectBox>
+                <SelectBox
+                  aria-label="Ngôn ngữ giọng đọc"
                   value={voiceLang}
-                  onChange={(e) => setVoiceLang(e.target.value as "none" | "vi" | "en")}
-                  className="flex-1 bg-[#182235] border border-slate-700 rounded-lg px-2 py-2"
+                  onChange={(e) =>
+                    setVoiceLang(e.target.value as "none" | "vi" | "en")
+                  }
                 >
                   <option value="vi">VI</option>
                   <option value="en">EN</option>
-                  <option value="none">Mute</option>
-                </select>
+                  <option value="none">Tắt</option>
+                </SelectBox>
               </div>
             </div>
           </div>
 
           <div className="space-y-3">
-            <div className="font-semibold text-white">Lời thoại từng cảnh & Ngân sách âm tiết</div>
+            <SectionHeading>
+              Lời thoại từng cảnh &amp; Hạn mức âm tiết
+            </SectionHeading>
             {shots.map((shot, idx) => {
               const budget = video.syllable_budget?.[idx];
               return (
                 <div
                   key={idx}
-                  className="bg-[#182235] border border-slate-700/70 rounded-lg p-3 space-y-2"
+                  className="rounded-[11px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3.5 space-y-2"
                 >
-                  <div className="flex items-center justify-between text-[11px] text-slate-400">
-                    <span>
-                      Cảnh #{idx + 1} (Shot #{shot.shot_id}, {shot.duration_s}s)
-                    </span>
-                    <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-[12.5px]">
+                    <strong className="text-[var(--text-primary)] tabular-nums">
+                      Cảnh #{idx + 1} (Shot #{shot.shot_id} • {shot.duration_s}s)
+                    </strong>
+                    <div className="flex items-center gap-2">
                       {budget && (
-                        <span
-                          className={
-                            budget.over_budget ? "text-amber-300 font-semibold" : "text-emerald-300"
-                          }
+                        <Badge
+                          tone={budget.over_budget ? "amber" : "emerald"}
+                          className="tabular-nums"
                         >
                           {budget.syllables}/{budget.max_syllables} âm tiết
-                        </span>
+                        </Badge>
                       )}
                       {shot.text && (
-                        <button
+                        <Button
                           type="button"
+                          size="sm"
+                          variant="secondary"
                           onClick={() => void handlePreviewVoice(shot.text)}
-                          className="inline-flex items-center gap-1 text-sky-400 hover:underline cursor-pointer"
                         >
-                          <Volume2 className="w-3 h-3" /> Nghe thử TTS
-                        </button>
+                          <Volume2 className="w-3.5 h-3.5 text-[var(--c-icon)]" /> Nghe thử
+                        </Button>
                       )}
                     </div>
                   </div>
-                  <textarea
+                  <TextareaBox
+                    aria-label={`Lời thoại cảnh #${idx + 1}`}
                     rows={2}
                     value={shot.text}
                     onChange={(e) => {
@@ -319,58 +394,68 @@ export default function VideoDetailPage() {
                         prev.map((s, i) => (i === idx ? { ...s, text: val } : s))
                       );
                     }}
-                    className="w-full bg-[#0b0f17] border border-slate-700 rounded px-2.5 py-1.5 text-slate-100"
                   />
                 </div>
               );
             })}
+
             {ttsAudioUrl && (
-              <div className="pt-2">
-                <div className="text-[11px] text-slate-400 mb-1">Âm thanh nghe thử TTS:</div>
+              <div className="pt-1">
+                <div className="text-[12px] text-[var(--text-muted)] mb-1">
+                  Âm thanh nghe thử:
+                </div>
                 <audio controls src={ttsAudioUrl} className="w-full h-8" />
               </div>
             )}
           </div>
-        </div>
+        </Card>
 
-        {/* Video Preview & QC Report */}
-        <div className="md:col-span-2 bg-[#111827] border border-slate-800 rounded-xl p-5 space-y-4 text-xs">
-          <div className="font-semibold text-sm text-white">Xem thử Thành phẩm & QC</div>
+        <Card className="lg:col-span-2 space-y-4">
+          <SectionHeading>Xem trước Thành phẩm &amp; Kiểm định Kỹ thuật</SectionHeading>
           {video.output_url ? (
             <video
               controls
               src={video.output_url}
-              className="w-full max-h-96 rounded-lg bg-black border border-slate-800"
+              className="w-full max-h-96 rounded-[10px] bg-black border border-[var(--border-subtle)]"
             />
           ) : (
-            <div className="h-56 rounded-lg bg-[#182235] border border-slate-800 flex items-center justify-center text-slate-500">
-              Chưa có file render. Bấm &ldquo;Dựng Video&rdquo;.
-            </div>
+            <EmptyState
+              title="Chưa có tệp MP4 thành phẩm"
+              description='Bấm nút "Dựng Video" ở góc phải trên để xuất tệp MP4.'
+            />
           )}
 
-          <div className="bg-[#182235] border border-slate-700/70 rounded-lg p-3 space-y-1.5">
-            <div className="font-semibold text-white">Báo cáo QC FFmpeg</div>
+          <div className="rounded-[11px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3.5 space-y-1.5 text-[13px]">
+            <div className="font-bold text-[var(--text-primary)]">
+              Báo cáo Kiểm định Âm lượng &amp; Khung hình (QC)
+            </div>
             {video.qc?.passed === undefined ? (
-              <div className="text-slate-400">Chưa chạy kiểm tra QC.</div>
+              <div className="text-[var(--text-muted)]">
+                Chưa chạy kiểm định kỹ thuật.
+              </div>
             ) : (
               <>
-                <div className={video.qc.passed ? "text-emerald-300" : "text-rose-300"}>
-                  {video.qc.passed ? "✓ Đạt toàn bộ kiểm tra" : "✗ Phát hiện lỗi kỹ thuật"}
-                </div>
-                {video.qc.integrated_lufs !== undefined && video.qc.integrated_lufs !== null && (
-                  <div className="text-slate-400">
-                    Độ lớn trung bình: {video.qc.integrated_lufs.toFixed(1)} LUFS
-                  </div>
-                )}
+                <Badge tone={video.qc.passed ? "emerald" : "rose"}>
+                  {video.qc.passed
+                    ? "✓ Đạt toàn bộ chỉ tiêu kỹ thuật"
+                    : "✗ Phát hiện lỗi kỹ thuật"}
+                </Badge>
+                {video.qc.integrated_lufs !== undefined &&
+                  video.qc.integrated_lufs !== null && (
+                    <div className="text-[12.5px] text-[var(--text-secondary)] tabular-nums pt-1">
+                      Độ lớn âm thanh trung bình:{" "}
+                      <strong>{video.qc.integrated_lufs.toFixed(1)} LUFS</strong>
+                    </div>
+                  )}
                 {video.qc.issues?.map((issue, i) => (
-                  <div key={i} className="text-rose-300">
+                  <div key={i} className="text-[12.5px] text-[var(--st-rose-tx)]">
                     • {issue}
                   </div>
                 ))}
               </>
             )}
           </div>
-        </div>
+        </Card>
       </div>
     </div>
   );

@@ -1,10 +1,22 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
-import { BookOpen, Play, Plus, RefreshCw } from "lucide-react";
+import { BookOpen, Eye, Play, Plus, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
 import { apiFetch, useWorkspace } from "@/lib/api";
 import { JobProgressBanner, useJobProgress } from "@/components/JobProgressBanner";
 import { SimulationBadge } from "@/components/SimulationBadge";
+import { PageHeader } from "@/components/vc/PageHeader";
+import { EmptyState } from "@/components/vc/StatCard";
+import { Card, CardTitleRow, SectionHeading } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  FieldLabel,
+  SelectBox,
+  TextareaBox,
+  TextInput,
+} from "@/components/ui/form-controls";
 
 interface NovelChapter {
   id: number;
@@ -89,7 +101,7 @@ export default function NovelStudioPage() {
       setChannelVoices(cvRes.channel_voices || []);
       setErr("");
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Lỗi tải Studio Tiểu thuyết");
+      setErr(e instanceof Error ? e.message : "Lỗi tải Studio Truyện");
     }
   }, [activeWorkspaceId]);
 
@@ -102,12 +114,14 @@ export default function NovelStudioPage() {
       void load();
     },
     onCompleted: () => {
-      setMsg(`Đã render xong các chương cho dự án #${renderingId ?? ""}.`);
+      const done = `Đã xuất xong các chương cho bộ truyện #${renderingId ?? ""}.`;
+      setMsg(done);
+      toast.success(done);
       setRenderingId(null);
       void load();
     },
     onFailed: (j) => {
-      setErr(j.error || "Lỗi render chương tiểu thuyết");
+      setErr(j.error || "Lỗi xuất chương truyện");
       setRenderingId(null);
       void load();
     },
@@ -124,10 +138,17 @@ export default function NovelStudioPage() {
   const previewSplit = async () => {
     if (!sourceText.trim()) return;
     const res = await apiFetch<{
-      chapters: Array<{ chapter_index: number; title: string; word_count: number }>;
+      chapters: Array<{
+        chapter_index: number;
+        title: string;
+        word_count: number;
+      }>;
     }>("/api/v1/novels/split-preview", {
       method: "POST",
-      body: JSON.stringify({ source_text: sourceText, target_words_per_chapter: 140 }),
+      body: JSON.stringify({
+        source_text: sourceText,
+        target_words_per_chapter: 140,
+      }),
     });
     setPreviewChapters(res.chapters || []);
   };
@@ -137,24 +158,29 @@ export default function NovelStudioPage() {
     setErr("");
     setMsg("");
     try {
-      const res = await apiFetch<{ project: NovelProject }>("/api/v1/novels/projects", {
-        method: "POST",
-        body: JSON.stringify({
-          workspace_id: activeWorkspaceId,
-          title,
-          source_text: sourceText,
-          aspect_ratio: aspectRatio,
-          character_id: characterId > 0 ? characterId : null,
-          voice_id: voiceId,
-        }),
-      });
+      const res = await apiFetch<{ project: NovelProject }>(
+        "/api/v1/novels/projects",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            workspace_id: activeWorkspaceId,
+            title,
+            source_text: sourceText,
+            aspect_ratio: aspectRatio,
+            character_id: characterId > 0 ? characterId : null,
+            voice_id: voiceId,
+          }),
+        }
+      );
       setTitle("");
       setSourceText("");
       setPreviewChapters([]);
-      setMsg(`Đã tạo truyện #${res.project.id} với ${res.project.total_chapters} chương.`);
+      const m = `Đã tạo bộ truyện #${res.project.id} gồm ${res.project.total_chapters} chương.`;
+      setMsg(m);
+      toast.success(m);
       await load();
     } catch (e2) {
-      setErr(e2 instanceof Error ? e2.message : "Không thể tạo dự án Tiểu thuyết");
+      setErr(e2 instanceof Error ? e2.message : "Không thể tạo bộ truyện");
     }
   };
 
@@ -163,192 +189,250 @@ export default function NovelStudioPage() {
     setErr("");
     setMsg("");
     try {
-      const res = await apiFetch<{ job_id: number }>(`/api/v1/novels/projects/${pid}/render`, {
-        method: "POST",
-        body: JSON.stringify({ sync: false, force }),
-      });
+      const res = await apiFetch<{ job_id: number }>(
+        `/api/v1/novels/projects/${pid}/render`,
+        {
+          method: "POST",
+          body: JSON.stringify({ sync: false, force }),
+        }
+      );
       setActiveJobId(res.job_id);
-      setMsg(`Đã xếp hàng dựng các chương truyện #${pid} (Job #${res.job_id}) — theo dõi từng chương trực tiếp.`);
+      const m = `Đã đưa các chương truyện #${pid} vào hàng đợi xuất video (Tác vụ #${res.job_id}).`;
+      setMsg(m);
+      toast.info(m);
       await load();
     } catch (e2) {
-      setErr(e2 instanceof Error ? e2.message : "Lỗi render chương tiểu thuyết");
+      setErr(e2 instanceof Error ? e2.message : "Lỗi xuất chương truyện");
       setRenderingId(null);
     }
   };
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-          <BookOpen className="w-6 h-6 text-emerald-400" /> Studio Tiểu thuyết Đa chương → Video
-        </h1>
-        <p className="text-xs text-slate-400 mt-1">
-          Tự động tách chương, đọc truyện bằng giọng thật Edge TTS / VieNeu CPU / Giọng Kênh MC và phục hồi từ đúng chương còn thiếu.
-        </p>
-      </div>
+      <PageHeader
+        icon={<BookOpen className="w-5 h-5" />}
+        title="Truyện & Tiểu Thuyết Đa Chương → Video"
+        badges={
+          <Badge tone="cluster" className="tabular-nums">
+            {projects.length} bộ truyện
+          </Badge>
+        }
+        description="Tự động chia chương vừa thời lượng Shorts / YouTube, lồng tiếng đọc truyện tự nhiên và phục hồi thông minh từ đúng chương còn dở."
+      />
 
       {msg && (
-        <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs rounded-lg px-4 py-2.5">
+        <div
+          role="status"
+          className="rounded-[11px] border border-[var(--st-emerald-bd)] bg-[var(--st-emerald-bg)] px-4 py-2.5 text-[13px] text-[var(--st-emerald-tx)]"
+        >
           {msg}
         </div>
       )}
       {err && (
-        <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs rounded-lg px-4 py-2.5">
+        <div
+          role="alert"
+          className="rounded-[11px] border border-[var(--st-rose-bd)] bg-[var(--st-rose-bg)] px-4 py-2.5 text-[13px] text-[var(--st-rose-tx)]"
+        >
           {err}
         </div>
       )}
+
       <JobProgressBanner
         job={activeJob}
         jobId={activeJobId}
-        label={renderingId ? `Tiểu thuyết #${renderingId}` : "Novel Studio"}
+        label={renderingId ? `Bộ truyện #${renderingId}` : "Studio Truyện"}
         onDismiss={() => setActiveJobId(null)}
       />
 
-      <form
-        onSubmit={createNovel}
-        className="bg-[#111827] border border-slate-800 rounded-xl p-5 space-y-3 text-xs"
-      >
-        <div className="grid md:grid-cols-4 gap-3">
-          <input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Tên bộ truyện / tiểu thuyết"
-            className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2 md:col-span-2"
-          />
-          <select
-            value={voiceId}
-            onChange={(e) => setVoiceId(e.target.value)}
-            className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-          >
-            {voiceChoices.map((v) => (
-              <option key={v.value} value={v.value}>
-                {v.label}
-              </option>
-            ))}
-          </select>
-          <select
-            value={aspectRatio}
-            onChange={(e) => setAspectRatio(e.target.value)}
-            className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-          >
-            <option value="9:16">9:16 Reels / Shorts</option>
-            <option value="16:9">16:9 YouTube Ngang</option>
-            <option value="1:1">1:1 Vuông</option>
-          </select>
-        </div>
-        <div className="grid md:grid-cols-2 gap-3">
-          <select
-            value={characterId}
-            onChange={(e) => setCharacterId(Number(e.target.value))}
-            className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-          >
-            <option value={0}>Không gắn nhân vật dẫn truyện</option>
-            {characters.map((c) => (
-              <option key={c.id} value={c.id}>
-                Nhân vật: {c.name} ({c.voice_id})
-              </option>
-            ))}
-          </select>
-        </div>
-        <textarea
-          required
-          rows={5}
-          value={sourceText}
-          onChange={(e) => setSourceText(e.target.value)}
-          placeholder={"Chương 1: Mở đầu\nNội dung chương một...\n\nChương 2: Bước ngoặt\nNội dung chương hai..."}
-          className="w-full bg-[#182235] border border-slate-700 rounded-lg p-3"
-        />
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => void previewSplit()}
-            className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 cursor-pointer"
-          >
-            Xem trước tách chương ({previewChapters.length})
-          </button>
-          <button
-            type="submit"
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold cursor-pointer"
-          >
-            <Plus className="w-4 h-4" /> Tạo Dự án Tiểu thuyết
-          </button>
-        </div>
-        {previewChapters.length > 0 && (
-          <div className="grid md:grid-cols-3 gap-2 pt-2">
-            {previewChapters.map((c) => (
-              <div
-                key={c.chapter_index}
-                className="bg-[#182235] border border-slate-800 rounded px-3 py-2"
-              >
-                <div className="font-semibold text-white truncate">{c.title}</div>
-                <div className="text-[11px] text-slate-400">{c.word_count} từ</div>
-              </div>
-            ))}
-          </div>
-        )}
-      </form>
+      <Card tinted>
+        <form onSubmit={createNovel} className="space-y-4">
+          <SectionHeading>
+            <Plus className="w-4 h-4 text-[var(--c-icon)]" /> Tạo Bộ Truyện / Tiểu Thuyết Mới
+          </SectionHeading>
 
-      <div className="space-y-4">
-        {projects.map((p) => (
-          <div
-            key={p.id}
-            className="bg-[#111827] border border-slate-800 rounded-xl p-5 space-y-3 text-xs"
-          >
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <h2 className="text-sm font-semibold text-white">
-                  #{p.id} — {p.title}
-                </h2>
-                <div className="text-[11px] text-slate-400">
-                  {p.ready_chapters}/{p.total_chapters} chương hoàn tất • {p.aspect_ratio} •{" "}
-                  <span className="text-sky-300">{p.status}</span>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  disabled={jobRunning && renderingId === p.id}
-                  onClick={() => void renderProject(p.id, false)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold cursor-pointer disabled:opacity-50"
-                >
-                  <Play className="w-3.5 h-3.5" />{" "}
-                  {jobRunning && renderingId === p.id ? "Đang render..." : "Render tiếp (Checkpoint)"}
-                </button>
-                <button
-                  type="button"
-                  disabled={jobRunning && renderingId === p.id}
-                  onClick={() => void renderProject(p.id, true)}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 cursor-pointer disabled:opacity-50"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" /> Render lại tất cả
-                </button>
-              </div>
+          <div className="grid md:grid-cols-4 gap-3.5">
+            <div className="md:col-span-2">
+              <FieldLabel htmlFor="nv-title">Tên bộ truyện</FieldLabel>
+              <TextInput
+                id="nv-title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="VD: Bí Ẩn Tiệm Bạc Cổ Phố Hội"
+              />
             </div>
-            <SimulationBadge flags={p.simulation_flags} />
-            <div className="grid md:grid-cols-2 gap-3">
-              {p.chapters.map((ch) => (
+            <div>
+              <FieldLabel htmlFor="nv-voice">Giọng đọc kể chuyện</FieldLabel>
+              <SelectBox
+                id="nv-voice"
+                value={voiceId}
+                onChange={(e) => setVoiceId(e.target.value)}
+              >
+                {voiceChoices.map((v) => (
+                  <option key={v.value} value={v.value}>
+                    {v.label}
+                  </option>
+                ))}
+              </SelectBox>
+            </div>
+            <div>
+              <FieldLabel htmlFor="nv-ratio">Tỷ lệ khung hình</FieldLabel>
+              <SelectBox
+                id="nv-ratio"
+                value={aspectRatio}
+                onChange={(e) => setAspectRatio(e.target.value)}
+              >
+                <option value="9:16">9:16 Dọc (Shorts / Reels)</option>
+                <option value="16:9">16:9 Ngang (YouTube)</option>
+                <option value="1:1">1:1 Vuông</option>
+              </SelectBox>
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-3.5">
+            <div>
+              <FieldLabel htmlFor="nv-chr">Nhân vật dẫn truyện</FieldLabel>
+              <SelectBox
+                id="nv-chr"
+                value={characterId}
+                onChange={(e) => setCharacterId(Number(e.target.value))}
+              >
+                <option value={0}>Không gắn nhân vật dẫn truyện</option>
+                {characters.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} ({c.voice_id})
+                  </option>
+                ))}
+              </SelectBox>
+            </div>
+          </div>
+
+          <div>
+            <FieldLabel htmlFor="nv-text">
+              Văn bản truyện gốc * (tự nhận diện tiêu đề Chương 1, Chương 2...)
+            </FieldLabel>
+            <TextareaBox
+              id="nv-text"
+              required
+              rows={5}
+              value={sourceText}
+              onChange={(e) => setSourceText(e.target.value)}
+              placeholder={
+                "Chương 1: Mở đầu\nNội dung chương một...\n\nChương 2: Bước ngoặt\nNội dung chương hai..."
+              }
+            />
+          </div>
+
+          <div className="flex flex-wrap gap-2.5">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => void previewSplit()}
+            >
+              <Eye className="w-4 h-4 text-[var(--c-icon)]" /> Xem trước tách chương ({previewChapters.length})
+            </Button>
+            <Button type="submit">
+              <Plus className="w-4 h-4" /> Tạo Dự Án Truyện
+            </Button>
+          </div>
+
+          {previewChapters.length > 0 && (
+            <div className="grid md:grid-cols-3 gap-2.5 pt-1">
+              {previewChapters.map((c) => (
                 <div
-                  key={ch.id}
-                  className="bg-[#182235] border border-slate-800 rounded-lg p-3 space-y-2"
+                  key={c.chapter_index}
+                  className="rounded-[9px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-2"
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-semibold text-white truncate">{ch.title}</span>
-                    <span className="text-[11px] text-emerald-300">{ch.status}</span>
+                  <div className="truncate text-[13px] font-semibold text-[var(--text-primary)]">
+                    {c.title}
                   </div>
-                  {ch.video_url && (
-                    <video
-                      controls
-                      preload="metadata"
-                      src={ch.video_url}
-                      className="w-full max-h-48 rounded bg-black"
-                    />
-                  )}
+                  <div className="text-[12px] text-[var(--text-muted)] tabular-nums">
+                    {c.word_count} từ
+                  </div>
                 </div>
               ))}
             </div>
-          </div>
-        ))}
-      </div>
+          )}
+        </form>
+      </Card>
+
+      {projects.length === 0 ? (
+        <EmptyState
+          icon={<BookOpen className="w-5 h-5" />}
+          title="Chưa có bộ truyện nào"
+          description="Dán nội dung truyện vào biểu mẫu trên để tách chương và xuất video."
+        />
+      ) : (
+        <div className="space-y-4">
+          {projects.map((p) => (
+            <Card key={p.id} className="space-y-3.5">
+              <CardTitleRow>
+                <div>
+                  <h2 className="text-[15.5px] font-bold text-[var(--text-primary)]">
+                    #{p.id} — {p.title}
+                  </h2>
+                  <div className="text-[12.5px] text-[var(--text-muted)] tabular-nums">
+                    {p.ready_chapters}/{p.total_chapters} chương hoàn tất •{" "}
+                    {p.aspect_ratio} •{" "}
+                    <strong className="text-[var(--c-tx)]">{p.status}</strong>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={jobRunning && renderingId === p.id}
+                    onClick={() => void renderProject(p.id, false)}
+                  >
+                    <Play className="w-3.5 h-3.5" />{" "}
+                    {jobRunning && renderingId === p.id
+                      ? "Đang xuất..."
+                      : "Xuất tiếp chương còn thiếu"}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    disabled={jobRunning && renderingId === p.id}
+                    onClick={() => void renderProject(p.id, true)}
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" /> Xuất lại tất cả
+                  </Button>
+                </div>
+              </CardTitleRow>
+
+              <SimulationBadge flags={p.simulation_flags} />
+
+              <div className="grid md:grid-cols-2 gap-3">
+                {p.chapters.map((ch) => (
+                  <div
+                    key={ch.id}
+                    className="rounded-[11px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3.5 space-y-2"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate text-[13.5px] font-semibold text-[var(--text-primary)]">
+                        {ch.title}
+                      </span>
+                      <Badge
+                        tone={ch.status === "ready" ? "emerald" : "neutral"}
+                      >
+                        {ch.status}
+                      </Badge>
+                    </div>
+                    {ch.video_url && (
+                      <video
+                        controls
+                        preload="metadata"
+                        src={ch.video_url}
+                        className="w-full max-h-48 rounded-[8px] bg-black"
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

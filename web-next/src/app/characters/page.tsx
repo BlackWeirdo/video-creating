@@ -1,9 +1,32 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Image as ImageIcon, Mic, Scissors, Square, Trash2, Upload, UserCheck, Wand2 } from "lucide-react";
+import {
+  Image as ImageIcon,
+  Mic,
+  Scissors,
+  Square,
+  Trash2,
+  Upload,
+  UserCheck,
+  Wand2,
+} from "lucide-react";
+import { toast } from "sonner";
 import { apiFetch, useWorkspace } from "@/lib/api";
 import { SimulationBadge } from "@/components/SimulationBadge";
+import { PageHeader } from "@/components/vc/PageHeader";
+import { PolicyBadge } from "@/components/vc/PolicyBadge";
+import { EmptyState } from "@/components/vc/StatCard";
+import { Card, SectionHeading } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  FieldLabel,
+  SelectBox,
+  SwitchToggle,
+  TextareaBox,
+  TextInput,
+} from "@/components/ui/form-controls";
 
 interface CharacterRow {
   id: number;
@@ -53,7 +76,6 @@ export default function CharactersPage() {
   const [imgPrompt, setImgPrompt] = useState("");
   const [isProductShot, setIsProductShot] = useState(false);
 
-  // Channel Voice (MC consented 5-10s sample) state
   const [cvName, setCvName] = useState("");
   const [cvSpeaker, setCvSpeaker] = useState("");
   const [cvCharId, setCvCharId] = useState<number>(0);
@@ -72,7 +94,9 @@ export default function CharactersPage() {
         apiFetch<{ characters: CharacterRow[] }>(
           `/api/v1/characters?workspace_id=${activeWorkspaceId}`
         ),
-        apiFetch<{ images: AIImageRow[] }>(`/api/v1/images?workspace_id=${activeWorkspaceId}`),
+        apiFetch<{ images: AIImageRow[] }>(
+          `/api/v1/images?workspace_id=${activeWorkspaceId}`
+        ),
         apiFetch<{ channel_voices: ChannelVoiceRow[] }>(
           `/api/v1/channel-voices?workspace_id=${activeWorkspaceId}`
         ),
@@ -103,13 +127,17 @@ export default function CharactersPage() {
         stream.getTracks().forEach((t) => t.stop());
         const blob = new Blob(recChunksRef.current, { type: "audio/webm" });
         setCvFile(new File([blob], "mc_recorded.webm", { type: "audio/webm" }));
-        setMsg("Đã thu xong mẫu giọng! Hãy kiểm tra xác nhận đồng ý rồi bấm Lưu Giọng Kênh.");
+        setMsg(
+          "Đã thu xong mẫu giọng! Hãy bật xác nhận đồng ý rồi bấm Lưu Giọng Kênh."
+        );
       };
       mediaRecRef.current = mr;
       mr.start();
       setRecording(true);
     } catch {
-      setErr("Không truy cập được Microphone — bạn có thể chọn file âm thanh mẫu (.wav/.mp3).");
+      setErr(
+        "Không truy cập được Microphone — bạn có thể chọn tệp âm thanh mẫu (.wav / .mp3)."
+      );
     }
   };
 
@@ -125,7 +153,7 @@ export default function CharactersPage() {
     setErr("");
     setMsg("");
     if (!cvFile) {
-      setErr("Hãy thu âm bằng Mic (5–10 giây) hoặc chọn file âm thanh mẫu trước.");
+      setErr("Hãy thu âm bằng Mic (5–10 giây) hoặc chọn tệp âm thanh mẫu trước.");
       return;
     }
     try {
@@ -142,7 +170,9 @@ export default function CharactersPage() {
       setCvSpeaker("");
       setCvConsent(false);
       setCvFile(null);
-      setMsg("Đã lưu Giọng Kênh MC (VieNeu-TTS CPU) cho Workspace!");
+      const m = "Đã lưu Giọng Kênh MC (VieNeu-TTS CPU) cho Workspace!";
+      setMsg(m);
+      toast.success(m);
       await load();
     } catch (e2) {
       setErr(e2 instanceof Error ? e2.message : "Không thể lưu Giọng kênh");
@@ -166,6 +196,7 @@ export default function CharactersPage() {
       setCharName("");
       setAppearance("");
       setMsg("Đã tạo Nhân vật Cố định mới.");
+      toast.success("Đã tạo nhân vật mới.");
       await load();
     } catch (e2) {
       setErr(e2 instanceof Error ? e2.message : "Lỗi tạo nhân vật");
@@ -181,7 +212,7 @@ export default function CharactersPage() {
     });
     if (!resp.ok) {
       const d = await resp.json();
-      setErr(d.detail || "Lỗi upload ảnh tham chiếu");
+      setErr(d.detail || "Lỗi tải ảnh tham chiếu");
       return;
     }
     setMsg(`Đã cập nhật ảnh tham chiếu cho Nhân vật #${charId}.`);
@@ -204,287 +235,361 @@ export default function CharactersPage() {
         }),
       });
       setImgPrompt("");
-      setMsg("Đã sinh ảnh AI + chuyển thành shot chuyển động zoompan.");
+      setMsg("Đã tạo khung cảnh + chuyển thành Shot chuyển động.");
+      toast.success("Đã tạo ảnh & Shot chuyển động.");
       await load();
     } catch (e2) {
-      setErr(e2 instanceof Error ? e2.message : "Không thể sinh ảnh AI");
+      setErr(e2 instanceof Error ? e2.message : "Không thể sinh ảnh");
     }
   };
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-          <UserCheck className="w-6 h-6 text-cyan-400" /> Nhân vật Cố định, Giọng Kênh MC &amp; AI Image Studio
-        </h1>
-        <p className="text-xs text-slate-400 mt-1">
-          Khóa Seed đồng nhất, tách nền Rembg U2Net thật, lưu Giọng Kênh 5–10s của MC công ty &amp; tạo Motion Shot (`BR-PRD-01`: Workspace{" "}
-          <strong className="text-sky-300">{activeWorkspace?.content_policy || "strict_footage"}</strong> cấm tạo ảnh sản phẩm AI).
-        </p>
-      </div>
+      <PageHeader
+        icon={<UserCheck className="w-5 h-5" />}
+        title="Nhân vật Cố định, Giọng Kênh MC & Ảnh AI"
+        badges={<PolicyBadge policy={activeWorkspace?.content_policy} showDetail />}
+        description="Quản lý nhân vật cố định Seed, tách nền trong suốt bằng Rembg U2Net, lưu mẫu Giọng Kênh MC 5–10 giây có xác nhận đồng ý và tạo cảnh B-roll."
+      />
 
       {msg && (
-        <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs rounded-lg px-4 py-2.5">
+        <div
+          role="status"
+          className="rounded-[11px] border border-[var(--st-emerald-bd)] bg-[var(--st-emerald-bg)] px-4 py-2.5 text-[13px] text-[var(--st-emerald-tx)]"
+        >
           {msg}
         </div>
       )}
       {err && (
-        <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs rounded-lg px-4 py-2.5">
+        <div
+          role="alert"
+          className="rounded-[11px] border border-[var(--st-rose-bd)] bg-[var(--st-rose-bg)] px-4 py-2.5 text-[13px] text-[var(--st-rose-tx)]"
+        >
           {err}
         </div>
       )}
 
-      <div className="grid md:grid-cols-2 gap-4 text-xs">
-        <form
-          onSubmit={createChar}
-          className="bg-[#111827] border border-slate-800 rounded-xl p-5 space-y-3"
-        >
-          <h2 className="text-sm font-semibold text-white">Tạo Nhân vật Đồng nhất</h2>
-          <input
-            required
-            value={charName}
-            onChange={(e) => setCharName(e.target.value)}
-            placeholder="Tên nhân vật (VD: MC Bảo Ngọc)"
-            className="w-full bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-          />
-          <textarea
-            rows={2}
-            value={appearance}
-            onChange={(e) => setAppearance(e.target.value)}
-            placeholder="Mô tả ngoại hình cố định (trang phục, tóc, bối cảnh...)"
-            className="w-full bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-          />
-          <input
-            type="number"
-            value={seedInput}
-            onChange={(e) => setSeedInput(e.target.value)}
-            placeholder="Seed cố định"
-            className="w-full bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-          />
-          <button
-            type="submit"
-            className="px-4 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold cursor-pointer"
-          >
-            Tạo Nhân Vật
-          </button>
-        </form>
+      <div className="grid md:grid-cols-2 gap-4">
+        <Card tinted>
+          <form onSubmit={createChar} className="space-y-3.5">
+            <SectionHeading>Tạo Nhân vật Đồng nhất</SectionHeading>
+            <div>
+              <FieldLabel htmlFor="chr-name">Tên nhân vật *</FieldLabel>
+              <TextInput
+                id="chr-name"
+                required
+                value={charName}
+                onChange={(e) => setCharName(e.target.value)}
+                placeholder="VD: MC Bảo Ngọc"
+              />
+            </div>
+            <div>
+              <FieldLabel htmlFor="chr-app">Mô tả ngoại hình cố định</FieldLabel>
+              <TextareaBox
+                id="chr-app"
+                rows={2}
+                value={appearance}
+                onChange={(e) => setAppearance(e.target.value)}
+                placeholder="Trang phục, kiểu tóc, phong thái..."
+              />
+            </div>
+            <div>
+              <FieldLabel htmlFor="chr-seed">Mã Seed cố định</FieldLabel>
+              <TextInput
+                id="chr-seed"
+                type="number"
+                value={seedInput}
+                onChange={(e) => setSeedInput(e.target.value)}
+                className="tabular-nums"
+              />
+            </div>
+            <Button type="submit">Tạo Nhân Vật</Button>
+          </form>
+        </Card>
 
-        <form
-          onSubmit={generateImg}
-          className="bg-[#111827] border border-slate-800 rounded-xl p-5 space-y-3"
-        >
-          <h2 className="text-sm font-semibold text-white flex items-center gap-1.5">
-            <Wand2 className="w-4 h-4 text-purple-400" /> Sinh Ảnh Cảnh &amp; Motion Shot
-          </h2>
-          <select
-            value={imgCharId}
-            onChange={(e) => setImgCharId(Number(e.target.value))}
-            className="w-full bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-          >
-            <option value={0}>Không gắn nhân vật</option>
-            {characters.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name} (Seed {c.seed})
-              </option>
-            ))}
-          </select>
-          <textarea
-            required
-            rows={2}
-            value={imgPrompt}
-            onChange={(e) => setImgPrompt(e.target.value)}
-            placeholder="Mô tả bối cảnh cảnh quay..."
-            className="w-full bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-          />
-          <label className="flex items-center gap-2 text-slate-300">
-            <input
-              type="checkbox"
-              checked={isProductShot}
-              onChange={(e) => setIsProductShot(e.target.checked)}
-            />
-            Ảnh có sản phẩm (chỉ được bật ở Hybrid / Full AI)
-          </label>
-          <button
-            type="submit"
-            className="px-4 py-2 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold cursor-pointer"
-          >
-            Sinh Ảnh + Shot Chuyển Động
-          </button>
-        </form>
+        <Card>
+          <form onSubmit={generateImg} className="space-y-3.5">
+            <SectionHeading>
+              <Wand2 className="w-4 h-4 text-[var(--c-icon)]" /> Sinh Cảnh Nền &amp; Shot Chuyển Động
+            </SectionHeading>
+            <div>
+              <FieldLabel htmlFor="img-chr">Gắn nhân vật</FieldLabel>
+              <SelectBox
+                id="img-chr"
+                value={imgCharId}
+                onChange={(e) => setImgCharId(Number(e.target.value))}
+              >
+                <option value={0}>Không gắn nhân vật</option>
+                {characters.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} (Seed {c.seed})
+                  </option>
+                ))}
+              </SelectBox>
+            </div>
+            <div>
+              <FieldLabel htmlFor="img-prompt">Mô tả bối cảnh cảnh quay *</FieldLabel>
+              <TextareaBox
+                id="img-prompt"
+                required
+                rows={2}
+                value={imgPrompt}
+                onChange={(e) => setImgPrompt(e.target.value)}
+                placeholder="VD: Bàn trưng bày ánh nắng sớm tối giản..."
+              />
+            </div>
+            <div className="flex items-center gap-2.5">
+              <SwitchToggle
+                id="img-prd"
+                checked={isProductShot}
+                onCheckedChange={setIsProductShot}
+              />
+              <label
+                htmlFor="img-prd"
+                className="text-[12.5px] text-[var(--text-secondary)] cursor-pointer"
+              >
+                Cảnh có sản phẩm (chỉ cho phép ở Hybrid / Full AI)
+              </label>
+            </div>
+            <Button type="submit" variant="secondary">
+              Sinh Ảnh + Shot Chuyển Động
+            </Button>
+          </form>
+        </Card>
       </div>
 
-      {/* Consented Channel Voice (5-10s MC Voice Sample for VieNeu-TTS) */}
-      <div className="bg-[#111827] border border-slate-800 rounded-xl p-5 space-y-4 text-xs">
-        <h2 className="text-sm font-semibold text-white flex items-center gap-1.5">
-          <Mic className="w-4 h-4 text-emerald-400" /> Thư viện Giọng Kênh MC (Thu mẫu 5–10 giây • VieNeu CPU)
-        </h2>
-        <form onSubmit={saveChannelVoice} className="grid md:grid-cols-4 gap-3 items-end">
-          <input
-            required
-            value={cvName}
-            onChange={(e) => setCvName(e.target.value)}
-            placeholder="Tên giọng (VD: Giọng Kênh Bảo Ngọc)"
-            className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-          />
-          <input
-            required
-            value={cvSpeaker}
-            onChange={(e) => setCvSpeaker(e.target.value)}
-            placeholder="Họ tên MC / Chủ giọng đồng ý"
-            className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-          />
-          <select
-            value={cvCharId}
-            onChange={(e) => setCvCharId(Number(e.target.value))}
-            className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-          >
-            <option value={0}>Dùng chung toàn Workspace</option>
-            {characters.map((c) => (
-              <option key={c.id} value={c.id}>
-                Gắn mặc định cho: {c.name}
-              </option>
-            ))}
-          </select>
-          <div className="flex gap-2">
-            {!recording ? (
-              <button
-                type="button"
-                onClick={() => void startMicRecord()}
-                className="inline-flex items-center gap-1 px-3 py-2 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 font-semibold cursor-pointer"
-              >
-                <Mic className="w-3.5 h-3.5" /> Thu Mic
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={stopMicRecord}
-                className="inline-flex items-center gap-1 px-3 py-2 rounded-lg bg-rose-500 text-white font-semibold cursor-pointer animate-pulse"
-              >
-                <Square className="w-3.5 h-3.5" /> Dừng thu
-              </button>
-            )}
-            <label className="inline-flex items-center gap-1 px-3 py-2 rounded-lg bg-[#182235] border border-slate-700 text-sky-300 cursor-pointer">
-              <Upload className="w-3.5 h-3.5" /> File mẫu
-              <input
-                type="file"
-                accept=".wav,.mp3,.m4a,.webm,.ogg"
-                className="hidden"
-                onChange={(e) => setCvFile(e.target.files?.[0] || null)}
+      {/* Consented MC Channel Voice */}
+      <Card className="space-y-4">
+        <SectionHeading>
+          <Mic className="w-4 h-4 text-[var(--c-icon)]" /> Thư viện Giọng Kênh MC (Thu mẫu 5–10 giây • VieNeu CPU)
+        </SectionHeading>
+
+        <form onSubmit={saveChannelVoice} className="space-y-3.5">
+          <div className="grid md:grid-cols-4 gap-3 items-end">
+            <div>
+              <FieldLabel htmlFor="cv-name">Tên giọng kênh *</FieldLabel>
+              <TextInput
+                id="cv-name"
+                required
+                value={cvName}
+                onChange={(e) => setCvName(e.target.value)}
+                placeholder="VD: Giọng Kênh Bảo Ngọc"
               />
-            </label>
+            </div>
+            <div>
+              <FieldLabel htmlFor="cv-spk">Họ tên MC đồng ý *</FieldLabel>
+              <TextInput
+                id="cv-spk"
+                required
+                value={cvSpeaker}
+                onChange={(e) => setCvSpeaker(e.target.value)}
+                placeholder="Họ tên người thu mẫu"
+              />
+            </div>
+            <div>
+              <FieldLabel htmlFor="cv-chr">Gắn mặc định cho nhân vật</FieldLabel>
+              <SelectBox
+                id="cv-chr"
+                value={cvCharId}
+                onChange={(e) => setCvCharId(Number(e.target.value))}
+              >
+                <option value={0}>Dùng chung toàn Workspace</option>
+                {characters.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </SelectBox>
+            </div>
+            <div className="flex gap-2">
+              {!recording ? (
+                <Button
+                  type="button"
+                  variant="danger"
+                  onClick={() => void startMicRecord()}
+                >
+                  <Mic className="w-4 h-4" /> Thu Mic
+                </Button>
+              ) : (
+                <Button type="button" variant="danger" onClick={stopMicRecord}>
+                  <Square className="w-4 h-4" /> Dừng thu
+                </Button>
+              )}
+              <label className="inline-flex min-h-[38px] items-center gap-1.5 rounded-[9px] border border-[var(--border-strong)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[13px] font-semibold text-[var(--text-primary)] hover:border-[var(--c-bd)] cursor-pointer">
+                <Upload className="w-4 h-4 text-[var(--c-icon)]" /> Tệp mẫu
+                <input
+                  type="file"
+                  accept=".wav,.mp3,.m4a,.webm,.ogg"
+                  className="sr-only"
+                  onChange={(e) => setCvFile(e.target.files?.[0] || null)}
+                />
+              </label>
+            </div>
           </div>
-          <label className="md:col-span-3 flex items-center gap-2 text-slate-300">
-            <input
-              type="checkbox"
-              checked={cvConsent}
-              onChange={(e) => setCvConsent(e.target.checked)}
-            />
-            Xác nhận MC / chủ giọng thuộc công ty và đã đồng ý cho phép nhân bản giọng phục vụ kênh này.
-            {cvFile && <span className="text-emerald-300 ml-1">({cvFile.name})</span>}
-          </label>
-          <button
-            type="submit"
-            className="px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold cursor-pointer"
-          >
-            Lưu Giọng Kênh
-          </button>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+            <div className="flex items-center gap-2.5">
+              <SwitchToggle
+                id="cv-consent"
+                checked={cvConsent}
+                onCheckedChange={setCvConsent}
+              />
+              <label
+                htmlFor="cv-consent"
+                className="text-[13px] text-[var(--text-secondary)] cursor-pointer"
+              >
+                Xác nhận MC / chủ giọng thuộc công ty và đã đồng ý nhân bản giọng cho kênh này.
+                {cvFile && (
+                  <Badge tone="emerald" className="ml-2">
+                    {cvFile.name}
+                  </Badge>
+                )}
+              </label>
+            </div>
+            <Button type="submit" variant="emerald">
+              Lưu Giọng Kênh
+            </Button>
+          </div>
         </form>
 
         {channelVoices.length > 0 && (
-          <div className="grid md:grid-cols-2 gap-2.5 pt-1">
+          <div className="grid md:grid-cols-2 gap-3 pt-2">
             {channelVoices.map((cv) => (
               <div
                 key={cv.id}
-                className="bg-[#182235] border border-slate-800 rounded-lg p-3 flex flex-col gap-1.5"
+                className="rounded-[11px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3 space-y-2"
               >
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <div>
-                    <span className="font-semibold text-white">{cv.name}</span>{" "}
-                    <span className="text-slate-400">({cv.speaker_name} • {cv.duration_s}s)</span>
+                    <strong className="text-[13.5px] text-[var(--text-primary)]">
+                      {cv.name}
+                    </strong>{" "}
+                    <span className="text-[12px] text-[var(--text-muted)] tabular-nums">
+                      ({cv.speaker_name} • {cv.duration_s}s)
+                    </span>
                   </div>
-                  <button
+                  <Button
                     type="button"
+                    size="icon"
+                    variant="ghost"
+                    aria-label={`Xóa giọng ${cv.name}`}
                     onClick={async () => {
-                      await apiFetch(`/api/v1/channel-voices/${cv.id}`, { method: "DELETE" });
+                      await apiFetch(`/api/v1/channel-voices/${cv.id}`, {
+                        method: "DELETE",
+                      });
                       await load();
                     }}
-                    className="text-slate-400 hover:text-rose-400 cursor-pointer"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                    <Trash2 className="w-4 h-4 text-rose-400" />
+                  </Button>
                 </div>
-                {cv.audio_url && <audio controls src={cv.audio_url} className="h-7 w-full" />}
+                {cv.audio_url && (
+                  <audio controls src={cv.audio_url} className="h-8 w-full" />
+                )}
               </div>
             ))}
           </div>
         )}
-      </div>
+      </Card>
 
-      <div className="grid md:grid-cols-2 gap-4 text-xs">
-        <div className="bg-[#111827] border border-slate-800 rounded-xl p-4 space-y-2.5">
-          <h3 className="font-semibold text-white">Nhân vật ({characters.length})</h3>
-          {characters.map((c) => (
-            <div key={c.id} className="bg-[#182235] border border-slate-800 rounded-lg p-3 space-y-2">
-              <div className="flex justify-between font-semibold text-white">
-                <span>{c.name}</span>
-                <span className="text-cyan-300">Seed {c.seed} • {c.voice_id}</span>
-              </div>
-              <div className="text-slate-400">{c.appearance_prompt || "—"}</div>
-              <div className="flex flex-wrap gap-2 items-center">
-                <label className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-sky-300 cursor-pointer">
-                  <Upload className="w-3 h-3 inline mr-1" /> Upload Ref
-                  <input
-                    type="file"
-                    accept=".png,.jpg,.jpeg,.webp"
-                    className="hidden"
-                    onChange={(ev) => {
-                      const f = ev.target.files?.[0];
-                      if (f) void uploadCharRef(c.id, f);
-                    }}
-                  />
-                </label>
-                {c.ref_image_path && (
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      await apiFetch(`/api/v1/characters/${c.id}/cutout`, { method: "POST" });
-                      setMsg(`Đã tách nền PNG (Rembg U2Net) cho nhân vật #${c.id}.`);
-                      await load();
-                    }}
-                    className="px-2 py-1 rounded bg-purple-500/20 text-purple-300 cursor-pointer"
-                  >
-                    <Scissors className="w-3 h-3 inline mr-1" /> Tách nền PNG
-                  </button>
-                )}
-              </div>
-              <SimulationBadge flags={c.cutout_simulation_flags} />
-            </div>
-          ))}
-        </div>
-
-        <div className="bg-[#111827] border border-slate-800 rounded-xl p-4 space-y-2.5">
-          <h3 className="font-semibold text-white flex items-center gap-1.5">
-            <ImageIcon className="w-4 h-4 text-sky-400" /> Kho Ảnh AI ({images.length})
-          </h3>
-          <div className="grid sm:grid-cols-2 gap-2.5">
-            {images.map((im) => (
-              <div key={im.id} className="bg-[#182235] border border-slate-800 rounded-lg p-2.5 space-y-1.5">
-                {im.image_path && (
-                  <img
-                    src={`/files/${im.image_path}`}
-                    alt={im.prompt}
-                    className="w-full h-36 object-cover rounded bg-black"
-                  />
-                )}
-                <div className="text-[11px] text-slate-300 line-clamp-2">{im.prompt}</div>
-                <div className="text-[10px] text-slate-400">
-                  Seed {im.seed} • Shot: {im.motion_shot_id ?? "chưa tạo"}
+      <div className="grid md:grid-cols-2 gap-4">
+        <Card className="space-y-3">
+          <SectionHeading className="tabular-nums">
+            Nhân vật ({characters.length})
+          </SectionHeading>
+          {characters.length === 0 ? (
+            <EmptyState title="Chưa tạo nhân vật cố định nào" />
+          ) : (
+            <div className="space-y-2.5">
+              {characters.map((c) => (
+                <div
+                  key={c.id}
+                  className="rounded-[11px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3.5 space-y-2"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <strong className="text-[14px] text-[var(--text-primary)]">
+                      {c.name}
+                    </strong>
+                    <Badge tone="cluster" className="tabular-nums">
+                      Seed {c.seed}
+                    </Badge>
+                  </div>
+                  <div className="text-[12.5px] text-[var(--text-muted)]">
+                    {c.appearance_prompt || "—"}
+                  </div>
+                  <div className="flex flex-wrap gap-2 items-center">
+                    <label className="inline-flex min-h-[32px] items-center gap-1.5 rounded-[8px] border border-[var(--border-strong)] bg-[var(--bg-card)] px-2.5 py-1 text-[12px] font-semibold text-[var(--text-primary)] hover:border-[var(--c-bd)] cursor-pointer">
+                      <Upload className="w-3.5 h-3.5 text-[var(--c-icon)]" /> Ảnh gốc
+                      <input
+                        type="file"
+                        accept=".png,.jpg,.jpeg,.webp"
+                        className="sr-only"
+                        onChange={(ev) => {
+                          const f = ev.target.files?.[0];
+                          if (f) void uploadCharRef(c.id, f);
+                        }}
+                      />
+                    </label>
+                    {c.ref_image_path && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        onClick={async () => {
+                          await apiFetch(`/api/v1/characters/${c.id}/cutout`, {
+                            method: "POST",
+                          });
+                          setMsg(
+                            `Đã tách nền PNG (Rembg U2Net) cho nhân vật #${c.id}.`
+                          );
+                          await load();
+                        }}
+                      >
+                        <Scissors className="w-3.5 h-3.5" /> Tách nền PNG
+                      </Button>
+                    )}
+                  </div>
+                  <SimulationBadge flags={c.cutout_simulation_flags} />
                 </div>
-                <SimulationBadge flags={im.simulation_flags} />
-              </div>
-            ))}
-          </div>
-        </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        <Card className="space-y-3">
+          <SectionHeading className="tabular-nums">
+            <ImageIcon className="w-4 h-4 text-[var(--c-icon)]" /> Kho Ảnh Cảnh Nền ({images.length})
+          </SectionHeading>
+          {images.length === 0 ? (
+            <EmptyState title="Chưa có ảnh cảnh nền nào" />
+          ) : (
+            <div className="grid sm:grid-cols-2 gap-3">
+              {images.map((im) => (
+                <div
+                  key={im.id}
+                  className="rounded-[11px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3 space-y-2"
+                >
+                  {im.image_path && (
+                    <div className="aspect-video w-full overflow-hidden rounded-[8px] bg-black">
+                      <img
+                        src={`/files/${im.image_path}`}
+                        alt={im.prompt}
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
+                  )}
+                  <div className="text-[12.5px] text-[var(--text-primary)] line-clamp-2">
+                    {im.prompt}
+                  </div>
+                  <div className="text-[11.5px] text-[var(--text-muted)] tabular-nums">
+                    Seed {im.seed} • Shot: {im.motion_shot_id ?? "chưa tạo"}
+                  </div>
+                  <SimulationBadge flags={im.simulation_flags} />
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
       </div>
     </div>
   );

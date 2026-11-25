@@ -15,7 +15,14 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { Download, Play, Plus, Save, Workflow as WorkflowIcon } from "lucide-react";
+import { toast } from "sonner";
 import { apiFetch, useWorkspace } from "@/lib/api";
+import { JobProgressBanner, useJobProgress } from "@/components/JobProgressBanner";
+import { PageHeader } from "@/components/vc/PageHeader";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { SelectBox, TextInput } from "@/components/ui/form-controls";
 
 interface WorkflowRecord {
   id: number;
@@ -34,7 +41,7 @@ const NODE_PALETTE = [
   { kind: "news_node", label: "Tin tức" },
   { kind: "scene_node", label: "Cảnh & Kịch bản" },
   { kind: "voice_node", label: "Giọng đọc TTS" },
-  { kind: "render_node", label: "Render MP4" },
+  { kind: "render_node", label: "Xuất MP4" },
   { kind: "publish_node", label: "Gói Đăng Bài" },
 ];
 
@@ -42,9 +49,10 @@ export default function WorkflowsPage() {
   const { activeWorkspaceId } = useWorkspace();
   const [workflows, setWorkflows] = useState<WorkflowRecord[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [wfName, setWfName] = useState("Workflow Studio mới");
+  const [wfName, setWfName] = useState("Quy trình tự động mới");
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+  const [activeJobId, setActiveJobId] = useState<number | null>(null);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
 
@@ -70,13 +78,25 @@ export default function WorkflowsPage() {
       }
       setErr("");
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Lỗi tải Workflow");
+      setErr(e instanceof Error ? e.message : "Lỗi tải Quy trình tự động");
     }
   }, [activeWorkspaceId, selectedId, selectWorkflow]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  const { job: activeJob } = useJobProgress(activeJobId, {
+    onCompleted: () => {
+      setMsg("Đã chạy xong đồ thị quy trình tự động!");
+      toast.success("Hoàn tất chạy quy trình tự động!");
+      void load();
+    },
+    onFailed: (j) => {
+      setErr(j.error || "Quy trình gặp lỗi");
+      void load();
+    },
+  });
 
   const onConnect = useCallback(
     (connection: Connection) => setEdges((eds) => addEdge(connection, eds)),
@@ -88,7 +108,10 @@ export default function WorkflowsPage() {
     const next: Node = {
       id,
       type: "default",
-      position: { x: 120 + (nodes.length % 4) * 210, y: 80 + Math.floor(nodes.length / 4) * 110 },
+      position: {
+        x: 120 + (nodes.length % 4) * 210,
+        y: 80 + Math.floor(nodes.length / 4) * 110,
+      },
       data: { label, node_kind: kind },
     };
     setNodes((prev) => [...prev, next]);
@@ -106,18 +129,34 @@ export default function WorkflowsPage() {
             body: JSON.stringify({ name: wfName, nodes, edges }),
           }
         );
-        setMsg(`Đã lưu đồ thị Workflow #${res.workflow.id}.`);
+        const m = `Đã lưu đồ thị quy trình #${res.workflow.id}.`;
+        setMsg(m);
+        toast.success(m);
       } else {
-        const res = await apiFetch<{ workflow: WorkflowRecord }>("/api/v1/workflows", {
-          method: "POST",
-          body: JSON.stringify({ workspace_id: activeWorkspaceId, name: wfName, nodes, edges }),
-        });
+        const res = await apiFetch<{ workflow: WorkflowRecord }>(
+          "/api/v1/workflows",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              workspace_id: activeWorkspaceId,
+              name: wfName,
+              nodes,
+              edges,
+            }),
+          }
+        );
         setSelectedId(res.workflow.id);
-        setMsg(`Đã tạo Workflow #${res.workflow.id}.`);
+        const m = `Đã tạo quy trình #${res.workflow.id}.`;
+        setMsg(m);
+        toast.success(m);
       }
       await load();
     } catch (e2) {
-      setErr(e2 instanceof Error ? e2.message : "Đồ thị chứa chu trình hoặc không hợp lệ");
+      setErr(
+        e2 instanceof Error
+          ? e2.message
+          : "Đồ thị chứa chu trình lặp hoặc không hợp lệ"
+      );
     }
   };
 
@@ -126,101 +165,135 @@ export default function WorkflowsPage() {
     setErr("");
     setMsg("");
     try {
-      const res = await apiFetch<{ job_id: number }>(`/api/v1/workflows/${selectedId}/run`, {
-        method: "POST",
-        body: JSON.stringify({ workspace_id: activeWorkspaceId, sync: false }),
-      });
-      setMsg(`Đã xếp hàng chạy DAG Workflow #${selectedId} (Job #${res.job_id}).`);
+      const res = await apiFetch<{ job_id: number }>(
+        `/api/v1/workflows/${selectedId}/run`,
+        {
+          method: "POST",
+          body: JSON.stringify({ workspace_id: activeWorkspaceId, sync: false }),
+        }
+      );
+      setActiveJobId(res.job_id);
+      const m = `Đã đưa quy trình #${selectedId} vào hàng đợi xử lý (Tác vụ #${res.job_id}).`;
+      setMsg(m);
+      toast.info(m);
     } catch (e2) {
-      setErr(e2 instanceof Error ? e2.message : "Không thể chạy Workflow");
+      setErr(e2 instanceof Error ? e2.message : "Không thể chạy quy trình");
     }
   };
 
+  const latestVideoId = workflows.find((w) => w.id === selectedId)?.last_video_id;
+
   return (
-    <div className="max-w-6xl mx-auto space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <WorkflowIcon className="w-6 h-6 text-indigo-400" /> Bảng vẽ Workflow Node (`@xyflow/react`)
-          </h1>
-          <p className="text-xs text-slate-400 mt-1">
-            Nối các nút Nhân vật / Sản phẩm / Tin tức → Cảnh → Giọng → Render → Phát hành theo chuẩn DAG.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2 text-xs">
-          <button
-            type="button"
-            onClick={saveWorkflow}
-            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-sky-500 text-slate-950 font-semibold cursor-pointer"
-          >
-            <Save className="w-3.5 h-3.5" /> Lưu Đồ Thị
-          </button>
-          <button
-            type="button"
-            onClick={runSelected}
-            disabled={!selectedId}
-            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-500 text-slate-950 font-semibold cursor-pointer disabled:opacity-40"
-          >
-            <Play className="w-3.5 h-3.5" /> Chạy Workflow
-          </button>
-          {selectedId && (
-            <a
-              href={`/api/v1/workflows/${selectedId}/export`}
-              download={`workflow_${selectedId}.json`}
-              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-200"
+    <div className="max-w-6xl mx-auto space-y-5">
+      <PageHeader
+        icon={<WorkflowIcon className="w-5 h-5" />}
+        title="Quy Trình Tự Động Kéo Thả (Workflow)"
+        badges={
+          <Badge tone="cluster" className="tabular-nums">
+            {workflows.length} quy trình
+          </Badge>
+        }
+        description="Kết nối trực quan các khối Nhân vật / Sản phẩm / Tin tức → Cảnh → Giọng đọc → Xuất MP4 → Đóng gói đăng bài."
+        actions={
+          <>
+            <Button type="button" variant="secondary" onClick={() => void saveWorkflow()}>
+              <Save className="w-4 h-4" /> Lưu Đồ Thị
+            </Button>
+            {selectedId && (
+              <Button asChild variant="secondary">
+                <a
+                  href={`/api/v1/workflows/${selectedId}/export`}
+                  download={`workflow_${selectedId}.json`}
+                >
+                  <Download className="w-4 h-4" /> Xuất JSON
+                </a>
+              </Button>
+            )}
+            <Button
+              type="button"
+              disabled={!selectedId}
+              onClick={() => void runSelected()}
             >
-              <Download className="w-3.5 h-3.5" /> Xuất JSON
-            </a>
-          )}
-        </div>
-      </div>
+              <Play className="w-4 h-4" /> Chạy Quy Trình
+            </Button>
+          </>
+        }
+      />
 
       {msg && (
-        <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs rounded-lg px-4 py-2.5">
+        <div
+          role="status"
+          className="rounded-[11px] border border-[var(--st-emerald-bd)] bg-[var(--st-emerald-bg)] px-4 py-2.5 text-[13px] text-[var(--st-emerald-tx)]"
+        >
           {msg}
         </div>
       )}
       {err && (
-        <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs rounded-lg px-4 py-2.5">
+        <div
+          role="alert"
+          className="rounded-[11px] border border-[var(--st-rose-bd)] bg-[var(--st-rose-bg)] px-4 py-2.5 text-[13px] text-[var(--st-rose-tx)]"
+        >
           {err}
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-2 bg-[#111827] border border-slate-800 rounded-xl p-3 text-xs">
-        <select
-          value={selectedId ?? ""}
-          onChange={(e) => {
-            const picked = workflows.find((w) => w.id === Number(e.target.value));
-            if (picked) selectWorkflow(picked);
-          }}
-          className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-1.5"
-        >
-          {workflows.map((w) => (
-            <option key={w.id} value={w.id}>
-              {w.is_template ? "[Mẫu] " : ""}{w.name}
-            </option>
-          ))}
-        </select>
-        <input
-          value={wfName}
-          onChange={(e) => setWfName(e.target.value)}
-          className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-1.5 flex-1 min-w-[180px]"
-        />
-        {NODE_PALETTE.map((item) => (
-          <button
-            key={item.kind}
-            type="button"
-            onClick={() => addNode(item.kind, item.label)}
-            className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-sky-300 cursor-pointer"
+      <JobProgressBanner
+        job={activeJob}
+        jobId={activeJobId}
+        label="Quy trình tự động"
+        onDismiss={() => setActiveJobId(null)}
+      />
+
+      <Card className="space-y-3 p-3.5">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <SelectBox
+            aria-label="Chọn quy trình có sẵn"
+            value={selectedId ?? ""}
+            onChange={(e) => {
+              const picked = workflows.find(
+                (w) => w.id === Number(e.target.value)
+              );
+              if (picked) selectWorkflow(picked);
+            }}
+            className="sm:w-64"
           >
-            <Plus className="w-3 h-3 inline mr-0.5" /> {item.label}
-          </button>
-        ))}
-      </div>
+            {workflows.map((w) => (
+              <option key={w.id} value={w.id}>
+                {w.is_template ? "[Mẫu] " : ""}
+                {w.name}
+              </option>
+            ))}
+          </SelectBox>
+
+          <TextInput
+            aria-label="Tên quy trình"
+            value={wfName}
+            onChange={(e) => setWfName(e.target.value)}
+            className="flex-1 min-w-[200px]"
+          />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[12px] font-medium text-[var(--text-muted)]">
+            Thêm nút vào bảng vẽ:
+          </span>
+          {NODE_PALETTE.map((item) => (
+            <Button
+              key={item.kind}
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() => addNode(item.kind, item.label)}
+            >
+              <Plus className="w-3.5 h-3.5 text-[var(--c-icon)]" /> {item.label}
+            </Button>
+          ))}
+        </div>
+      </Card>
 
       <div
-        className="rounded-xl overflow-hidden border border-slate-800 bg-[#0b0f17]"
-        style={{ width: "100%", height: "480px" }}
+        className="rounded-[14px] overflow-hidden border border-[var(--border-strong)] bg-[var(--bg-card)] shadow-[var(--shadow-sm)]"
+        style={{ width: "100%", height: "490px" }}
       >
         <ReactFlow
           nodes={nodes}
@@ -235,14 +308,14 @@ export default function WorkflowsPage() {
         </ReactFlow>
       </div>
 
-      {workflows.find((w) => w.id === selectedId)?.last_video_id && (
-        <div className="text-xs text-slate-300">
-          Video gần nhất:{" "}
+      {latestVideoId && (
+        <div className="text-[13px] text-[var(--text-secondary)]">
+          Video xuất gần nhất:{" "}
           <Link
-            href={`/videos/${workflows.find((w) => w.id === selectedId)?.last_video_id}`}
-            className="text-sky-400 hover:underline"
+            href={`/videos/${latestVideoId}`}
+            className="font-semibold text-[var(--c-tx)] hover:underline"
           >
-            Video #{workflows.find((w) => w.id === selectedId)?.last_video_id}
+            Mở Video #{latestVideoId} →
           </Link>
         </div>
       )}

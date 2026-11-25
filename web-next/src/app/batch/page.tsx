@@ -2,9 +2,21 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Layers, RefreshCw } from "lucide-react";
+import { Layers, Play, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
 import { apiFetch, useWorkspace } from "@/lib/api";
 import { JobProgressBanner, useJobProgress } from "@/components/JobProgressBanner";
+import { PageHeader } from "@/components/vc/PageHeader";
+import { EmptyState } from "@/components/vc/StatCard";
+import { Card, CardTitleRow, SectionHeading } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  FieldLabel,
+  SelectBox,
+  TextareaBox,
+  TextInput,
+} from "@/components/ui/form-controls";
 
 interface ProductOption {
   id: number;
@@ -44,7 +56,9 @@ export default function BatchStudioPage() {
   const [products, setProducts] = useState<ProductOption[]>([]);
 
   const [title, setTitle] = useState("");
-  const [sourceKind, setSourceKind] = useState<"products" | "prompts" | "trends">("products");
+  const [sourceKind, setSourceKind] = useState<
+    "products" | "prompts" | "trends"
+  >("products");
   const [selectedProdIds, setSelectedProdIds] = useState<number[]>([]);
   const [promptsText, setPromptsText] = useState("");
   const [abCount, setAbCount] = useState(2);
@@ -58,19 +72,25 @@ export default function BatchStudioPage() {
   const load = useCallback(async () => {
     try {
       const [bRes, pRes] = await Promise.all([
-        apiFetch<{ batches: BatchRunRow[] }>(`/api/v1/batches?workspace_id=${activeWorkspaceId}`),
-        apiFetch<{ products: ProductOption[] }>(`/api/v1/products?workspace_id=${activeWorkspaceId}`),
+        apiFetch<{ batches: BatchRunRow[] }>(
+          `/api/v1/batches?workspace_id=${activeWorkspaceId}`
+        ),
+        apiFetch<{ products: ProductOption[] }>(
+          `/api/v1/products?workspace_id=${activeWorkspaceId}`
+        ),
       ]);
       const list = bRes.batches || [];
       setBatches(list);
       setProducts(pRes.products || []);
       if (list.length > 0) {
-        const detail = await apiFetch<{ batch: BatchRunRow }>(`/api/v1/batches/${list[0].id}`);
+        const detail = await apiFetch<{ batch: BatchRunRow }>(
+          `/api/v1/batches/${list[0].id}`
+        );
         setActiveBatch(detail.batch);
       }
       setErr("");
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Lỗi tải Batch Studio");
+      setErr(e instanceof Error ? e.message : "Lỗi tải Sản xuất hàng loạt");
     }
   }, [activeWorkspaceId]);
 
@@ -83,11 +103,12 @@ export default function BatchStudioPage() {
       void load();
     },
     onCompleted: () => {
-      setMsg("Đã hoàn tất chạy Batch A/B!");
+      setMsg("Đã hoàn tất chạy lô sản xuất hàng loạt (A/B)!");
+      toast.success("Hoàn tất lô sản xuất hàng loạt!");
       void load();
     },
     onFailed: (j) => {
-      setErr(j.error || "Batch gặp lỗi");
+      setErr(j.error || "Lô sản xuất gặp lỗi");
       void load();
     },
   });
@@ -109,25 +130,30 @@ export default function BatchStudioPage() {
               .split(/\r?\n/)
               .map((l) => l.trim())
               .filter(Boolean);
-      const res = await apiFetch<{ batch: BatchRunRow; job_id: number }>("/api/v1/batches", {
-        method: "POST",
-        body: JSON.stringify({
-          workspace_id: activeWorkspaceId,
-          title: title || `Batch ${sourceKind}`,
-          source_kind: sourceKind,
-          items,
-          ab_count: abCount,
-          style_presets: [styleA, styleB],
-          sync: false,
-        }),
-      });
+      const res = await apiFetch<{ batch: BatchRunRow; job_id: number }>(
+        "/api/v1/batches",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            workspace_id: activeWorkspaceId,
+            title: title || `Chiến dịch ${sourceKind}`,
+            source_kind: sourceKind,
+            items,
+            ab_count: abCount,
+            style_presets: [styleA, styleB],
+            sync: false,
+          }),
+        }
+      );
       setTitle("");
       setPromptsText("");
       setActiveJobId(res.job_id);
-      setMsg(`Đã khởi chạy Batch #${res.batch.id} (Job #${res.job_id}).`);
+      const m = `Đã khởi chạy lô #${res.batch.id} (Tác vụ #${res.job_id}).`;
+      setMsg(m);
+      toast.info(m);
       await load();
     } catch (e2) {
-      setErr(e2 instanceof Error ? e2.message : "Không thể tạo Batch");
+      setErr(e2 instanceof Error ? e2.message : "Không thể tạo lô sản xuất");
     }
   };
 
@@ -137,200 +163,258 @@ export default function BatchStudioPage() {
       body: JSON.stringify({ failed_only: true, sync: false }),
     });
     setActiveJobId(res.job_id);
-    setMsg(`Đã chạy lại các mục lỗi từ checkpoint của Batch #${id} (Job #${res.job_id}).`);
+    const m = `Đã chạy lại các mục lỗi từ điểm lưu của lô #${id} (Tác vụ #${res.job_id}).`;
+    setMsg(m);
+    toast.info(m);
   };
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-          <Layers className="w-6 h-6 text-indigo-400" /> Batch Studio & Biến thể Sản phẩm A/B
-        </h1>
-        <p className="text-xs text-slate-400 mt-1">
-          Sinh hàng loạt video với 1–3 biến thể Hook/Style A-B-C kèm checkpoint phục hồi đúng bước lỗi.
-        </p>
-      </div>
+      <PageHeader
+        icon={<Layers className="w-5 h-5" />}
+        title="Sản Xuất Hàng Loạt & Biến Thể A/B"
+        badges={
+          <Badge tone="cluster" className="tabular-nums">
+            {batches.length} chiến dịch
+          </Badge>
+        }
+        description="Tự động nhân bản 1–3 biến thể góc mở đầu (Hook) và kiểu phụ đề A/B/C cho nhiều sản phẩm cùng lúc, hỗ trợ chạy lại đúng bước bị lỗi."
+      />
 
       {msg && (
-        <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs rounded-lg px-4 py-2.5">
+        <div
+          role="status"
+          className="rounded-[11px] border border-[var(--st-emerald-bd)] bg-[var(--st-emerald-bg)] px-4 py-2.5 text-[13px] text-[var(--st-emerald-tx)]"
+        >
           {msg}
         </div>
       )}
       {err && (
-        <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs rounded-lg px-4 py-2.5">
+        <div
+          role="alert"
+          className="rounded-[11px] border border-[var(--st-rose-bd)] bg-[var(--st-rose-bg)] px-4 py-2.5 text-[13px] text-[var(--st-rose-tx)]"
+        >
           {err}
         </div>
       )}
+
       <JobProgressBanner
         job={activeJob}
         jobId={activeJobId}
-        label="Batch A/B Studio"
+        label="Sản xuất hàng loạt"
         onDismiss={() => setActiveJobId(null)}
       />
 
-      <form
-        onSubmit={createBatch}
-        className="bg-[#111827] border border-slate-800 rounded-xl p-5 space-y-3 text-xs"
-      >
-        <div className="grid md:grid-cols-4 gap-3">
-          <input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Tên chiến dịch Batch"
-            className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-          />
-          <select
-            value={sourceKind}
-            onChange={(e) => setSourceKind(e.target.value as "products" | "prompts" | "trends")}
-            className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-          >
-            <option value="products">Theo Sản phẩm Workspace</option>
-            <option value="prompts">Theo danh sách Prompt / Ý tưởng</option>
-            <option value="trends">Theo Trend ID</option>
-          </select>
-          <select
-            value={abCount}
-            onChange={(e) => setAbCount(Number(e.target.value))}
-            className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-          >
-            <option value={1}>1 bản gốc (A)</option>
-            <option value={2}>2 biến thể A/B</option>
-            <option value={3}>3 biến thể A/B/C</option>
-          </select>
-          <div className="flex gap-2">
-            <select
-              value={styleA}
-              onChange={(e) => setStyleA(e.target.value)}
-              className="bg-[#182235] border border-slate-700 rounded-lg px-2 py-2 flex-1"
-            >
-              <option value="tiktok_karaoke">Style A: Karaoke</option>
-              <option value="box_highlight">Style A: Hộp</option>
-              <option value="neon_glow">Style A: Neon</option>
-            </select>
-            <select
-              value={styleB}
-              onChange={(e) => setStyleB(e.target.value)}
-              className="bg-[#182235] border border-slate-700 rounded-lg px-2 py-2 flex-1"
-            >
-              <option value="box_highlight">Style B: Hộp</option>
-              <option value="neon_glow">Style B: Neon</option>
-              <option value="minimal_bottom">Style B: Tối giản</option>
-            </select>
-          </div>
-        </div>
+      <Card tinted>
+        <form onSubmit={createBatch} className="space-y-4">
+          <SectionHeading>Khởi Chạy Chiến Dịch Hàng Loạt Mới</SectionHeading>
 
-        {sourceKind === "products" ? (
-          <div className="flex flex-wrap gap-2">
-            {products.map((p) => {
-              const checked = selectedProdIds.includes(p.id);
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() =>
-                    setSelectedProdIds((prev) =>
-                      checked ? prev.filter((x) => x !== p.id) : [...prev, p.id]
-                    )
-                  }
-                  className={`px-3 py-1.5 rounded-lg border cursor-pointer ${
-                    checked
-                      ? "bg-sky-500/20 border-sky-400 text-sky-300"
-                      : "bg-[#182235] border-slate-700 text-slate-300"
-                  }`}
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-3.5">
+            <div>
+              <FieldLabel htmlFor="bt-title">Tên chiến dịch</FieldLabel>
+              <TextInput
+                id="bt-title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="VD: Lô BST Hè 2026"
+              />
+            </div>
+            <div>
+              <FieldLabel htmlFor="bt-kind">Nguồn đầu vào</FieldLabel>
+              <SelectBox
+                id="bt-kind"
+                value={sourceKind}
+                onChange={(e) =>
+                  setSourceKind(
+                    e.target.value as "products" | "prompts" | "trends"
+                  )
+                }
+              >
+                <option value="products">Theo Sản phẩm trong Workspace</option>
+                <option value="prompts">Theo danh sách Ý tưởng</option>
+                <option value="trends">Theo mã Video Xu hướng</option>
+              </SelectBox>
+            </div>
+            <div>
+              <FieldLabel htmlFor="bt-ab">Số lượng biến thể</FieldLabel>
+              <SelectBox
+                id="bt-ab"
+                value={abCount}
+                onChange={(e) => setAbCount(Number(e.target.value))}
+              >
+                <option value={1}>1 bản tiêu chuẩn (A)</option>
+                <option value={2}>2 biến thể đối chứng (A / B)</option>
+                <option value={3}>3 biến thể đối chứng (A / B / C)</option>
+              </SelectBox>
+            </div>
+            <div>
+              <FieldLabel htmlFor="bt-style-a">Cặp phong cách A / B</FieldLabel>
+              <div className="flex gap-2">
+                <SelectBox
+                  id="bt-style-a"
+                  value={styleA}
+                  onChange={(e) => setStyleA(e.target.value)}
                 >
-                  {p.name} ({p.material || "—"})
-                </button>
-              );
-            })}
-          </div>
-        ) : (
-          <textarea
-            rows={3}
-            value={promptsText}
-            onChange={(e) => setPromptsText(e.target.value)}
-            placeholder={
-              sourceKind === "prompts"
-                ? "Mỗi dòng 1 ý tưởng / prompt video..."
-                : "Mỗi dòng 1 Trend ID..."
-            }
-            className="w-full bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-          />
-        )}
-
-        <button
-          type="submit"
-          className="px-4 py-2 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold cursor-pointer"
-        >
-          Chạy Batch & Sinh Biến Thể
-        </button>
-      </form>
-
-      <div className="grid lg:grid-cols-3 gap-4 text-xs">
-        <div className="bg-[#111827] border border-slate-800 rounded-xl p-4 space-y-2">
-          <h3 className="font-semibold text-white">Lịch sử Batch ({batches.length})</h3>
-          {batches.map((b) => (
-            <div
-              key={b.id}
-              onClick={() => void inspectBatch(b.id)}
-              className={`p-3 rounded-lg border cursor-pointer space-y-1 ${
-                activeBatch?.id === b.id
-                  ? "bg-indigo-500/10 border-indigo-400/50"
-                  : "bg-[#182235] border-slate-800"
-              }`}
-            >
-              <div className="flex justify-between font-semibold text-white">
-                <span>{b.title}</span>
-                <span className="text-sky-300">{b.status}</span>
-              </div>
-              <div className="text-[11px] text-slate-400">
-                {b.source_kind} • {b.completed_items ?? 0}/{b.total_items ?? 0} xong
-                {b.failed_items ? ` • ${b.failed_items} lỗi` : ""}
+                  <option value="tiktok_karaoke">A: Karaoke</option>
+                  <option value="box_highlight">A: Hộp nổi</option>
+                  <option value="neon_glow">A: Neon</option>
+                </SelectBox>
+                <SelectBox
+                  aria-label="Phong cách biến thể B"
+                  value={styleB}
+                  onChange={(e) => setStyleB(e.target.value)}
+                >
+                  <option value="box_highlight">B: Hộp nổi</option>
+                  <option value="neon_glow">B: Neon</option>
+                  <option value="minimal_bottom">B: Tối giản</option>
+                </SelectBox>
               </div>
             </div>
-          ))}
-        </div>
-
-        <div className="lg:col-span-2 bg-[#111827] border border-slate-800 rounded-xl p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-white">
-              Biến thể A/B & Checkpoint {activeBatch ? `— #${activeBatch.id}` : ""}
-            </h3>
-            {activeBatch && (
-              <button
-                type="button"
-                onClick={() => void retryFailed(activeBatch.id)}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-amber-300 cursor-pointer"
-              >
-                <RefreshCw className="w-3 h-3" /> Thử lại mục lỗi
-              </button>
-            )}
           </div>
-          {!activeBatch?.items?.length ? (
-            <div className="text-slate-500 py-6 text-center">Chưa có biến thể nào.</div>
+
+          {sourceKind === "products" ? (
+            <div className="space-y-1.5">
+              <span className="block text-[12.5px] font-medium text-[var(--text-secondary)]">
+                Chọn sản phẩm đưa vào lô ({selectedProdIds.length} đã chọn)
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {products.map((p) => {
+                  const checked = selectedProdIds.includes(p.id);
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() =>
+                        setSelectedProdIds((prev) =>
+                          checked
+                            ? prev.filter((x) => x !== p.id)
+                            : [...prev, p.id]
+                        )
+                      }
+                      className={`rounded-[9px] border px-3 py-1.5 text-[13px] font-medium cursor-pointer transition-colors ${
+                        checked
+                          ? "border-[var(--c-bd)] bg-[var(--c-soft)] text-[var(--c-tx)] font-semibold"
+                          : "border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:border-[var(--c-bd)]"
+                      }`}
+                    >
+                      {p.name} ({p.material || "—"})
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           ) : (
-            <div className="grid md:grid-cols-2 gap-2.5">
+            <div>
+              <FieldLabel htmlFor="bt-prompts">
+                {sourceKind === "prompts"
+                  ? "Danh sách ý tưởng (mỗi dòng 1 ý tưởng)"
+                  : "Danh sách mã Xu hướng (mỗi dòng 1 số ID)"}
+              </FieldLabel>
+              <TextareaBox
+                id="bt-prompts"
+                rows={3}
+                value={promptsText}
+                onChange={(e) => setPromptsText(e.target.value)}
+              />
+            </div>
+          )}
+
+          <Button type="submit">
+            <Play className="w-4 h-4" /> Chạy Lô &amp; Sinh Biến Thể
+          </Button>
+        </form>
+      </Card>
+
+      <div className="grid lg:grid-cols-3 gap-4 items-start">
+        <Card className="space-y-3">
+          <SectionHeading className="tabular-nums">
+            Lịch sử Chiến dịch ({batches.length})
+          </SectionHeading>
+          {batches.length === 0 ? (
+            <EmptyState title="Chưa có lô sản xuất nào" />
+          ) : (
+            <div className="space-y-2">
+              {batches.map((b) => {
+                const isSelected = activeBatch?.id === b.id;
+                return (
+                  <div
+                    key={b.id}
+                    onClick={() => void inspectBatch(b.id)}
+                    className={`rounded-[11px] border p-3 cursor-pointer space-y-1 transition-colors ${
+                      isSelected
+                        ? "border-[var(--c-bd)] bg-[var(--c-soft)]"
+                        : "border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:border-[var(--c-bd)]"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <strong className="text-[13.5px] text-[var(--text-primary)]">
+                        {b.title}
+                      </strong>
+                      <Badge tone="sky">{b.status}</Badge>
+                    </div>
+                    <div className="text-[12px] text-[var(--text-muted)] tabular-nums">
+                      {b.source_kind} • {b.completed_items ?? 0}/
+                      {b.total_items ?? 0} xong
+                      {b.failed_items ? ` • ${b.failed_items} lỗi` : ""}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+
+        <Card className="lg:col-span-2 space-y-3.5">
+          <CardTitleRow>
+            <SectionHeading>
+              Biến thể A/B &amp; Trạng thái từng bước
+              {activeBatch ? ` — #${activeBatch.id}` : ""}
+            </SectionHeading>
+            {activeBatch && (
+              <Button
+                type="button"
+                size="sm"
+                variant="amber"
+                onClick={() => void retryFailed(activeBatch.id)}
+              >
+                <RefreshCw className="w-3.5 h-3.5" /> Thử lại mục lỗi
+              </Button>
+            )}
+          </CardTitleRow>
+
+          {!activeBatch?.items?.length ? (
+            <EmptyState title="Chọn một chiến dịch để xem danh sách biến thể" />
+          ) : (
+            <div className="grid md:grid-cols-2 gap-3">
               {activeBatch.items.map((it) => (
                 <div
                   key={it.id}
-                  className="bg-[#182235] border border-slate-700/70 rounded-lg p-3 space-y-1"
+                  className="rounded-[11px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3.5 space-y-1.5"
                 >
-                  <div className="flex justify-between font-semibold text-white">
-                    <span>
-                      Item #{it.item_index + 1} • Biến thể {it.variant_label}
-                    </span>
-                    <span className="text-emerald-300">{it.step}</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <strong className="text-[13.5px] text-[var(--text-primary)] tabular-nums">
+                      Mục #{it.item_index + 1} • Bản {it.variant_label}
+                    </strong>
+                    <Badge tone={it.error ? "rose" : "emerald"}>{it.step}</Badge>
                   </div>
-                  <div className="text-[11px] text-slate-400">
-                    Style: {it.style_preset} • Hook: {it.hook_angle}
+                  <div className="text-[12px] text-[var(--text-muted)]">
+                    Phong cách: {it.style_preset} • Mở đầu: {it.hook_angle}
                   </div>
                   {it.video_quality_score !== null && (
-                    <div className="text-[11px] text-amber-300">
-                      Điểm QC: {it.video_quality_score.toFixed(1)}
+                    <div className="text-[12px] font-semibold text-[var(--st-amber-tx)] tabular-nums">
+                      Điểm kiểm định: {it.video_quality_score.toFixed(1)}
                     </div>
                   )}
-                  {it.error && <div className="text-[11px] text-rose-300">{it.error}</div>}
+                  {it.error && (
+                    <div className="text-[12px] text-[var(--st-rose-tx)]">
+                      {it.error}
+                    </div>
+                  )}
                   {it.video_id && (
-                    <Link href={`/videos/${it.video_id}`} className="text-sky-400 hover:underline inline-block pt-1">
+                    <Link
+                      href={`/videos/${it.video_id}`}
+                      className="inline-block pt-1 text-[12.5px] font-semibold text-[var(--c-tx)] hover:underline"
+                    >
                       Mở Video #{it.video_id} →
                     </Link>
                   )}
@@ -338,7 +422,7 @@ export default function BatchStudioPage() {
               ))}
             </div>
           )}
-        </div>
+        </Card>
       </div>
     </div>
   );

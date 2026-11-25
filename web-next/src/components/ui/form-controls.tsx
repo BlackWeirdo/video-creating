@@ -35,6 +35,21 @@ export const TextInput = React.forwardRef<
 ));
 TextInput.displayName = "TextInput";
 
+export const TextareaBox = React.forwardRef<
+  HTMLTextAreaElement,
+  React.TextareaHTMLAttributes<HTMLTextAreaElement>
+>(({ className, ...props }, ref) => (
+  <textarea
+    ref={ref}
+    className={cn(
+      "w-full rounded-[8px] border border-[var(--border-strong)] bg-[var(--bg-input)] px-3 py-2 text-[13.5px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] transition-colors duration-150 focus:border-[var(--c-icon)] disabled:opacity-50",
+      className
+    )}
+    {...props}
+  />
+));
+TextareaBox.displayName = "TextareaBox";
+
 export const SelectBox = React.forwardRef<
   HTMLSelectElement,
   React.SelectHTMLAttributes<HTMLSelectElement>

@@ -201,7 +201,7 @@ $BundledPy = (Resolve-Path "runtime\python\python.exe").Path
 $PrevVenvEnv = $env:UV_PROJECT_ENVIRONMENT
 try {
     $env:UV_PROJECT_ENVIRONMENT = $StagedVenv
-    & $UvBin sync --frozen --no-dev --no-editable --no-compile-bytecode --link-mode copy --python $BundledPy
+    & $UvBin sync --frozen --reinstall-package videocreator --no-dev --no-editable --no-compile-bytecode --link-mode copy --python $BundledPy
     if ($LASTEXITCODE -ne 0) { throw "Offline staging uv sync failed" }
 } finally {
     if ($null -eq $PrevVenvEnv) {

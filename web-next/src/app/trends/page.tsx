@@ -1,8 +1,26 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
-import { Flame, Link2, Play, RefreshCw, Sparkles, Trash2 } from "lucide-react";
+import {
+  ExternalLink,
+  Flame,
+  Languages,
+  Layers,
+  Link2,
+  Play,
+  Plus,
+  RefreshCw,
+  Sparkles,
+  Trash2,
+} from "lucide-react";
+import { toast } from "sonner";
 import { apiFetch, useWorkspace } from "@/lib/api";
+import { PageHeader } from "@/components/vc/PageHeader";
+import { EmptyState } from "@/components/vc/StatCard";
+import { Card, CardTitleRow, SectionHeading } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { FieldLabel, SelectBox, TextInput } from "@/components/ui/form-controls";
 
 interface WatchItem {
   id: number;
@@ -44,8 +62,12 @@ export default function TrendsPage() {
   const loadAll = useCallback(async () => {
     try {
       const [wRes, tRes, sRes] = await Promise.all([
-        apiFetch<{ watchlist: WatchItem[] }>(`/api/v1/watchlist?workspace_id=${activeWorkspaceId}`),
-        apiFetch<{ trends: TrendItem[] }>(`/api/v1/trends?workspace_id=${activeWorkspaceId}`),
+        apiFetch<{ watchlist: WatchItem[] }>(
+          `/api/v1/watchlist?workspace_id=${activeWorkspaceId}`
+        ),
+        apiFetch<{ trends: TrendItem[] }>(
+          `/api/v1/trends?workspace_id=${activeWorkspaceId}`
+        ),
         apiFetch<{ suggestions: SuggestionItem[] }>(
           `/api/v1/suggestions?workspace_id=${activeWorkspaceId}`
         ),
@@ -79,9 +101,10 @@ export default function TrendsPage() {
       });
       setWatchVal("");
       setMsg("Đã thêm từ khóa / kênh theo dõi.");
+      toast.success("Đã thêm vào danh sách theo dõi.");
       await loadAll();
     } catch (e2) {
-      setErr(e2 instanceof Error ? e2.message : "Không thể thêm watchlist");
+      setErr(e2 instanceof Error ? e2.message : "Không thể thêm nguồn theo dõi");
     }
   };
 
@@ -95,7 +118,9 @@ export default function TrendsPage() {
       method: "POST",
       body: JSON.stringify({ workspace_id: activeWorkspaceId }),
     });
-    setMsg(`Đã xếp hàng đợi quét xu hướng (Job #${res.job_id}).`);
+    const m = `Đã đưa vào hàng đợi quét xu hướng (Tác vụ #${res.job_id}).`;
+    setMsg(m);
+    toast.info(m);
   };
 
   const submitLink = async (e: React.FormEvent) => {
@@ -108,25 +133,37 @@ export default function TrendsPage() {
         body: JSON.stringify({ workspace_id: activeWorkspaceId, url: pasteUrl }),
       });
       setPasteUrl("");
-      setMsg("Đã nạp link tham khảo & xếp hàng đợi phân tích rea-video.");
+      const m = "Đã nạp liên kết tham khảo & đưa vào hàng đợi phân tích cấu trúc.";
+      setMsg(m);
+      toast.success(m);
       await loadAll();
     } catch (e2) {
-      setErr(e2 instanceof Error ? e2.message : "Không đọc được link");
+      setErr(e2 instanceof Error ? e2.message : "Không đọc được liên kết");
     }
   };
 
   const analyseItem = async (id: number) => {
     await apiFetch(`/api/v1/trends/${id}/analyse`, { method: "POST" });
-    setMsg(`Đã đưa Trend #${id} vào hàng đợi phân tích.`);
+    const m = `Đã đưa video xu hướng #${id} vào hàng đợi phân tích.`;
+    setMsg(m);
+    toast.info(m);
     await loadAll();
   };
 
   const handleSuggestion = async (id: number, action: "accept" | "dismiss") => {
     await apiFetch(`/api/v1/suggestions/${id}/${action}`, {
       method: "POST",
-      body: action === "accept" ? JSON.stringify({ workspace_id: activeWorkspaceId }) : undefined,
+      body:
+        action === "accept"
+          ? JSON.stringify({ workspace_id: activeWorkspaceId })
+          : undefined,
     });
-    setMsg(action === "accept" ? `Đã nhận đề xuất #${id} và tạo kịch bản.` : `Đã bỏ qua đề xuất #${id}.`);
+    const m =
+      action === "accept"
+        ? `Đã nhận đề xuất #${id} và khởi tạo kịch bản.`
+        : `Đã bỏ qua đề xuất #${id}.`;
+    setMsg(m);
+    toast.success(m);
     await loadAll();
   };
 
@@ -137,9 +174,15 @@ export default function TrendsPage() {
         `/api/v1/trends/${trendId}/send-to-localize`,
         { method: "POST", body: JSON.stringify({ workspace_id: activeWorkspaceId }) }
       );
-      setMsg(`Đã chuyển Trend #${trendId} sang Localize Studio (#${res.project.id}).`);
+      const m = `Đã chuyển video #${trendId} sang Studio Việt hóa (#${res.project.id}).`;
+      setMsg(m);
+      toast.success(m);
     } catch (e2) {
-      setErr(e2 instanceof Error ? e2.message : "Workspace hiện tại không cho phép Localize trend này");
+      setErr(
+        e2 instanceof Error
+          ? e2.message
+          : "Chính sách Workspace hiện tại không cho phép Việt hóa video này"
+      );
     }
   };
 
@@ -150,248 +193,295 @@ export default function TrendsPage() {
         "/api/v1/trends/send-to-batch",
         {
           method: "POST",
-          body: JSON.stringify({ workspace_id: activeWorkspaceId, trend_ids: [trendId], ab_count: 2 }),
+          body: JSON.stringify({
+            workspace_id: activeWorkspaceId,
+            trend_ids: [trendId],
+            ab_count: 2,
+          }),
         }
       );
-      setMsg(`Đã tạo Batch A/B #${res.batch.id} từ Trend #${trendId}.`);
+      const m = `Đã tạo lô thử nghiệm A/B #${res.batch.id} từ video #${trendId}.`;
+      setMsg(m);
+      toast.success(m);
     } catch (e2) {
-      setErr(e2 instanceof Error ? e2.message : "Không thể đẩy Trend sang Batch Studio");
+      setErr(
+        e2 instanceof Error
+          ? e2.message
+          : "Không thể chuyển sang Sản xuất hàng loạt"
+      );
     }
   };
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <Flame className="w-6 h-6 text-amber-400" /> Xu hướng & Phân tích Công thức
-          </h1>
-          <p className="text-xs text-slate-400 mt-1">
-            Quét 5 nguồn xu hướng, dán link Reels/TikTok tham khảo, phân tích `rea-video` và tạo đề xuất.
-          </p>
-        </div>
-        <button
-          onClick={() => void triggerScan()}
-          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold text-xs cursor-pointer"
-        >
-          <RefreshCw className="w-4 h-4" /> Quét Xu hướng Ngay
-        </button>
-      </div>
+      <PageHeader
+        icon={<Flame className="w-5 h-5" />}
+        title="Xu hướng & Phân tích Công thức Giữ Chân"
+        badges={
+          <Badge tone="cluster" className="tabular-nums">
+            {trends.length} xu hướng • {suggestions.length} đề xuất
+          </Badge>
+        }
+        description="Quét 5 nguồn xu hướng tự động, dán liên kết Reels / TikTok tham khảo để bóc tách cấu trúc mở đầu (Hook), nhịp cắt cảnh và sinh ý tưởng kịch bản."
+        actions={
+          <Button type="button" onClick={() => void triggerScan()}>
+            <RefreshCw className="w-4 h-4" /> Quét Xu hướng Ngay
+          </Button>
+        }
+      />
 
       {msg && (
-        <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs rounded-lg px-4 py-2.5">
+        <div
+          role="status"
+          className="rounded-[11px] border border-[var(--st-emerald-bd)] bg-[var(--st-emerald-bg)] px-4 py-2.5 text-[13px] text-[var(--st-emerald-tx)]"
+        >
           {msg}
         </div>
       )}
       {err && (
-        <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs rounded-lg px-4 py-2.5">
+        <div
+          role="alert"
+          className="rounded-[11px] border border-[var(--st-rose-bd)] bg-[var(--st-rose-bg)] px-4 py-2.5 text-[13px] text-[var(--st-rose-tx)]"
+        >
           {err}
         </div>
       )}
 
-      {/* Watchlist & Paste Link */}
-      <div className="grid md:grid-cols-2 gap-4">
-        <form
-          onSubmit={addWatch}
-          className="bg-[#111827] border border-slate-800 rounded-xl p-4 space-y-3"
-        >
-          <h2 className="text-sm font-semibold text-white">Theo dõi Kênh / Từ khóa</h2>
-          <div className="grid grid-cols-2 gap-2">
-            <select
-              value={source}
-              onChange={(e) => setSource(e.target.value)}
-              className="bg-[#182235] border border-slate-700 rounded-lg px-2.5 py-2 text-xs"
-            >
-              <option value="youtube">YouTube Shorts</option>
-              <option value="tiktok">TikTok (Apify)</option>
-              <option value="ig_hashtag">Instagram Hashtag</option>
-              <option value="ig_discovery">Instagram Discovery</option>
-              <option value="facebook">Facebook Reels Page</option>
-              <option value="ad_library">Meta Ad Library</option>
-            </select>
-            <select
-              value={kind}
-              onChange={(e) => setKind(e.target.value)}
-              className="bg-[#182235] border border-slate-700 rounded-lg px-2.5 py-2 text-xs"
-            >
-              <option value="keyword">Keyword</option>
-              <option value="hashtag">Hashtag</option>
-              <option value="account">Account</option>
-              <option value="page">Page</option>
-            </select>
-          </div>
-          <div className="flex gap-2">
-            <input
-              required
-              value={watchVal}
-              onChange={(e) => setWatchVal(e.target.value)}
-              placeholder="Nhập từ khóa hoặc link page..."
-              className="flex-1 bg-[#182235] border border-slate-700 rounded-lg px-3 py-2 text-xs"
-            />
-            <button
-              type="submit"
-              className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 text-xs font-medium cursor-pointer"
-            >
-              Thêm
-            </button>
-          </div>
-          <div className="space-y-1.5 max-h-40 overflow-y-auto pt-1">
-            {watchlist.map((w) => (
-              <div
-                key={w.id}
-                className="flex items-center justify-between text-xs bg-[#182235]/60 rounded px-2.5 py-1.5"
-              >
-                <span>
-                  <strong className="text-sky-300">{w.source}</strong>/{w.kind}: {w.value}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => void deleteWatch(w.id)}
-                  className="text-slate-400 hover:text-rose-400 cursor-pointer"
+      <div className="grid lg:grid-cols-2 gap-4">
+        <Card tinted>
+          <form onSubmit={addWatch} className="space-y-3.5">
+            <SectionHeading>Theo dõi Kênh / Từ khóa tự động</SectionHeading>
+            <div className="grid sm:grid-cols-2 gap-3">
+              <div>
+                <FieldLabel htmlFor="tr-src">Nguồn nền tảng</FieldLabel>
+                <SelectBox
+                  id="tr-src"
+                  value={source}
+                  onChange={(e) => setSource(e.target.value)}
                 >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+                  <option value="youtube">YouTube Shorts</option>
+                  <option value="tiktok">TikTok</option>
+                  <option value="ig_hashtag">Instagram Hashtag</option>
+                  <option value="ig_discovery">Instagram Khám phá</option>
+                  <option value="facebook">Facebook Reels Page</option>
+                  <option value="ad_library">Thư viện Quảng cáo Meta</option>
+                </SelectBox>
               </div>
-            ))}
-          </div>
-        </form>
-
-        <form
-          onSubmit={submitLink}
-          className="bg-[#111827] border border-slate-800 rounded-xl p-4 space-y-3"
-        >
-          <h2 className="text-sm font-semibold text-white flex items-center gap-1.5">
-            <Link2 className="w-4 h-4 text-sky-400" /> Dán Link Video Tham Khảo
-          </h2>
-          <p className="text-xs text-slate-400">
-            Dán link Facebook Reel hoặc Instagram Reel công khai để ghim phân tích cấu trúc `rea-video`.
-          </p>
-          <div className="flex gap-2">
-            <input
-              required
-              value={pasteUrl}
-              onChange={(e) => setPasteUrl(e.target.value)}
-              placeholder="https://www.facebook.com/reel/..."
-              className="flex-1 bg-[#182235] border border-slate-700 rounded-lg px-3 py-2 text-xs"
-            />
-            <button
-              type="submit"
-              className="px-4 py-2 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 text-xs font-semibold cursor-pointer"
-            >
-              Nạp Link
-            </button>
-          </div>
-
-          <div className="pt-2 space-y-2">
-            <h3 className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-purple-400" /> Đề xuất Ý tưởng ({suggestions.length})
-            </h3>
-            <div className="space-y-2 max-h-40 overflow-y-auto">
-              {suggestions.map((s) => (
-                <div
-                  key={s.id}
-                  className="bg-[#182235] border border-slate-700/70 rounded-lg p-2.5 text-xs space-y-1.5"
+              <div>
+                <FieldLabel htmlFor="tr-kind">Loại theo dõi</FieldLabel>
+                <SelectBox
+                  id="tr-kind"
+                  value={kind}
+                  onChange={(e) => setKind(e.target.value)}
                 >
-                  <div className="text-slate-200">{s.text}</div>
-                  <div className="flex items-center justify-between text-[11px] text-slate-400">
-                    <span>Trạng thái: {s.status}</span>
-                    {["new", "sent"].includes(s.status) && (
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => void handleSuggestion(s.id, "accept")}
-                          className="text-emerald-300 hover:underline cursor-pointer"
-                        >
-                          Nhận đề xuất
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void handleSuggestion(s.id, "dismiss")}
-                          className="text-slate-400 hover:text-rose-300 cursor-pointer"
-                        >
-                          Bỏ qua
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
+                  <option value="keyword">Từ khóa</option>
+                  <option value="hashtag">Thẻ Hashtag</option>
+                  <option value="account">Tài khoản</option>
+                  <option value="page">Trang Fanpage</option>
+                </SelectBox>
+              </div>
             </div>
+
+            <div className="flex gap-2 items-end">
+              <div className="flex-1">
+                <FieldLabel htmlFor="tr-val">Từ khóa hoặc địa chỉ kênh *</FieldLabel>
+                <TextInput
+                  id="tr-val"
+                  required
+                  value={watchVal}
+                  onChange={(e) => setWatchVal(e.target.value)}
+                  placeholder="VD: dây chuyền bạc s925..."
+                />
+              </div>
+              <Button type="submit" variant="secondary">
+                <Plus className="w-4 h-4" /> Thêm
+              </Button>
+            </div>
+
+            {watchlist.length > 0 && (
+              <div className="space-y-1.5 max-h-44 overflow-y-auto pt-1">
+                {watchlist.map((w) => (
+                  <div
+                    key={w.id}
+                    className="flex items-center justify-between gap-2 rounded-[9px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-2 text-[13px]"
+                  >
+                    <span className="truncate">
+                      <Badge tone="cluster" className="mr-2 uppercase text-[11px]">
+                        {w.source}
+                      </Badge>
+                      <span className="text-[var(--text-muted)]">{w.kind}: </span>
+                      <strong className="text-[var(--text-primary)]">{w.value}</strong>
+                    </span>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      aria-label={`Xóa theo dõi ${w.value}`}
+                      onClick={() => void deleteWatch(w.id)}
+                    >
+                      <Trash2 className="w-4 h-4 text-rose-400" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </form>
+        </Card>
+
+        <Card className="space-y-4">
+          <form onSubmit={submitLink} className="space-y-3">
+            <SectionHeading>
+              <Link2 className="w-4 h-4 text-[var(--c-icon)]" /> Dán Liên Kết Video Tham Khảo
+            </SectionHeading>
+            <p className="text-[12.5px] text-[var(--text-muted)]">
+              Dán liên kết Reels hoặc Shorts công khai để hệ thống tự bóc tách cấu trúc giữ chân người xem.
+            </p>
+            <div className="flex gap-2 items-end">
+              <div className="flex-1">
+                <FieldLabel htmlFor="tr-url">Liên kết video công khai *</FieldLabel>
+                <TextInput
+                  id="tr-url"
+                  required
+                  value={pasteUrl}
+                  onChange={(e) => setPasteUrl(e.target.value)}
+                  placeholder="https://www.facebook.com/reel/..."
+                />
+              </div>
+              <Button type="submit">Nạp Liên Kết</Button>
+            </div>
+          </form>
+
+          <div className="border-t border-[var(--border-subtle)] pt-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="inline-flex items-center gap-1.5 text-[13.5px] font-bold text-[var(--text-primary)]">
+                <Sparkles className="w-4 h-4 text-[var(--c-icon)]" /> Đề xuất Ý tưởng ({suggestions.length})
+              </span>
+            </div>
+
+            {suggestions.length === 0 ? (
+              <p className="text-[12.5px] text-[var(--text-muted)]">
+                Chưa có đề xuất kịch bản mới.
+              </p>
+            ) : (
+              <div className="space-y-2 max-h-44 overflow-y-auto">
+                {suggestions.map((s) => (
+                  <div
+                    key={s.id}
+                    className="rounded-[10px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3 space-y-2 text-[13px]"
+                  >
+                    <div className="text-[var(--text-primary)]">{s.text}</div>
+                    <div className="flex items-center justify-between gap-2">
+                      <Badge tone="neutral">{s.status}</Badge>
+                      {["new", "sent"].includes(s.status) && (
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="emerald"
+                            onClick={() => void handleSuggestion(s.id, "accept")}
+                          >
+                            Nhận ý tưởng
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => void handleSuggestion(s.id, "dismiss")}
+                          >
+                            Bỏ qua
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        </form>
+        </Card>
       </div>
 
-      {/* Trends List */}
-      <div className="bg-[#111827] border border-slate-800 rounded-xl p-4 space-y-3">
-        <h2 className="text-sm font-semibold text-white">
-          Danh sách Video Xu hướng ({trends.length})
-        </h2>
+      <Card className="space-y-3.5">
+        <CardTitleRow>
+          <SectionHeading className="tabular-nums">
+            Danh sách Video Xu hướng ({trends.length})
+          </SectionHeading>
+        </CardTitleRow>
+
         {trends.length === 0 ? (
-          <div className="text-xs text-slate-500 py-4">Chưa có video xu hướng nào trong Workspace này.</div>
+          <EmptyState
+            icon={<Flame className="w-5 h-5" />}
+            title="Chưa thu thập được video xu hướng nào"
+            description="Thêm từ khóa theo dõi rồi bấm Quét Xu hướng Ngay ở góc phải trên."
+          />
         ) : (
-          <div className="grid md:grid-cols-2 gap-3">
+          <div className="grid md:grid-cols-2 gap-3.5">
             {trends.map((t) => (
-              <div
+              <article
                 key={t.id}
-                className="bg-[#182235] border border-slate-700/70 rounded-lg p-3 space-y-2 text-xs"
+                className="rounded-[12px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3.5 space-y-2.5"
               >
                 <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-slate-800 text-sky-300 mr-1.5">
+                  <div className="min-w-0">
+                    <Badge tone="sky" className="uppercase mr-2 text-[11px]">
                       {t.source}
+                    </Badge>
+                    <span className="font-semibold text-[13.5px] text-[var(--text-primary)]">
+                      {t.title || t.url}
                     </span>
-                    <span className="font-medium text-white">{t.title || t.url}</span>
                   </div>
-                  <span className="text-amber-300 font-semibold shrink-0">
-                    {t.score.toFixed(1)}
-                  </span>
+                  <Badge tone="amber" className="tabular-nums">
+                    Điểm: {t.score.toFixed(1)}
+                  </Badge>
                 </div>
-                <div className="flex items-center justify-between text-[11px] text-slate-400">
+
+                <div className="flex flex-wrap items-center justify-between gap-2 text-[12px] text-[var(--text-muted)]">
                   <span>Phân tích: {t.analysis_status}</span>
-                  <div className="flex gap-3">
+                  <div className="flex flex-wrap items-center gap-1.5">
                     {t.url && (
-                      <a
-                        href={t.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-sky-400 hover:underline"
-                      >
-                        Mở nguồn
-                      </a>
+                      <Button asChild size="sm" variant="ghost">
+                        <a href={t.url} target="_blank" rel="noreferrer">
+                          <ExternalLink className="w-3.5 h-3.5" /> Mở gốc
+                        </a>
+                      </Button>
                     )}
-                    <button
+                    <Button
                       type="button"
+                      size="sm"
+                      variant="emerald"
                       onClick={() => void analyseItem(t.id)}
-                      className="inline-flex items-center gap-1 text-emerald-300 hover:underline cursor-pointer"
                     >
-                      <Play className="w-3 h-3" /> Phân tích
-                    </button>
-                    <button
+                      <Play className="w-3.5 h-3.5" /> Phân tích
+                    </Button>
+                    <Button
                       type="button"
+                      size="sm"
+                      variant="secondary"
                       onClick={() => void sendTrendToLocalize(t.id)}
-                      className="text-purple-300 hover:underline cursor-pointer"
                     >
-                      Việt hóa
-                    </button>
-                    <button
+                      <Languages className="w-3.5 h-3.5" /> Việt hóa
+                    </Button>
+                    <Button
                       type="button"
+                      size="sm"
+                      variant="amber"
                       onClick={() => void sendTrendToBatch(t.id)}
-                      className="text-amber-300 hover:underline cursor-pointer"
                     >
-                      Batch A/B
-                    </button>
+                      <Layers className="w-3.5 h-3.5" /> Tạo A/B
+                    </Button>
                   </div>
                 </div>
+
                 {t.analysis && (
-                  <pre className="bg-[#0b0f17] rounded p-2 text-[10px] text-slate-300 max-h-28 overflow-auto">
+                  <pre className="rounded-[8px] border border-[var(--border-subtle)] bg-[var(--bg-input)] p-2.5 font-mono text-[11.5px] text-[var(--text-secondary)] max-h-28 overflow-auto">
                     {JSON.stringify(t.analysis, null, 2)}
                   </pre>
                 )}
-              </div>
+              </article>
             ))}
           </div>
         )}
-      </div>
+      </Card>
     </div>
   );
 }

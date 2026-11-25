@@ -4,7 +4,7 @@ from __future__ import annotations
 import ipaddress
 import os
 
-__version__ = "2.0.0"
+__version__ = "2.1.0"
 
 
 def _normalize_no_proxy_for_httpx() -> None:
