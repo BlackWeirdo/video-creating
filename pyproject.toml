@@ -58,5 +58,6 @@ packages = ["src/videocreator"]
 testpaths = ["tests"]
 markers = [
     "local: local tests running against real SQLite/FFmpeg without external network calls",
+    "slow: heavier local E2E tests spawning Next.js standalone or verifying offline bundle relocation",
     "live: live integration tests calling real external APIs or CLIs",
 ]

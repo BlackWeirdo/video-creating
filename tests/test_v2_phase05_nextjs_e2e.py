@@ -25,7 +25,7 @@ from videocreator.app import create_app
 from videocreator.db import query_one
 from videocreator.paths import APP_NAME, REPO_ROOT, get_paths
 
-pytestmark = pytest.mark.local
+pytestmark = [pytest.mark.local, pytest.mark.slow]
 
 
 def _free_port() -> int:

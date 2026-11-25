@@ -4,7 +4,7 @@ import logging
 import re
 from datetime import datetime, timedelta
 
-from videocreator.db import get_conn, get_write_conn, query_all, query_one, record_audit
+from videocreator.db import get_conn, get_write_conn, query_one, record_audit
 from videocreator.manual.fulfill import ALLOWED_VIDEO_EXTS, fulfill_manual_ticket
 from videocreator.paths import AppPaths
 from videocreator.tg.sender import send_text

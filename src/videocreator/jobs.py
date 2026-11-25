@@ -18,7 +18,6 @@ from videocreator.job_store import (
     complete_job,
     is_queue_paused,
     recover_interrupted_jobs,
-    report_active_job_progress,
     reset_active_job_context,
     set_queue_paused,
     update_job_progress,

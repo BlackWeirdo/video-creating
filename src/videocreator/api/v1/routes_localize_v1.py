@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import secrets
-from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile

@@ -7,10 +7,9 @@ from pathlib import Path
 from typing import Any
 
 from videocreator.config import Settings
-from videocreator.db import query_one
 from videocreator.paths import AppPaths
 from videocreator.pipeline.assembly import load_shot_source
-from videocreator.pipeline.ffmpeg import RenderError, run_ffmpeg
+from videocreator.pipeline.ffmpeg import run_ffmpeg
 from videocreator.pipeline.probe import probe_duration, probe_video
 from videocreator.pipeline.render_inputs import build_segment_filter_args
 from videocreator.pipeline.subtitles import (

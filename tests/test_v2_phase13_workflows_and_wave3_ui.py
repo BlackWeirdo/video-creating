@@ -22,7 +22,7 @@ from videocreator.db import query_one
 from videocreator.paths import REPO_ROOT, get_paths
 from videocreator.pipeline.probe import probe_video
 
-pytestmark = pytest.mark.local
+pytestmark = [pytest.mark.local, pytest.mark.slow]
 
 
 def _free_port() -> int:

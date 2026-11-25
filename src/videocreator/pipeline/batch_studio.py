@@ -1,7 +1,6 @@
 """Batch & Product A/B Studio pipeline with per-item checkpoint resume (V2-BAT-01..05)."""
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 from pathlib import Path
@@ -13,7 +12,6 @@ from videocreator.job_store import report_active_job_progress
 from videocreator.jsonutil import loads_or
 from videocreator.paths import AppPaths
 from videocreator.pipeline.assembly import count_workspace_shots, ensure_full_ai_canvas_shot
-from videocreator.pipeline.ffmpeg import run_ffmpeg
 from videocreator.pipeline.render import render_video
 from videocreator.pipeline.styles import resolve_style_preset
 from videocreator.tts.syllables import count_syllables, max_syllables_for_duration

@@ -13,7 +13,7 @@ from videocreator.paths import get_paths
 from videocreator.pipeline.ffmpeg import run_ffmpeg
 from videocreator.pipeline.probe import probe_video
 
-pytestmark = pytest.mark.local
+pytestmark = [pytest.mark.local, pytest.mark.slow]
 
 
 def _make_motion_av(dest: Path, *, width: int = 360, height: int = 640, duration_s: float = 2.6) -> Path:

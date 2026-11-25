@@ -14,8 +14,6 @@ from videocreator.approvals import try_autopilot_approve
 from videocreator.db import get_conn, query_all, query_one, record_audit
 from videocreator.db_rows import hydrate_row
 from videocreator.job_store import report_active_job_progress
-from videocreator.jsonutil import loads_or
-from videocreator.models_manager import get_local_model
 from videocreator.paths import AppPaths
 from videocreator.pipeline.assembly import (
     concat_wavs_padded,

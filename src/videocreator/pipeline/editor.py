@@ -10,12 +10,11 @@ from typing import Any
 from videocreator.db import get_conn, query_all, query_one, record_audit
 from videocreator.db_rows import hydrate_row
 from videocreator.job_store import report_active_job_progress
-from videocreator.jsonutil import loads_or
 from videocreator.paths import AppPaths
 from videocreator.pipeline.assembly import load_shot_source, save_render_cache
 from videocreator.pipeline.compute_job import compute_job_scope
 from videocreator.pipeline.export import resolve_canvas_dimensions
-from videocreator.pipeline.ffmpeg import RenderError, run_ffmpeg
+from videocreator.pipeline.ffmpeg import run_ffmpeg
 from videocreator.pipeline.probe import probe_duration, probe_video
 from videocreator.pipeline.render import finalize_master_export
 from videocreator.pipeline.render_steps import concat_segments

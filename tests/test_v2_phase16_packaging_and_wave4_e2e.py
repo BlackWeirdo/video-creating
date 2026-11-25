@@ -21,7 +21,7 @@ from videocreator.__main__ import start_nextjs_standalone, stop_nextjs_standalon
 from videocreator.app import create_app
 from videocreator.paths import REPO_ROOT, find_ffmpeg_binary, find_node_runtime, get_paths
 
-pytestmark = pytest.mark.local
+pytestmark = [pytest.mark.local, pytest.mark.slow]
 
 
 def _free_port() -> int:
