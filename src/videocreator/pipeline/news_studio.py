@@ -1,18 +1,13 @@
-"""News & Article-to-Video Studio: HTML/RSS extraction, fact preservation & video + zip pack (V2-NWS-01..04)."""
+"""News & Article-to-Video Studio: project CRUD, script summarization & video + zip pack (V2-NWS-01..04)."""
 from __future__ import annotations
 
 import json
 import logging
-import re
 import shutil
-import urllib.request
-from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlsplit
 
 from videocreator.approvals import try_autopilot_approve
-from videocreator.autopilot import parse_rss_or_atom_items
 from videocreator.db import get_conn, query_all, query_one, record_audit
 from videocreator.db_rows import hydrate_row
 from videocreator.job_store import report_active_job_progress
@@ -21,140 +16,17 @@ from videocreator.paths import AppPaths
 from videocreator.pipeline.assembly import ensure_full_ai_canvas_shot
 from videocreator.pipeline.characters import generate_ai_image
 from videocreator.pipeline.compute_job import run_studio_project_job
+from videocreator.pipeline.news_extractor import (
+    VALID_NEWS_SOURCE_KINDS,
+    extract_article_facts,
+    fit_news_line,
+)
 from videocreator.pipeline.render import render_video
 from videocreator.pipeline.styles import resolve_style_preset
 from videocreator.posting.publish_pack import build_publish_pack_zip
-from videocreator.tts.syllables import count_syllables, max_syllables_for_duration
 from videocreator.workspaces import require_workspace
 
 logger = logging.getLogger("videocreator.pipeline.news_studio")
-
-VALID_NEWS_SOURCE_KINDS: frozenset[str] = frozenset({"url", "rss", "raw_text"})
-_NUM_TOKEN_RE = re.compile(r"\b\d+(?:[.,:/-]\d+)*(?:%|\b)")
-_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+|\r?\n+")
-
-
-class _ArticleHTMLParser(HTMLParser):
-    def __init__(self) -> None:
-        super().__init__()
-        self._skip_depth = 0
-        self._in_title = False
-        self._in_h1 = False
-        self.title_parts: list[str] = []
-        self.h1_parts: list[str] = []
-        self.body_parts: list[str] = []
-
-    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        t = tag.lower()
-        if t in ("script", "style", "noscript", "nav", "footer", "aside"):
-            self._skip_depth += 1
-        elif t == "title":
-            self._in_title = True
-        elif t == "h1":
-            self._in_h1 = True
-
-    def handle_endtag(self, tag: str) -> None:
-        t = tag.lower()
-        if t in ("script", "style", "noscript", "nav", "footer", "aside") and self._skip_depth > 0:
-            self._skip_depth -= 1
-        elif t == "title":
-            self._in_title = False
-        elif t == "h1":
-            self._in_h1 = False
-        elif t in ("p", "li", "h2", "h3", "article", "section", "div") and self._skip_depth == 0:
-            self.body_parts.append("\n")
-
-    def handle_data(self, data: str) -> None:
-        if self._skip_depth > 0:
-            return
-        cleaned = " ".join(data.split())
-        if not cleaned:
-            return
-        if self._in_title:
-            self.title_parts.append(cleaned)
-        if self._in_h1:
-            self.h1_parts.append(cleaned)
-        self.body_parts.append(cleaned + " ")
-
-
-def _read_url_bytes(url_or_path: str) -> bytes:
-    raw = (url_or_path or "").strip()
-    if raw.lower().startswith("file://"):
-        parsed = urlsplit(raw)
-        local = Path(urllib.request.url2pathname(parsed.path))
-        return local.read_bytes()
-    if Path(raw).is_file():
-        return Path(raw).read_bytes()
-    req = urllib.request.Request(raw, headers={"User-Agent": "VideoCreator/2.0"})
-    with urllib.request.urlopen(req, timeout=20.0) as resp:
-        return resp.read()
-
-
-def extract_article_facts(
-    source_kind: str,
-    *,
-    source_url: str = "",
-    raw_text: str = "",
-) -> dict[str, Any]:
-    """Extracts headline, factual sentences, and preserved numeric/date tokens from URL HTML, RSS, or raw text."""
-    kind = (source_kind or "raw_text").strip().lower()
-    if kind not in VALID_NEWS_SOURCE_KINDS:
-        raise ValueError(f"Unsupported news source_kind '{source_kind}'")
-
-    headline = ""
-    full_text = ""
-    if kind == "raw_text":
-        full_text = (raw_text or "").strip()
-        lines = [ln.strip() for ln in full_text.splitlines() if ln.strip()]
-        headline = lines[0] if lines else "Tin mới hôm nay"
-    elif kind == "rss":
-        items = parse_rss_or_atom_items(source_url)
-        if not items:
-            raise ValueError("RSS feed returned no parseable items")
-        first = items[0]
-        headline = first["title"]
-        full_text = f"{first['title']}. {first['summary']}".strip()
-    else:  # url HTML
-        html_str = _read_url_bytes(source_url).decode("utf-8", errors="replace")
-        parser = _ArticleHTMLParser()
-        parser.feed(html_str)
-        headline = (" ".join(parser.h1_parts).strip() or " ".join(parser.title_parts).strip())
-        full_text = " ".join("".join(parser.body_parts).split()).strip()
-        if not headline and full_text:
-            headline = full_text[:80]
-
-    if not full_text:
-        raise ValueError("Article source produced empty text")
-
-    sentences = [s.strip() for s in _SENTENCE_SPLIT_RE.split(full_text) if len(s.strip()) >= 8]
-    if not sentences:
-        sentences = [full_text]
-
-    seen_toks: list[str] = []
-    for tok in _NUM_TOKEN_RE.findall(f"{headline} {full_text}"):
-        if tok not in seen_toks:
-            seen_toks.append(tok)
-
-    domain = urlsplit(source_url).netloc if source_url.startswith(("http://", "https://")) else "local"
-    return {
-        "headline": headline[:140],
-        "sentences": sentences[:10],
-        "preserved_tokens": seen_toks[:8],
-        "source_domain": domain or "local",
-        "source_url": source_url,
-    }
-
-
-def _fit_news_line(text: str, lang: str, duration_s: float) -> str:
-    budget = max(4, max_syllables_for_duration(duration_s, lang))
-    words = " ".join((text or "").split()).split()
-    kept: list[str] = []
-    for w in words:
-        cand = " ".join([*kept, w])
-        if count_syllables(cand, lang) > budget and kept:
-            break
-        kept.append(w)
-    return " ".join(kept) or text[:40]
 
 
 def create_news_project(
@@ -298,9 +170,9 @@ def summarize_news_to_script(paths: AppPaths, project_id: int) -> dict[str, Any]
     )
     closing_sentence = sentences[2] if len(sentences) > 2 else f"Theo dõi cập nhật tiếp theo về {headline[:36]}"
 
-    l1 = _fit_news_line(headline, lang, 2.4)
-    l2 = _fit_news_line(fact_sentence, lang, 3.2)
-    l3 = _fit_news_line(closing_sentence, lang, 2.4)
+    l1 = fit_news_line(headline, lang, 2.4)
+    l2 = fit_news_line(fact_sentence, lang, 3.2)
+    l3 = fit_news_line(closing_sentence, lang, 2.4)
 
     # Guarantee key numeric tokens from the article are preserved verbatim in the script
     combined_now = f"{l1} {l2} {l3}"
@@ -335,13 +207,14 @@ def summarize_news_to_script(paths: AppPaths, project_id: int) -> dict[str, Any]
 
 def _resolve_news_shots(
     paths: AppPaths, proj: dict[str, Any], script: list[dict[str, Any]]
-) -> list[dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], bool]:
     ws_id = int(proj["workspace_id"])
     ws = require_workspace(paths.db_file, ws_id)
     policy = str(ws.get("content_policy") or "strict_footage")
     aspect_ratio = str(proj.get("aspect_ratio") or "9:16")
 
     shot_ids: list[int] = []
+    used_placeholder_image = False
     char_id = proj.get("character_id")
     if char_id:
         img = generate_ai_image(
@@ -354,6 +227,8 @@ def _resolve_news_shots(
             animate_to_shot=True,
             actor="news_studio",
         )
+        if "ai_image_canvas_placeholder" in (img.get("simulation_flags") or []):
+            used_placeholder_image = True
         if img.get("motion_shot_id"):
             shot_ids.append(int(img["motion_shot_id"]))
 
@@ -387,7 +262,7 @@ def _resolve_news_shots(
                 "text": str(seg.get("text") or "").strip(),
             }
         )
-    return planned
+    return planned, used_placeholder_image
 
 
 def render_news_project(
@@ -417,7 +292,7 @@ def render_news_project(
 
     try:
         report_active_job_progress(0.15, f"Đang chọn phân cảnh bản tin #{project_id}...")
-        planned_shots = _resolve_news_shots(paths, proj, script)
+        planned_shots, used_placeholder_image = _resolve_news_shots(paths, proj, script)
         facts = dict(proj.get("facts") or {})
         headline = str(facts.get("headline") or proj["title"])
         summary_caption = ". ".join(str(s.get("text") or "") for s in script).strip()
@@ -487,7 +362,7 @@ def render_news_project(
         from videocreator.config import load_settings
 
         sim_flags: list[str] = []
-        if proj.get("character_id"):
+        if used_placeholder_image:
             sim_flags.append("ai_image_canvas_placeholder")
         cfg_v = load_settings(paths.config_file).voice.vi_provider
         q_row = query_one(paths.db_file, "SELECT quality_notes FROM videos WHERE id = ?", (video_id,))
@@ -532,3 +407,16 @@ def render_news_project(
 
 def run_news_render_job(paths: AppPaths, project_id: int) -> str:
     return run_studio_project_job(render_news_project, paths, project_id)
+
+
+__all__ = [
+    "VALID_NEWS_SOURCE_KINDS",
+    "create_news_project",
+    "extract_article_facts",
+    "get_news_project",
+    "list_news_projects",
+    "render_news_project",
+    "run_news_render_job",
+    "summarize_news_to_script",
+    "update_news_project",
+]

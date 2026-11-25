@@ -1,4 +1,4 @@
-"""Consistent Characters, AI Image Studio, RGBA cutout & Zoompan Motion Shots (V2-CHR-01..05)."""
+"""Consistent Characters CRUD, reference image storage, and RGBA background cutout (V2-CHR-01..05)."""
 from __future__ import annotations
 
 import json
@@ -11,23 +11,18 @@ from videocreator.db import get_conn, query_all, query_one, record_audit
 from videocreator.db_rows import hydrate_row
 from videocreator.models_manager import get_local_model
 from videocreator.paths import AppPaths
-from videocreator.pipeline.assembly import SEED_PALETTE, render_styled_still_png
+from videocreator.pipeline.ai_images import (
+    animate_image_to_shot,
+    cutout_ai_image,
+    generate_ai_image,
+    get_ai_image,
+    image_dims,
+    list_ai_images,
+)
 from videocreator.pipeline.ffmpeg import run_ffmpeg
-from videocreator.pipeline.probe import probe_duration
 from videocreator.workspaces import require_workspace
 
 logger = logging.getLogger("videocreator.pipeline.characters")
-
-_SEED_PALETTE = SEED_PALETTE
-
-
-def _image_dims(aspect_ratio: str) -> tuple[int, int]:
-    ratio = (aspect_ratio or "9:16").strip()
-    if ratio == "16:9":
-        return 960, 540
-    if ratio == "1:1":
-        return 720, 720
-    return 540, 960
 
 
 def _hydrate_character(row: dict[str, Any]) -> dict[str, Any]:
@@ -37,14 +32,6 @@ def _hydrate_character(row: dict[str, Any]) -> dict[str, Any]:
             "style_tags": ("style_tags_json", []),
             "cutout_simulation_flags": ("cutout_simulation_flags_json", []),
         },
-    )
-
-
-def _hydrate_image(row: dict[str, Any]) -> dict[str, Any]:
-    return hydrate_row(
-        row,
-        json_fields={"simulation_flags": ("simulation_flags_json", [])},
-        bool_fields=("is_product_shot",),
     )
 
 
@@ -290,199 +277,20 @@ def cutout_character(paths: AppPaths, character_id: int) -> dict[str, Any]:
     return updated
 
 
-_render_styled_still_png = render_styled_still_png
-
-
-def animate_image_to_shot(
-    paths: AppPaths,
-    image_id: int,
-    *,
-    duration_s: float = 5.4,
-) -> dict[str, Any]:
-    """Animates an AI image PNG via FFmpeg `zoompan` into a reusable `shots` clip (`has_product=0`)."""
-    row = query_one(paths.db_file, "SELECT * FROM ai_images WHERE id = ?", (int(image_id),))
-    if row is None:
-        raise ValueError(f"AI image #{image_id} not found")
-    src_png = paths.media_dir / str(row["image_path"])
-    if not src_png.exists():
-        raise FileNotFoundError(f"AI image missing on disk: {src_png}")
-
-    w, h = _image_dims(str(row.get("aspect_ratio") or "9:16"))
-    dur = max(3.2, float(duration_s))
-    frames = max(90, int(round(dur * 30)))
-
-    rel_mp4 = f"assets/ai_img_{image_id}_motion.mp4"
-    dest_mp4 = paths.media_dir / rel_mp4
-    dest_mp4.parent.mkdir(parents=True, exist_ok=True)
-    zp = (
-        f"zoompan=z='min(zoom+0.0015,1.18)':d={frames}:"
-        f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={w}x{h}:fps=30,format=yuv420p"
-    )
-    run_ffmpeg(
-        [
-            "-i",
-            str(src_png.resolve()),
-            "-vf",
-            zp,
-            "-t",
-            f"{dur:.2f}",
-            "-c:v",
-            "libx264",
-            "-preset",
-            "veryfast",
-            "-pix_fmt",
-            "yuv420p",
-            "-an",
-            str(dest_mp4.resolve()),
-        ],
-        allow_creative_filters=True,
-    )
-    actual_dur = round(probe_duration(dest_mp4), 3)
-
-    with get_conn(paths.db_file) as conn:
-        a_id = int(
-            conn.execute(
-                "INSERT INTO assets (workspace_id, kind, path, duration_s, meta_json) VALUES (?, 'broll', ?, ?, ?)",
-                (int(row["workspace_id"]), rel_mp4, actual_dur, json.dumps({"ai_image_id": image_id})),
-            ).lastrowid
-        )
-        shot_id = int(
-            conn.execute(
-                """
-                INSERT INTO shots (asset_id, idx, start_s, end_s, description, has_product, quality)
-                VALUES (?, 0, 0.0, ?, ?, 0, 4)
-                """,
-                (a_id, actual_dur, str(row.get("prompt") or "AI Motion Scene")[:120]),
-            ).lastrowid
-        )
-        conn.execute(
-            "UPDATE ai_images SET motion_shot_id = ? WHERE id = ?",
-            (shot_id, int(image_id)),
-        )
-    updated = get_ai_image(paths.db_file, image_id)
-    assert updated is not None
-    return updated
-
-
-def get_ai_image(db_file: Path, image_id: int) -> dict[str, Any] | None:
-    row = query_one(db_file, "SELECT * FROM ai_images WHERE id = ?", (int(image_id),))
-    return _hydrate_image(row) if row else None
-
-
-def list_ai_images(db_file: Path, *, workspace_id: int) -> list[dict[str, Any]]:
-    rows = query_all(
-        db_file,
-        "SELECT * FROM ai_images WHERE workspace_id = ? ORDER BY id DESC LIMIT 100",
-        (int(workspace_id),),
-    )
-    return [_hydrate_image(r) for r in rows]
-
-
-def generate_ai_image(
-    paths: AppPaths,
-    *,
-    workspace_id: int,
-    prompt: str,
-    character_id: int | None = None,
-    seed: int | None = None,
-    aspect_ratio: str = "9:16",
-    is_product_shot: bool = False,
-    animate_to_shot: bool = True,
-    actor: str = "api",
-) -> dict[str, Any]:
-    """Generates a consistent-character scene PNG (with BR-PRD-01 strict_footage product guard)."""
-    ws = require_workspace(paths.db_file, workspace_id)
-    policy = str(ws.get("content_policy") or "strict_footage")
-    if policy == "strict_footage" and is_product_shot:
-        raise PermissionError(
-            "Workspace 'strict_footage' cấm sinh ảnh sản phẩm bằng AI (`BR-PRD-01`); hãy dùng footage thật."
-        )
-
-    clean_prompt = (prompt or "").strip()
-    if not clean_prompt:
-        raise ValueError("Image prompt is required")
-
-    ch = get_character(paths.db_file, character_id) if character_id else None
-    if character_id and ch is None:
-        raise ValueError(f"Character #{character_id} not found")
-
-    locked_seed = int(seed) if seed is not None else (int(ch["seed"]) if ch else 1000 + secrets.randbelow(900000))
-    merged_prompt = (
-        f"[Character {ch['name']}: {ch['appearance_prompt']}] {clean_prompt}".strip()
-        if ch and ch.get("appearance_prompt")
-        else clean_prompt
-    )
-    ratio = (aspect_ratio or str(ws.get("default_aspect_ratio") or "9:16")).strip() or "9:16"
-    w, h = _image_dims(ratio)
-
-    overlay_path: Path | None = None
-    if ch:
-        cand_rel = str(ch.get("cutout_image_path") or ch.get("ref_image_path") or "").strip()
-        if cand_rel and (paths.media_dir / cand_rel).exists():
-            overlay_path = paths.media_dir / cand_rel
-
-    with get_conn(paths.db_file) as conn:
-        cur = conn.execute(
-            """
-            INSERT INTO ai_images (
-                workspace_id, character_id, prompt, seed, aspect_ratio,
-                is_product_shot, provider, status
-            )
-            VALUES (?, ?, ?, ?, ?, ?, 'local_card', 'ready')
-            """,
-            (
-                int(workspace_id),
-                int(character_id) if character_id else None,
-                merged_prompt,
-                locked_seed,
-                ratio,
-                1 if is_product_shot else 0,
-            ),
-        )
-        img_id = int(cur.lastrowid)
-
-    rel_png = f"characters/ai_img_{img_id}.png"
-    dest_png = paths.media_dir / rel_png
-    _render_styled_still_png(dest_png, w=w, h=h, seed=locked_seed, overlay_image=overlay_path)
-
-    with get_conn(paths.db_file) as conn:
-        conn.execute(
-            "UPDATE ai_images SET image_path = ?, simulation_flags_json = ? WHERE id = ?",
-            (rel_png, json.dumps(["ai_image_canvas_placeholder"]), img_id),
-        )
-        record_audit(
-            conn,
-            actor=actor,
-            action="generate_ai_image",
-            object_type="ai_image",
-            object_id=img_id,
-            detail=f"char={character_id} seed={locked_seed} ratio={ratio}",
-        )
-
-    if animate_to_shot:
-        return animate_image_to_shot(paths, img_id)
-    out = get_ai_image(paths.db_file, img_id)
-    assert out is not None
-    return out
-
-
-def cutout_ai_image(paths: AppPaths, image_id: int) -> dict[str, Any]:
-    img = get_ai_image(paths.db_file, image_id)
-    if img is None:
-        raise ValueError(f"AI image #{image_id} not found")
-    src = paths.media_dir / str(img["image_path"])
-    dst = paths.media_dir / "characters" / f"ai_img_{image_id}_cutout.png"
-    key_hex = _SEED_PALETTE[abs(int(img["seed"])) % len(_SEED_PALETTE)][0].replace("#", "0x")
-    _, used_rembg = remove_background_with_flag(paths, src, dst, key_color=key_hex)
-    sim_flags = [f for f in (img.get("simulation_flags") or []) if f != "cutout_colorkey_fallback"]
-    if not used_rembg:
-        sim_flags.append("cutout_colorkey_fallback")
-    rel = f"characters/{dst.name}"
-    with get_conn(paths.db_file) as conn:
-        conn.execute(
-            "UPDATE ai_images SET cutout_path = ?, simulation_flags_json = ? WHERE id = ?",
-            (rel, json.dumps(sim_flags), int(image_id)),
-        )
-    updated = get_ai_image(paths.db_file, image_id)
-    assert updated is not None
-    return updated
+__all__ = [
+    "animate_image_to_shot",
+    "create_character",
+    "cutout_ai_image",
+    "cutout_character",
+    "delete_character",
+    "generate_ai_image",
+    "get_ai_image",
+    "get_character",
+    "image_dims",
+    "list_ai_images",
+    "list_characters",
+    "remove_background_to_png",
+    "remove_background_with_flag",
+    "save_character_ref_image",
+    "update_character",
+]

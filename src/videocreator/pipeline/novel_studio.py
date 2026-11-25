@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 from pathlib import Path
 from typing import Any
 
@@ -13,100 +12,18 @@ from videocreator.db_rows import file_media_url, hydrate_row
 from videocreator.job_store import report_active_job_progress
 from videocreator.jsonutil import loads_or
 from videocreator.paths import AppPaths
-from videocreator.pipeline.assembly import ensure_full_ai_canvas_shot
-from videocreator.pipeline.characters import generate_ai_image
 from videocreator.pipeline.compute_job import run_studio_project_job
 from videocreator.pipeline.export import resolve_canvas_dimensions
+from videocreator.pipeline.novel_chapters import (
+    build_chapter_lines,
+    resolve_novel_chapter_shots,
+    split_novel_chapters,
+)
 from videocreator.pipeline.render import render_video
 from videocreator.pipeline.styles import resolve_style_preset
-from videocreator.tts.syllables import count_syllables, max_syllables_for_duration
 from videocreator.workspaces import require_workspace
 
 logger = logging.getLogger("videocreator.pipeline.novel_studio")
-
-_CHAPTER_HEADING_RE = re.compile(
-    r"^\s*(?:chương|chuong|chapter|hồi|hoi|part|#)\s*([^\n]+)",
-    re.IGNORECASE | re.MULTILINE,
-)
-_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?…])\s+|\r?\n+")
-
-
-def split_novel_chapters(source_text: str, *, target_words: int = 140) -> list[dict[str, Any]]:
-    """Splits novel/story text into ordered chapters by headings or paragraph word boundaries."""
-    raw = (source_text or "").strip()
-    if not raw:
-        return []
-
-    matches = list(_CHAPTER_HEADING_RE.finditer(raw))
-    chapters: list[dict[str, Any]] = []
-    if matches:
-        # Preserve optional prologue before first explicit chapter heading
-        preamble = raw[: matches[0].start()].strip()
-        idx_cursor = 1
-        if preamble and len(preamble.split()) >= 4:
-            chapters.append(
-                {
-                    "chapter_index": idx_cursor,
-                    "title": "Mở đầu",
-                    "body_text": preamble,
-                    "word_count": len(preamble.split()),
-                }
-            )
-            idx_cursor += 1
-        for i, m in enumerate(matches):
-            body_start = m.end()
-            body_end = matches[i + 1].start() if i + 1 < len(matches) else len(raw)
-            heading = m.group(0).strip().lstrip("#").strip()
-            body = raw[body_start:body_end].strip() or heading
-            chapters.append(
-                {
-                    "chapter_index": idx_cursor,
-                    "title": heading[:120],
-                    "body_text": body,
-                    "word_count": len(body.split()),
-                }
-            )
-            idx_cursor += 1
-        return chapters
-
-    limit = max(20, int(target_words))
-    paragraphs = [p.strip() for p in re.split(r"\r?\n\s*\r?\n|\r?\n", raw) if p.strip()]
-    if len(paragraphs) <= 1:
-        paragraphs = [s.strip() for s in _SENTENCE_SPLIT_RE.split(raw) if s.strip()]
-
-    buf: list[str] = []
-    buf_words = 0
-    idx = 1
-    for p in paragraphs:
-        wc = len(p.split())
-        if buf and (buf_words + wc) > limit:
-            body = "\n".join(buf).strip()
-            chapters.append(
-                {
-                    "chapter_index": idx,
-                    "title": f"Chương {idx}",
-                    "body_text": body,
-                    "word_count": len(body.split()),
-                }
-            )
-            idx += 1
-            buf = [p]
-            buf_words = wc
-        else:
-            buf.append(p)
-            buf_words += wc
-
-    if buf:
-        body = "\n".join(buf).strip()
-        chapters.append(
-            {
-                "chapter_index": idx,
-                "title": f"Chương {idx}",
-                "body_text": body,
-                "word_count": len(body.split()),
-            }
-        )
-    return chapters
 
 
 def _hydrate_novel(db_file: Path, row: dict[str, Any]) -> dict[str, Any]:
@@ -214,88 +131,6 @@ def create_novel_project(
     return proj
 
 
-def _fit_line_to_budget(text: str, lang: str, duration_s: float) -> str:
-    budget = max(5, max_syllables_for_duration(duration_s, lang))
-    words = " ".join((text or "").split()).split()
-    kept: list[str] = []
-    for w in words:
-        cand = " ".join([*kept, w])
-        if count_syllables(cand, lang) > budget and kept:
-            break
-        kept.append(w)
-    return " ".join(kept) or text[:48]
-
-
-def _build_chapter_lines(chapter_title: str, body_text: str, lang: str) -> list[dict[str, Any]]:
-    sentences = [s.strip() for s in _SENTENCE_SPLIT_RE.split(body_text) if len(s.strip()) >= 4]
-    line1 = _fit_line_to_budget(chapter_title, lang, 1.8)
-    line2 = _fit_line_to_budget(sentences[0] if sentences else body_text, lang, 2.0)
-    line3 = _fit_line_to_budget(
-        sentences[1] if len(sentences) > 1 else (sentences[-1] if sentences else chapter_title),
-        lang,
-        1.8,
-    )
-    return [
-        {"duration_s": 1.8, "text": line1},
-        {"duration_s": 2.0, "text": line2},
-        {"duration_s": 1.8, "text": line3},
-    ]
-
-
-def _resolve_novel_chapter_shots(
-    paths: AppPaths,
-    proj: dict[str, Any],
-    chapter: dict[str, Any],
-    lines: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
-    ws_id = int(proj["workspace_id"])
-    aspect_ratio = str(proj.get("aspect_ratio") or "9:16")
-    shot_ids: list[int] = []
-
-    char_id = proj.get("character_id")
-    if char_id:
-        img = generate_ai_image(
-            paths,
-            workspace_id=ws_id,
-            character_id=int(char_id),
-            prompt=f"{proj['title']} - {chapter['title']}"[:120],
-            aspect_ratio=aspect_ratio,
-            is_product_shot=False,
-            animate_to_shot=True,
-            actor="novel_studio",
-        )
-        if img.get("motion_shot_id"):
-            shot_ids.append(int(img["motion_shot_id"]))
-
-    ws_shots = query_all(
-        paths.db_file,
-        """
-        SELECT s.id
-        FROM shots s
-        LEFT JOIN footage f ON s.footage_id = f.id
-        LEFT JOIN assets a ON s.asset_id = a.id
-        WHERE COALESCE(f.workspace_id, a.workspace_id, 1) = ?
-        ORDER BY s.quality DESC, s.id ASC LIMIT 4
-        """,
-        (ws_id,),
-    )
-    shot_ids.extend(int(r["id"]) for r in ws_shots if int(r["id"]) not in shot_ids)
-
-    if not shot_ids:
-        shot_ids.append(ensure_full_ai_canvas_shot(paths, ws_id, aspect_ratio))
-
-    planned: list[dict[str, Any]] = []
-    for idx, seg in enumerate(lines):
-        planned.append(
-            {
-                "shot_id": shot_ids[idx % len(shot_ids)],
-                "duration_s": max(1.6, float(seg["duration_s"])),
-                "text": str(seg["text"]),
-            }
-        )
-    return planned
-
-
 def render_novel_project(
     paths: AppPaths,
     project_id: int,
@@ -335,6 +170,7 @@ def render_novel_project(
     rendered_now = 0
     skipped_checkpoint = 0
     failed_count = 0
+    any_placeholder_img = False
 
     chapters_list = list(proj.get("chapters") or [])
     total_ch = max(1, len(chapters_list))
@@ -367,8 +203,10 @@ def render_novel_project(
             )
 
         try:
-            lines = _build_chapter_lines(str(ch["title"]), str(ch["body_text"]), t_lang)
-            planned_shots = _resolve_novel_chapter_shots(paths, proj, ch, lines)
+            lines = build_chapter_lines(str(ch["title"]), str(ch["body_text"]), t_lang)
+            planned_shots, ch_placeholder = resolve_novel_chapter_shots(paths, proj, ch, lines)
+            if ch_placeholder:
+                any_placeholder_img = True
             caption = f"{proj['title']} - {ch['title']}".strip()
             plan_payload = {
                 "novel_project_id": project_id,
@@ -450,8 +288,11 @@ def render_novel_project(
     else:
         final_status = "failed"
 
+    if skipped_checkpoint > 0 and "ai_image_canvas_placeholder" in (proj.get("simulation_flags") or []):
+        any_placeholder_img = True
+
     sim_flags: list[str] = []
-    if proj.get("character_id"):
+    if any_placeholder_img:
         sim_flags.append("ai_image_canvas_placeholder")
     from videocreator.config import load_settings
 
@@ -499,3 +340,13 @@ def render_novel_project(
 
 def run_novel_render_job(paths: AppPaths, project_id: int) -> str:
     return run_studio_project_job(render_novel_project, paths, project_id)
+
+
+__all__ = [
+    "create_novel_project",
+    "get_novel_project",
+    "list_novel_projects",
+    "render_novel_project",
+    "run_novel_render_job",
+    "split_novel_chapters",
+]
