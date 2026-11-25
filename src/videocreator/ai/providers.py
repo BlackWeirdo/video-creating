@@ -5,6 +5,7 @@ from videocreator.ai.claude import ClaudeAPIProvider
 from videocreator.ai.claude_cli import ClaudeCLIProvider
 from videocreator.ai.gemini import GeminiAPIProvider
 from videocreator.ai.muse_api import MuseAPIProvider
+from videocreator.ai.muse_gateway_chat import MuseGatewayChatProvider
 from videocreator.config import Settings
 from videocreator.paths import AppPaths
 from videocreator.secrets_store import SecretsStore
@@ -52,5 +53,13 @@ def build_single_provider(
             secrets,
             role=role,
             model="Muse-Spark",
+        )
+    if provider_name == "muse_gateway":
+        return MuseGatewayChatProvider(
+            paths.db_file,
+            paths.config_file,
+            secrets,
+            role=role,
+            model="muse-chat",
         )
     raise AIError(f"Unknown or unsupported AI provider '{provider_name}'")

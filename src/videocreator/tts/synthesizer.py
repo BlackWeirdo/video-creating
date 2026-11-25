@@ -13,6 +13,7 @@ from videocreator.pipeline.probe import probe_duration
 from videocreator.tts.audio_fit import fit_voice_to_budget, trim_voice_silence
 from videocreator.tts.edge_engine import synthesize_edge_python_or_cli
 from videocreator.tts.local_waveform import synthesize_local_waveform
+from videocreator.tts.muse_engine import synthesize_muse_single
 from videocreator.tts.types import SynthesizedTrack, TTSUnavailableError, WordTiming
 from videocreator.tts.vieneu_engine import resolve_vieneu_model_dir, synthesize_vieneu_single
 
@@ -62,6 +63,30 @@ def synthesize_speech_segments(
             ref_audio=ref_audio,
             paths=paths,
         )
+    elif prov == "muse":
+        try:
+            raw_track = synthesize_muse_single(
+                script_text,
+                work_dir=work_dir,
+                voice=voice,
+                lang=lang,
+                paths=paths,
+            )
+        except TTSUnavailableError:
+            fallback_voice = "en-US-JennyNeural" if lang == "en" else "vi-VN-HoaiMyNeural"
+            try:
+                raw_track = synthesize_edge_python_or_cli(
+                    script_text, voice=fallback_voice, work_dir=work_dir
+                )
+                prov = "edge"
+            except TTSUnavailableError:
+                if lang == "vi":
+                    raw_track = synthesize_vieneu_single(
+                        script_text, work_dir=work_dir, voice="Trúc Ly", paths=paths
+                    )
+                    prov = "vieneu"
+                else:
+                    raise
     else:
         raise TTSUnavailableError(f"Chưa hỗ trợ TTS provider '{provider_name}'")
 
@@ -121,7 +146,7 @@ def synthesize_with_local_fallback(
         default_provider=base_prov,
     )
 
-    if prov in ("edge", "vieneu"):
+    if prov in ("edge", "vieneu", "muse"):
         try:
             track, _ = synthesize_speech_segments(
                 lines,
@@ -232,6 +257,25 @@ def synthesize_timed_speaker_segments(
                     enrolled_voice=enrolled,
                 )
                 used_providers.add("vieneu")
+            elif prov == "muse":
+                try:
+                    seg_track = synthesize_muse_single(
+                        txt,
+                        work_dir=work_dir / stem,
+                        voice=voice,
+                        lang="en" if voice in ("Aria", "Helio") else "vi",
+                        paths=paths,
+                        stem=stem,
+                    )
+                    used_providers.add("muse")
+                except TTSUnavailableError:
+                    seg_track = synthesize_edge_python_or_cli(
+                        txt,
+                        voice="vi-VN-HoaiMyNeural",
+                        work_dir=work_dir / stem,
+                        stem=stem,
+                    )
+                    used_providers.add("edge")
             else:
                 try:
                     seg_track = synthesize_edge_python_or_cli(

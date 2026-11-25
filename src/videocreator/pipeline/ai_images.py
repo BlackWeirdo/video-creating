@@ -165,6 +165,87 @@ def _try_generate_gemini_imagen_png(
         return False
 
 
+def _try_generate_muse_image_png(
+    paths: AppPaths,
+    *,
+    prompt: str,
+    aspect_ratio: str,
+    w: int,
+    h: int,
+    dest_png: Path,
+    overlay_image: Path | None = None,
+) -> bool:
+    """Attempts image generation via hardened Muse Gateway (`/v1/images/generations`, `$0` subscription)."""
+    import base64
+
+    from videocreator.muse_gateway.client import MuseGatewayClient
+    from videocreator.muse_gateway.errors import MuseGatewayError
+    from videocreator.secrets_store import SecretsStore
+
+    settings = load_settings(paths.config_file)
+    cfg = settings.muse_gateway
+    if not cfg.enabled:
+        return False
+
+    size = (
+        "1792x1024"
+        if aspect_ratio == "16:9"
+        else ("1024x1024" if aspect_ratio == "1:1" else "1024x1792")
+    )
+    try:
+        secrets = SecretsStore(paths.secrets_file)
+        client = MuseGatewayClient(cfg, secrets, timeout_s=180.0)
+        client.verify_ready_and_safe()
+        model_name = cfg.default_image_model or "muse-image"
+        resp = client.generate_images(
+            prompt=prompt,
+            model=model_name,
+            n=1,
+            size=size,
+            response_format="b64_json",
+        )
+        items = resp.get("data") if isinstance(resp, dict) else []
+        if not items or not isinstance(items[0], dict):
+            raise MuseGatewayError("Muse Gateway returned empty image data list")
+        first = items[0]
+        raw_bytes: bytes | None = None
+        if first.get("b64_json"):
+            raw_bytes = base64.b64decode(str(first["b64_json"]))
+        elif first.get("url"):
+            tmp_dl = dest_png.with_name(f"{dest_png.stem}_muse_dl.png")
+            client.download_media_to_file(str(first["url"]), tmp_dl)
+            raw_bytes = tmp_dl.read_bytes()
+            tmp_dl.unlink(missing_ok=True)
+        if not raw_bytes:
+            raise MuseGatewayError("Muse Gateway image entry contained neither b64_json nor url")
+
+        dest_png.parent.mkdir(parents=True, exist_ok=True)
+        if overlay_image is not None and overlay_image.exists():
+            tmp_bg = dest_png.with_name(f"{dest_png.stem}_muse_bg.png")
+            tmp_bg.write_bytes(raw_bytes)
+            try:
+                _composite_overlay_png(tmp_bg, overlay_image, dest_png, w=w, h=h)
+            finally:
+                tmp_bg.unlink(missing_ok=True)
+        else:
+            dest_png.write_bytes(raw_bytes)
+
+        record_usage(
+            paths.db_file,
+            provider="muse_gateway",
+            model=model_name,
+            kind="videogen",
+            route="subscription",
+            units_in=1,
+            units_out=1,
+            cost_usd=0.0,
+        )
+        return True
+    except Exception as exc:
+        logger.warning("Muse Gateway image generation unavailable; falling back: %s", exc)
+        return False
+
+
 def animate_image_to_shot(
     paths: AppPaths,
     image_id: int,
@@ -315,6 +396,17 @@ def generate_ai_image(
     if used_imagen:
         provider_used = "gemini_imagen"
         sim_flags: list[str] = []
+    elif _try_generate_muse_image_png(
+        paths,
+        prompt=merged_prompt,
+        aspect_ratio=ratio,
+        w=w,
+        h=h,
+        dest_png=dest_png,
+        overlay_image=overlay_path,
+    ):
+        provider_used = "muse_image"
+        sim_flags = []
     else:
         render_styled_still_png(dest_png, w=w, h=h, seed=locked_seed, overlay_image=overlay_path)
         provider_used = "local_card"

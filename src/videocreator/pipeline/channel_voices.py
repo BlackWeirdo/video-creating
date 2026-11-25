@@ -207,7 +207,19 @@ def resolve_voice_id_to_tts_spec(
                 return "vieneu", "Minh Quân", ref_abs
         clean = "vi-VN-HoaiMyNeural"
 
-    # 2. Explicit VieNeu CPU preset (`vieneu:Trúc Ly` or bare preset name)
+    # 2. Explicit Muse Gateway voice (`muse:<Voice Name>` or `default_provider == 'muse'`)
+    if clean.startswith("muse:") or def_prov == "muse":
+        from videocreator.config import load_settings
+        from videocreator.tts.muse_engine import MUSE_VOICE_NAMES
+
+        m_cfg = load_settings(paths.config_file).muse_gateway
+        if m_cfg.enabled:
+            raw_m = clean.split(":", 1)[1].strip() if clean.startswith("muse:") else clean
+            chosen_m = raw_m if raw_m in MUSE_VOICE_NAMES else (m_cfg.default_voice or "Glad Kite")
+            return "muse", chosen_m, None
+        clean = "en-US-JennyNeural" if lang == "en" else "vi-VN-HoaiMyNeural"
+
+    # 3. Explicit VieNeu CPU preset (`vieneu:Trúc Ly` or bare preset name)
     if clean.startswith("vieneu:"):
         preset = clean.split(":", 1)[1].strip() or "Minh Quân"
         vieneu_m = get_local_model(paths, "vieneu_tts_vi")
