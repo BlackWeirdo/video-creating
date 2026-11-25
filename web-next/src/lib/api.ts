@@ -31,6 +31,7 @@ export interface JobRecord {
   status: string;
   progress: number;
   step: string;
+  attempts?: number;
   error: string | null;
   log_tail: string | null;
 }
@@ -39,6 +40,48 @@ export interface NavCounts {
   approvals_pending: number;
   suggestions_new: number;
   failed_routes: string[];
+}
+
+export class ApiError extends Error {
+  readonly status: number;
+  readonly detail: unknown;
+
+  constructor(status: number, message: string, detail?: unknown) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.detail = detail;
+  }
+}
+
+export async function parseApiResponse<T = unknown>(res: Response): Promise<T> {
+  const rawText = await res.text();
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}`;
+    let detail: unknown = rawText;
+    if (rawText) {
+      try {
+        const errBody = JSON.parse(rawText) as { detail?: unknown };
+        if (errBody && errBody.detail !== undefined) {
+          detail = errBody.detail;
+          msg =
+            typeof errBody.detail === "string"
+              ? errBody.detail
+              : JSON.stringify(errBody.detail);
+        } else {
+          msg = rawText.slice(0, 200);
+        }
+      } catch {
+        msg = rawText.slice(0, 200);
+      }
+    }
+    throw new ApiError(res.status, msg, detail);
+  }
+
+  if (res.status === 204 || !rawText.trim()) {
+    return undefined as T;
+  }
+  return JSON.parse(rawText) as T;
 }
 
 export async function apiFetch<T = unknown>(
@@ -61,23 +104,7 @@ export async function apiFetch<T = unknown>(
     cache: "no-store",
   });
 
-  if (!res.ok) {
-    let msg = `HTTP ${res.status}`;
-    try {
-      const errBody = await res.json();
-      if (errBody?.detail) {
-        msg =
-          typeof errBody.detail === "string"
-            ? errBody.detail
-            : JSON.stringify(errBody.detail);
-      }
-    } catch {
-      const txt = await res.text();
-      if (txt) msg = txt.slice(0, 200);
-    }
-    throw new Error(msg);
-  }
-  return (await res.json()) as T;
+  return parseApiResponse<T>(res);
 }
 
 interface WorkspaceContextValue {
