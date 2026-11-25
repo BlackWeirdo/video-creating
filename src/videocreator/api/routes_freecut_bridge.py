@@ -16,6 +16,7 @@ from videocreator.editor_bridge import (
     save_editor_result,
 )
 from videocreator.paths import AppPaths
+from videocreator.safe_paths import UnsafePathError, resolve_within
 
 router = APIRouter()
 
@@ -46,11 +47,9 @@ class HeartbeatBody(BaseModel):
 
 
 def _serve_bundle_file(dist_dir: Path, rel_subpath: str) -> FileResponse:
-    root = dist_dir.resolve()
-    target = (root / rel_subpath.lstrip("/")).resolve()
     try:
-        target.relative_to(root)
-    except ValueError as exc:
+        target = resolve_within(dist_dir, rel_subpath)
+    except UnsafePathError as exc:
         raise HTTPException(status_code=403, detail="Forbidden editor asset path") from exc
     if not target.is_file():
         raise HTTPException(status_code=404, detail="Editor asset not found")
@@ -67,13 +66,12 @@ async def serve_freecut_editor(subpath: str = "") -> Any:
     clean = subpath.strip().lstrip("/")
     if not clean:
         return _serve_bundle_file(dist_dir, "index.html")
-    cand = (dist_dir / clean).resolve()
     try:
-        cand.relative_to(dist_dir.resolve())
-        if cand.is_file():
-            return _serve_bundle_file(dist_dir, clean)
-    except ValueError:
-        raise HTTPException(status_code=403, detail="Forbidden")
+        cand = resolve_within(dist_dir, clean)
+    except UnsafePathError as exc:
+        raise HTTPException(status_code=403, detail="Forbidden") from exc
+    if cand.is_file():
+        return _serve_bundle_file(dist_dir, clean)
     return _serve_bundle_file(dist_dir, "index.html")
 
 

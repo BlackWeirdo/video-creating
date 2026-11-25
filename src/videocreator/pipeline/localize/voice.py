@@ -9,6 +9,7 @@ from videocreator.models_manager import get_local_model
 from videocreator.paths import AppPaths
 from videocreator.pipeline.localize.project import get_localize_project, validate_localize_policy
 from videocreator.pipeline.probe import probe_duration
+from videocreator.safe_paths import is_strictly_within
 from videocreator.tts.synthesizer import synthesize_timed_speaker_segments
 
 
@@ -37,10 +38,8 @@ def resolve_segment_voice_spec(
         ref_rel = str(spk_entry.get("ref_audio_rel") or "").strip()
         if ref_rel:
             ref_abs = paths.media_dir / ref_rel
-            proj_spk_root = (
-                paths.media_dir / "localize" / f"proj_{proj['id']}" / "speakers"
-            ).resolve()
-            if ref_abs.is_file() and proj_spk_root in ref_abs.resolve().parents:
+            proj_spk_root = paths.media_dir / "localize" / f"proj_{proj['id']}" / "speakers"
+            if ref_abs.is_file() and is_strictly_within(proj_spk_root, ref_abs):
                 vieneu_m = get_local_model(paths, "vieneu_tts_vi")
                 if (
                     vieneu_m

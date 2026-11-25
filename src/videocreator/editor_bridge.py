@@ -16,8 +16,8 @@ from videocreator.pipeline.export import extract_cover_frame
 from videocreator.pipeline.preflight import check_all_platforms
 from videocreator.pipeline.probe import probe_video
 from videocreator.pipeline.qc import run_video_qc
+from videocreator.safe_paths import safe_upload_stem
 
-_SAFE_NAME_RE = re.compile(r"[^a-zA-Z0-9._-]+")
 _LIVE_HEARTBEATS: dict[str, str] = {}
 
 
@@ -127,10 +127,10 @@ def save_editor_result(
     if not raw_bytes or len(raw_bytes) < 128:
         raise ValueError("Uploaded FreeCut export video is empty or invalid")
 
-    safe_orig = _SAFE_NAME_RE.sub("_", Path(filename or "export.mp4").name)
-    ext = Path(safe_orig).suffix.lower()
+    ext = Path(filename or "export.mp4").suffix.lower()
     if ext not in (".mp4", ".mov", ".webm", ".mkv"):
         ext = ".mp4"
+    safe_orig = f"{safe_upload_stem(filename, fallback='export')}{ext}"
 
     target_video_id: int | None = None
     if job_key:
