@@ -29,26 +29,56 @@ pytestmark = pytest.mark.local
 
 
 def test_zero_cross_module_private_imports_in_src() -> None:
-    """AST scan: `src/videocreator` must have zero cross-module `_private` imports."""
+    """AST scan: `src/videocreator` must use absolute imports and have zero cross-module `_private` imports or exports."""
     src_root = REPO_ROOT / "src" / "videocreator"
     violations: list[str] = []
     for py_file in sorted(src_root.rglob("*.py")):
+        rel = py_file.relative_to(REPO_ROOT).as_posix()
         tree = ast.parse(py_file.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
-            if (
-                isinstance(node, ast.ImportFrom)
-                and node.module
-                and node.module.startswith("videocreator")
-            ):
-                priv_names = [
-                    alias.name
-                    for alias in node.names
-                    if alias.name.startswith("_") and alias.name != "__version__"
-                ]
-                if priv_names:
-                    rel = py_file.relative_to(REPO_ROOT).as_posix()
-                    violations.append(f"{rel}:{node.lineno} imports {priv_names} from {node.module}")
-    assert violations == [], f"Cross-module private imports found:\n" + "\n".join(violations)
+            if isinstance(node, ast.ImportFrom):
+                if node.level and node.level > 0:
+                    violations.append(
+                        f"{rel}:{node.lineno} uses relative import (level={node.level}); use absolute `from videocreator...`"
+                    )
+                if (node.module and node.module.startswith("videocreator")) or (
+                    node.level and node.level > 0
+                ):
+                    priv_names = [
+                        alias.name
+                        for alias in node.names
+                        if (alias.name.startswith("_") and alias.name != "__version__")
+                        or (
+                            alias.asname
+                            and alias.asname.startswith("_")
+                            and not py_file.name.startswith("_")
+                            and py_file.name == "__init__.py"
+                        )
+                    ]
+                    if priv_names:
+                        violations.append(
+                            f"{rel}:{node.lineno} imports private {priv_names} from {node.module or '.' * node.level}"
+                        )
+            elif isinstance(node, ast.Assign):
+                for tgt in node.targets:
+                    if (
+                        isinstance(tgt, ast.Name)
+                        and tgt.id == "__all__"
+                        and isinstance(node.value, (ast.List, ast.Tuple))
+                    ):
+                        priv_exports = [
+                            elt.value
+                            for elt in node.value.elts
+                            if isinstance(elt, ast.Constant)
+                            and isinstance(elt.value, str)
+                            and elt.value.startswith("_")
+                            and elt.value != "__version__"
+                        ]
+                        if priv_exports:
+                            violations.append(
+                                f"{rel}:{node.lineno} exports private names in __all__: {priv_exports}"
+                            )
+    assert violations == [], "Architecture import violations found:\n" + "\n".join(violations)
 
 
 def test_localize_and_autopilot_split_into_modular_packages() -> None:
