@@ -53,7 +53,7 @@
       "POST"
     ],
     "path": "/settings/export",
-    "module": "videocreator.api.routes_config_bundle"
+    "module": "videocreator.api.mounts.config_bundle"
   },
   {
     "kind": "http",
@@ -61,7 +61,7 @@
       "POST"
     ],
     "path": "/settings/import",
-    "module": "videocreator.api.routes_config_bundle"
+    "module": "videocreator.api.mounts.config_bundle"
   },
   {
     "kind": "http",
@@ -149,7 +149,7 @@
       "GET"
     ],
     "path": "/files/{subpath:path}",
-    "module": "videocreator.api.routes_media"
+    "module": "videocreator.api.mounts.media"
   },
   {
     "kind": "http",
@@ -157,7 +157,7 @@
       "GET"
     ],
     "path": "/media/{subpath:path}",
-    "module": "videocreator.api.routes_media"
+    "module": "videocreator.api.mounts.media"
   },
   {
     "kind": "http",
@@ -429,7 +429,7 @@
       "GET"
     ],
     "path": "/oauth/{platform}/start",
-    "module": "videocreator.api.routes_oauth"
+    "module": "videocreator.api.mounts.oauth"
   },
   {
     "kind": "http",
@@ -437,7 +437,7 @@
       "GET"
     ],
     "path": "/oauth/{platform}/callback",
-    "module": "videocreator.api.routes_oauth"
+    "module": "videocreator.api.mounts.oauth"
   },
   {
     "kind": "http",
@@ -445,7 +445,7 @@
       "POST"
     ],
     "path": "/oauth/{platform}/code",
-    "module": "videocreator.api.routes_oauth"
+    "module": "videocreator.api.mounts.oauth"
   },
   {
     "kind": "http",
@@ -813,7 +813,7 @@
       "GET"
     ],
     "path": "/api/v1/products",
-    "module": "videocreator.api.v1.routes_resources"
+    "module": "videocreator.api.v1.routes_products_v1"
   },
   {
     "kind": "http",
@@ -821,7 +821,7 @@
       "POST"
     ],
     "path": "/api/v1/products",
-    "module": "videocreator.api.v1.routes_resources"
+    "module": "videocreator.api.v1.routes_products_v1"
   },
   {
     "kind": "http",
@@ -829,7 +829,7 @@
       "PATCH"
     ],
     "path": "/api/v1/products/{product_id}",
-    "module": "videocreator.api.v1.routes_resources"
+    "module": "videocreator.api.v1.routes_products_v1"
   },
   {
     "kind": "http",
@@ -837,7 +837,7 @@
       "DELETE"
     ],
     "path": "/api/v1/products/{product_id}",
-    "module": "videocreator.api.v1.routes_resources"
+    "module": "videocreator.api.v1.routes_products_v1"
   },
   {
     "kind": "http",
@@ -845,7 +845,7 @@
       "GET"
     ],
     "path": "/api/v1/footage",
-    "module": "videocreator.api.v1.routes_resources"
+    "module": "videocreator.api.v1.routes_footage_v1"
   },
   {
     "kind": "http",
@@ -853,7 +853,7 @@
       "POST"
     ],
     "path": "/api/v1/footage/upload",
-    "module": "videocreator.api.v1.routes_resources"
+    "module": "videocreator.api.v1.routes_footage_v1"
   },
   {
     "kind": "http",
@@ -861,7 +861,7 @@
       "POST"
     ],
     "path": "/api/v1/footage/import-local",
-    "module": "videocreator.api.v1.routes_resources"
+    "module": "videocreator.api.v1.routes_footage_v1"
   },
   {
     "kind": "http",
@@ -869,7 +869,7 @@
       "GET"
     ],
     "path": "/api/v1/shots",
-    "module": "videocreator.api.v1.routes_resources"
+    "module": "videocreator.api.v1.routes_footage_v1"
   },
   {
     "kind": "http",
@@ -877,7 +877,7 @@
       "PATCH"
     ],
     "path": "/api/v1/shots/{shot_id}",
-    "module": "videocreator.api.v1.routes_resources"
+    "module": "videocreator.api.v1.routes_footage_v1"
   },
   {
     "kind": "http",
@@ -885,7 +885,7 @@
       "GET"
     ],
     "path": "/api/v1/assets",
-    "module": "videocreator.api.v1.routes_resources"
+    "module": "videocreator.api.v1.routes_assets_v1"
   },
   {
     "kind": "http",
@@ -893,7 +893,7 @@
       "POST"
     ],
     "path": "/api/v1/assets/upload",
-    "module": "videocreator.api.v1.routes_resources"
+    "module": "videocreator.api.v1.routes_assets_v1"
   },
   {
     "kind": "http",
@@ -901,7 +901,7 @@
       "POST"
     ],
     "path": "/api/v1/assets/import-local",
-    "module": "videocreator.api.v1.routes_resources"
+    "module": "videocreator.api.v1.routes_assets_v1"
   },
   {
     "kind": "http",
@@ -909,7 +909,7 @@
       "DELETE"
     ],
     "path": "/api/v1/assets/{asset_id}",
-    "module": "videocreator.api.v1.routes_resources"
+    "module": "videocreator.api.v1.routes_assets_v1"
   },
   {
     "kind": "http",
@@ -917,7 +917,7 @@
       "GET"
     ],
     "path": "/api/v1/voices",
-    "module": "videocreator.api.v1.routes_resources"
+    "module": "videocreator.api.v1.routes_voices_v1"
   },
   {
     "kind": "http",
@@ -925,7 +925,7 @@
       "PUT"
     ],
     "path": "/api/v1/voices",
-    "module": "videocreator.api.v1.routes_resources"
+    "module": "videocreator.api.v1.routes_voices_v1"
   },
   {
     "kind": "http",
@@ -933,7 +933,7 @@
       "POST"
     ],
     "path": "/api/v1/voices/preview",
-    "module": "videocreator.api.v1.routes_resources"
+    "module": "videocreator.api.v1.routes_voices_v1"
   },
   {
     "kind": "http",
@@ -941,7 +941,7 @@
       "GET"
     ],
     "path": "/api/v1/styles",
-    "module": "videocreator.api.v1.routes_production"
+    "module": "videocreator.api.v1.routes_styles_v1"
   },
   {
     "kind": "http",
@@ -949,7 +949,7 @@
       "POST"
     ],
     "path": "/api/v1/styles",
-    "module": "videocreator.api.v1.routes_production"
+    "module": "videocreator.api.v1.routes_styles_v1"
   },
   {
     "kind": "http",
@@ -957,7 +957,7 @@
       "PATCH"
     ],
     "path": "/api/v1/styles/{preset_id}",
-    "module": "videocreator.api.v1.routes_production"
+    "module": "videocreator.api.v1.routes_styles_v1"
   },
   {
     "kind": "http",
@@ -965,7 +965,7 @@
       "DELETE"
     ],
     "path": "/api/v1/styles/{preset_id}",
-    "module": "videocreator.api.v1.routes_production"
+    "module": "videocreator.api.v1.routes_styles_v1"
   },
   {
     "kind": "http",
@@ -973,7 +973,7 @@
       "GET"
     ],
     "path": "/api/v1/videos",
-    "module": "videocreator.api.v1.routes_production"
+    "module": "videocreator.api.v1.routes_videos_v1"
   },
   {
     "kind": "http",
@@ -981,7 +981,7 @@
       "POST"
     ],
     "path": "/api/v1/videos",
-    "module": "videocreator.api.v1.routes_production"
+    "module": "videocreator.api.v1.routes_videos_v1"
   },
   {
     "kind": "http",
@@ -989,7 +989,7 @@
       "GET"
     ],
     "path": "/api/v1/videos/{video_id}",
-    "module": "videocreator.api.v1.routes_production"
+    "module": "videocreator.api.v1.routes_videos_v1"
   },
   {
     "kind": "http",
@@ -997,7 +997,7 @@
       "PATCH"
     ],
     "path": "/api/v1/videos/{video_id}",
-    "module": "videocreator.api.v1.routes_production"
+    "module": "videocreator.api.v1.routes_videos_v1"
   },
   {
     "kind": "http",
@@ -1005,7 +1005,7 @@
       "POST"
     ],
     "path": "/api/v1/videos/{video_id}/render",
-    "module": "videocreator.api.v1.routes_production"
+    "module": "videocreator.api.v1.routes_videos_v1"
   },
   {
     "kind": "http",
@@ -1013,7 +1013,7 @@
       "POST"
     ],
     "path": "/api/v1/videos/{video_id}/restyle",
-    "module": "videocreator.api.v1.routes_production"
+    "module": "videocreator.api.v1.routes_videos_v1"
   },
   {
     "kind": "http",
@@ -1021,7 +1021,7 @@
       "POST"
     ],
     "path": "/api/v1/videos/{video_id}/qc",
-    "module": "videocreator.api.v1.routes_production"
+    "module": "videocreator.api.v1.routes_videos_v1"
   },
   {
     "kind": "http",
@@ -1029,7 +1029,7 @@
       "GET"
     ],
     "path": "/api/v1/studio/sessions",
-    "module": "videocreator.api.v1.routes_production"
+    "module": "videocreator.api.v1.routes_studio_sessions_v1"
   },
   {
     "kind": "http",
@@ -1037,7 +1037,7 @@
       "POST"
     ],
     "path": "/api/v1/studio/sessions",
-    "module": "videocreator.api.v1.routes_production"
+    "module": "videocreator.api.v1.routes_studio_sessions_v1"
   },
   {
     "kind": "http",
@@ -1045,7 +1045,7 @@
       "POST"
     ],
     "path": "/api/v1/studio/sessions/{session_id}/confirm",
-    "module": "videocreator.api.v1.routes_production"
+    "module": "videocreator.api.v1.routes_studio_sessions_v1"
   },
   {
     "kind": "http",
@@ -1053,7 +1053,7 @@
       "POST"
     ],
     "path": "/api/v1/studio/sessions/{session_id}/revise",
-    "module": "videocreator.api.v1.routes_production"
+    "module": "videocreator.api.v1.routes_studio_sessions_v1"
   },
   {
     "kind": "http",
@@ -1965,7 +1965,7 @@
       "GET"
     ],
     "path": "/freecut/{subpath:path}",
-    "module": "videocreator.api.routes_freecut_bridge"
+    "module": "videocreator.api.mounts.freecut_bridge"
   },
   {
     "kind": "http",
@@ -1973,7 +1973,7 @@
       "GET"
     ],
     "path": "/freecut",
-    "module": "videocreator.api.routes_freecut_bridge"
+    "module": "videocreator.api.mounts.freecut_bridge"
   },
   {
     "kind": "http",
@@ -1981,7 +1981,7 @@
       "GET"
     ],
     "path": "/assets/{subpath:path}",
-    "module": "videocreator.api.routes_freecut_bridge"
+    "module": "videocreator.api.mounts.freecut_bridge"
   },
   {
     "kind": "http",
@@ -1989,7 +1989,7 @@
       "GET"
     ],
     "path": "/moss-tts/{subpath:path}",
-    "module": "videocreator.api.routes_freecut_bridge"
+    "module": "videocreator.api.mounts.freecut_bridge"
   },
   {
     "kind": "http",
@@ -1997,7 +1997,7 @@
       "GET"
     ],
     "path": "/api/editor/jobs/{job}",
-    "module": "videocreator.api.routes_freecut_bridge"
+    "module": "videocreator.api.mounts.freecut_bridge"
   },
   {
     "kind": "http",
@@ -2005,7 +2005,7 @@
       "POST"
     ],
     "path": "/api/editor/jobs/{job}/prepare",
-    "module": "videocreator.api.routes_freecut_bridge"
+    "module": "videocreator.api.mounts.freecut_bridge"
   },
   {
     "kind": "http",
@@ -2013,7 +2013,7 @@
       "POST"
     ],
     "path": "/api/editor/heartbeat",
-    "module": "videocreator.api.routes_freecut_bridge"
+    "module": "videocreator.api.mounts.freecut_bridge"
   },
   {
     "kind": "http",
@@ -2021,6 +2021,14 @@
       "PUT"
     ],
     "path": "/api/editor/result",
-    "module": "videocreator.api.routes_freecut_bridge"
+    "module": "videocreator.api.mounts.freecut_bridge"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/ui-unavailable",
+    "module": "videocreator.api.mounts.ui_fallback"
   }
 ]

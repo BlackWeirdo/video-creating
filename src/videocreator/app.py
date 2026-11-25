@@ -11,30 +11,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from videocreator import __version__
-from videocreator.api.routes_accounts import router as accounts_router
-from videocreator.api.routes_ai import router as ai_router
-from videocreator.api.routes_approval import router as approval_router
-from videocreator.api.routes_assets import router as assets_router
-from videocreator.api.routes_broll import router as broll_router
-from videocreator.api.routes_config_bundle import router as config_bundle_router
-from videocreator.api.routes_dashboard import router as dashboard_router
-from videocreator.api.routes_footage import router as footage_router
-from videocreator.api.routes_manual import router as manual_router
-from videocreator.api.routes_media import router as media_router
-from videocreator.api.routes_oauth import router as oauth_router
-from videocreator.api.routes_performance import router as performance_router
-from videocreator.api.routes_planning import router as planning_router
-from videocreator.api.routes_posting import router as posting_router
-from videocreator.api.routes_products import router as products_router
-from videocreator.api.routes_settings import router as settings_router
-from videocreator.api.routes_shots import router as shots_router
-from videocreator.api.routes_studio import router as studio_router
-from videocreator.api.routes_suggestions import router as suggestions_router
-from videocreator.api.routes_trends import router as trends_router
-from videocreator.api.routes_videos import router as videos_router
-from videocreator.api.routes_voices import router as voices_router
-from videocreator.api.routes_watchlist import router as watchlist_router
-from videocreator.api.routes_freecut_bridge import router as freecut_router
+from videocreator.api.legacy_v1 import include_legacy_v1_and_core_mounts
+from videocreator.api.mounts import freecut_router, ui_fallback_router
 from videocreator.api.v1 import v1_router
 from videocreator.auth import NonLocalhostBasicAuthMiddleware
 from videocreator.config import load_settings
@@ -133,30 +111,9 @@ def create_app(
     if paths.static_dir.exists():
         app.mount("/static", StaticFiles(directory=str(paths.static_dir)), name="static")
 
-    app.include_router(dashboard_router)
-    app.include_router(settings_router)
-    app.include_router(config_bundle_router)
-    app.include_router(products_router)
-    app.include_router(footage_router)
-    app.include_router(shots_router)
-    app.include_router(media_router)
-    app.include_router(planning_router)
-    app.include_router(videos_router)
-    app.include_router(ai_router)
-    app.include_router(assets_router)
-    app.include_router(approval_router)
-    app.include_router(accounts_router)
-    app.include_router(posting_router)
-    app.include_router(performance_router)
-    app.include_router(oauth_router)
-    app.include_router(watchlist_router)
-    app.include_router(trends_router)
-    app.include_router(suggestions_router)
-    app.include_router(broll_router)
-    app.include_router(manual_router)
-    app.include_router(voices_router)
-    app.include_router(studio_router)
+    include_legacy_v1_and_core_mounts(app)
     app.include_router(v1_router)
     app.include_router(freecut_router)
+    app.include_router(ui_fallback_router)
 
     return app

@@ -319,7 +319,12 @@ def _run_desktop_window(
 
     ui_proc: subprocess.Popen[Any] | None = None
     display_url = base_url
-    if not classic_ui:
+    if classic_ui:
+        print(
+            "DeprecationWarning: --classic-ui is deprecated and will be removed in a future release.",
+            file=sys.stderr,
+        )
+    else:
         chosen_ui_port = pick_available_port(local_host, ui_port, exclude_ports={port})
         if chosen_ui_port != ui_port:
             print(
@@ -335,8 +340,9 @@ def _run_desktop_window(
         if ui_proc is not None:
             display_url = f"http://{url_host}:{chosen_ui_port}"
         else:
+            display_url = f"{base_url}/ui-unavailable"
             print(
-                f"Warning: Next.js standalone UI unavailable; falling back to classic UI at {base_url}.",
+                f"Warning: Next.js standalone UI unavailable; opening diagnostic page at {display_url} (see {boot_log_path}).",
                 file=sys.stderr,
             )
 
@@ -408,7 +414,12 @@ def main(argv: list[str] | None = None) -> int:
                 open_url = ""
         if not open_url:
             cand_ui = f"http://{url_host}:{args.ui_port}"
-            open_url = cand_ui if _verify_videocreator_ui(cand_ui, timeout_s=1.5) else f"http://{url_host}:{port}"
+            fallback_url = (
+                f"http://{url_host}:{port}"
+                if args.classic_ui
+                else f"http://{url_host}:{port}/ui-unavailable"
+            )
+            open_url = cand_ui if _verify_videocreator_ui(cand_ui, timeout_s=1.5) else fallback_url
         print(f"Video Creator V2 is already running. Opening {open_url} ...")
         if not args.headless:
             webbrowser.open(open_url)
