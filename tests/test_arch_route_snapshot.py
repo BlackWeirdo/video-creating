@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from fastapi.routing import APIRoute, Mount
+from starlette.routing import Mount, Route
 
 from videocreator.app import create_app
 from videocreator.paths import REPO_ROOT
@@ -26,36 +26,54 @@ TEMPORARY_V1_IMPORTS_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
 )
 
 
-def extract_app_route_table(data_dir: Path) -> list[dict[str, Any]]:
-    app = create_app(data_dir=data_dir, start_worker=False)
+def _walk_routes(routes: list[Any], prefix: str = "") -> list[dict[str, Any]]:
     entries: list[dict[str, Any]] = []
-    for route in app.routes:
-        if isinstance(route, APIRoute):
+    for route in routes:
+        orig_router = getattr(route, "original_router", None)
+        sub_routes = getattr(route, "routes", None)
+        route_path = getattr(route, "path", "") or ""
+        if isinstance(route, Mount):
+            entries.append(
+                {
+                    "kind": "mount",
+                    "methods": ["MOUNT"],
+                    "path": f"{prefix}{route_path}",
+                    "module": type(route.app).__module__,
+                }
+            )
+        elif orig_router is not None:
+            ctx = getattr(route, "include_context", None)
+            inc_prefix = getattr(ctx, "prefix", None)
+            if inc_prefix is None:
+                inc_prefix = getattr(orig_router, "prefix", "") or ""
+            entries.extend(_walk_routes(list(orig_router.routes), prefix=f"{prefix}{inc_prefix}"))
+        elif sub_routes is not None and not isinstance(route, Route):
+            entries.extend(_walk_routes(list(sub_routes), prefix=f"{prefix}{route_path}"))
+        elif isinstance(route, Route):
+            if route_path in ("/openapi.json", "/docs", "/docs/oauth2-redirect", "/redoc"):
+                continue
             methods = sorted(m for m in (route.methods or set()) if m not in ("HEAD", "OPTIONS"))
             entries.append(
                 {
                     "kind": "http",
                     "methods": methods,
-                    "path": route.path,
+                    "path": f"{prefix}{route_path}",
                     "module": getattr(route.endpoint, "__module__", ""),
                 }
             )
-        elif isinstance(route, Mount):
-            entries.append(
-                {
-                    "kind": "mount",
-                    "methods": ["MOUNT"],
-                    "path": route.path,
-                    "module": type(route.app).__module__,
-                }
-            )
     return entries
+
+
+def extract_app_route_table(data_dir: Path) -> list[dict[str, Any]]:
+    app = create_app(data_dir=data_dir, start_worker=False)
+    return _walk_routes(list(app.routes))
 
 
 def test_fastapi_route_order_matches_snapshot(tmp_path: Path) -> None:
     """Guarantees router splits never drop, duplicate, or reorder registered HTTP routes."""
     assert SNAPSHOT_FILE.is_file(), f"Missing route snapshot at {SNAPSHOT_FILE}"
     expected = json.loads(SNAPSHOT_FILE.read_text(encoding="utf-8"))
+    assert len(expected) >= 150, f"Snapshot suspiciously small ({len(expected)} routes)"
     actual = extract_app_route_table(tmp_path / "snap_data")
 
     exp_sig = [(e["kind"], e["methods"], e["path"]) for e in expected]

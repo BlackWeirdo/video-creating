@@ -6,5 +6,2013 @@
     ],
     "path": "/static",
     "module": "starlette.staticfiles"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/health",
+    "module": "videocreator.api.routes_dashboard"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/",
+    "module": "videocreator.api.routes_dashboard"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/settings",
+    "module": "videocreator.api.routes_settings"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/settings/config",
+    "module": "videocreator.api.routes_settings"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/settings/secrets",
+    "module": "videocreator.api.routes_settings"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/settings/export",
+    "module": "videocreator.api.routes_config_bundle"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/settings/import",
+    "module": "videocreator.api.routes_config_bundle"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/products",
+    "module": "videocreator.api.routes_products"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/products",
+    "module": "videocreator.api.routes_products"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/products/{product_id}/delete",
+    "module": "videocreator.api.routes_products"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/footage",
+    "module": "videocreator.api.routes_footage"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/footage/upload",
+    "module": "videocreator.api.routes_footage"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/footage/import-path",
+    "module": "videocreator.api.routes_footage"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/footage/{footage_id}/crop",
+    "module": "videocreator.api.routes_footage"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/footage/{footage_id}/reanalyse",
+    "module": "videocreator.api.routes_footage"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/shots",
+    "module": "videocreator.api.routes_shots"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/shots/{shot_id}/update",
+    "module": "videocreator.api.routes_shots"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/files/{subpath:path}",
+    "module": "videocreator.api.routes_media"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/media/{subpath:path}",
+    "module": "videocreator.api.routes_media"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/footage/{footage_id}/describe",
+    "module": "videocreator.api.routes_planning"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/footage/{footage_id}/plans",
+    "module": "videocreator.api.routes_planning"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/videos",
+    "module": "videocreator.api.routes_videos"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/videos/{video_id}",
+    "module": "videocreator.api.routes_videos"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/videos/{video_id}/update-plan",
+    "module": "videocreator.api.routes_videos"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/videos/{video_id}/render",
+    "module": "videocreator.api.routes_videos"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/ai-routes",
+    "module": "videocreator.api.routes_ai"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/ai/check-cli",
+    "module": "videocreator.api.routes_ai"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/ai/provider/{provider_name}/wake",
+    "module": "videocreator.api.routes_ai"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/assets",
+    "module": "videocreator.api.routes_assets"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/assets/upload",
+    "module": "videocreator.api.routes_assets"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/assets/{asset_id}/delete",
+    "module": "videocreator.api.routes_assets"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/approval",
+    "module": "videocreator.api.routes_approval"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/videos/{video_id}/approve",
+    "module": "videocreator.api.routes_approval"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/videos/{video_id}/reject",
+    "module": "videocreator.api.routes_approval"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/videos/{video_id}/redo",
+    "module": "videocreator.api.routes_approval"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/videos/{video_id}/cover",
+    "module": "videocreator.api.routes_approval"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/accounts",
+    "module": "videocreator.api.routes_accounts"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/accounts/connect-meta",
+    "module": "videocreator.api.routes_accounts"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/accounts/add",
+    "module": "videocreator.api.routes_accounts"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/accounts/{account_id}/toggle",
+    "module": "videocreator.api.routes_accounts"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/accounts/{account_id}/delete",
+    "module": "videocreator.api.routes_accounts"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/accounts/{account_id}/slots",
+    "module": "videocreator.api.routes_accounts"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/schedule",
+    "module": "videocreator.api.routes_posting"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/schedule/toggle-pause",
+    "module": "videocreator.api.routes_posting"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/posts/{post_id}/retry",
+    "module": "videocreator.api.routes_posting"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/posts/{post_id}/reschedule",
+    "module": "videocreator.api.routes_posting"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/posts/{post_id}/cancel",
+    "module": "videocreator.api.routes_posting"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/posts/{post_id}/confirm-posted",
+    "module": "videocreator.api.routes_posting"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/videos/{video_id}/schedule",
+    "module": "videocreator.api.routes_posting"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/videos/{video_id}/manual-bundle",
+    "module": "videocreator.api.routes_posting"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/performance",
+    "module": "videocreator.api.routes_performance"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/performance/collect",
+    "module": "videocreator.api.routes_performance"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/oauth/{platform}/start",
+    "module": "videocreator.api.routes_oauth"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/oauth/{platform}/callback",
+    "module": "videocreator.api.routes_oauth"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/oauth/{platform}/code",
+    "module": "videocreator.api.routes_oauth"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/watchlist",
+    "module": "videocreator.api.routes_watchlist"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/watchlist/add",
+    "module": "videocreator.api.routes_watchlist"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/watchlist/{item_id}/toggle",
+    "module": "videocreator.api.routes_watchlist"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/watchlist/{item_id}/delete",
+    "module": "videocreator.api.routes_watchlist"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/trends",
+    "module": "videocreator.api.routes_trends"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/trends/scan",
+    "module": "videocreator.api.routes_trends"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/trends/add-link",
+    "module": "videocreator.api.routes_trends"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/trends/{item_id}/upload-reference",
+    "module": "videocreator.api.routes_trends"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/trends/{item_id}/analyse",
+    "module": "videocreator.api.routes_trends"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/suggestions",
+    "module": "videocreator.api.routes_suggestions"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/suggestions/{suggestion_id}/accept",
+    "module": "videocreator.api.routes_suggestions"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/suggestions/{suggestion_id}/dismiss",
+    "module": "videocreator.api.routes_suggestions"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/broll",
+    "module": "videocreator.api.routes_broll"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/broll/suggest",
+    "module": "videocreator.api.routes_broll"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/broll/suggest/cancel",
+    "module": "videocreator.api.routes_broll"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/broll/create",
+    "module": "videocreator.api.routes_broll"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/broll/{shot_id}/delete",
+    "module": "videocreator.api.routes_broll"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/manual",
+    "module": "videocreator.api.routes_manual"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/manual/create",
+    "module": "videocreator.api.routes_manual"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/manual/{ticket_id}/upload",
+    "module": "videocreator.api.routes_manual"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/manual/{ticket_id}/cancel",
+    "module": "videocreator.api.routes_manual"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/voices",
+    "module": "videocreator.api.routes_voices"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/voices/save",
+    "module": "videocreator.api.routes_voices"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/videos/render-all-planned",
+    "module": "videocreator.api.routes_voices"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/studio",
+    "module": "videocreator.api.routes_studio"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/studio/create",
+    "module": "videocreator.api.routes_studio"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/studio/{session_id}/confirm",
+    "module": "videocreator.api.routes_studio"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/studio/{session_id}/revise",
+    "module": "videocreator.api.routes_studio"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/studio/{session_id}/save-template",
+    "module": "videocreator.api.routes_studio"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/studio/templates/{template_id}/render",
+    "module": "videocreator.api.routes_studio"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/health",
+    "module": "videocreator.api.v1.routes_system"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/logs/tail",
+    "module": "videocreator.api.v1.routes_system"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/events",
+    "module": "videocreator.api.v1.routes_system"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/workspaces",
+    "module": "videocreator.api.v1.routes_workspaces"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/workspaces",
+    "module": "videocreator.api.v1.routes_workspaces"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/workspaces/{workspace_id}",
+    "module": "videocreator.api.v1.routes_workspaces"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "PATCH"
+    ],
+    "path": "/api/v1/workspaces/{workspace_id}",
+    "module": "videocreator.api.v1.routes_workspaces"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/workspaces/{workspace_id}/activate",
+    "module": "videocreator.api.v1.routes_workspaces"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "DELETE"
+    ],
+    "path": "/api/v1/workspaces/{workspace_id}",
+    "module": "videocreator.api.v1.routes_workspaces"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/jobs",
+    "module": "videocreator.api.v1.routes_jobs"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/jobs/{job_id}",
+    "module": "videocreator.api.v1.routes_jobs"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/queue/status",
+    "module": "videocreator.api.v1.routes_jobs"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/queue/pause",
+    "module": "videocreator.api.v1.routes_jobs"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/queue/resume",
+    "module": "videocreator.api.v1.routes_jobs"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/products",
+    "module": "videocreator.api.v1.routes_resources"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/products",
+    "module": "videocreator.api.v1.routes_resources"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "PATCH"
+    ],
+    "path": "/api/v1/products/{product_id}",
+    "module": "videocreator.api.v1.routes_resources"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "DELETE"
+    ],
+    "path": "/api/v1/products/{product_id}",
+    "module": "videocreator.api.v1.routes_resources"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/footage",
+    "module": "videocreator.api.v1.routes_resources"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/footage/upload",
+    "module": "videocreator.api.v1.routes_resources"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/footage/import-local",
+    "module": "videocreator.api.v1.routes_resources"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/shots",
+    "module": "videocreator.api.v1.routes_resources"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "PATCH"
+    ],
+    "path": "/api/v1/shots/{shot_id}",
+    "module": "videocreator.api.v1.routes_resources"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/assets",
+    "module": "videocreator.api.v1.routes_resources"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/assets/upload",
+    "module": "videocreator.api.v1.routes_resources"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/assets/import-local",
+    "module": "videocreator.api.v1.routes_resources"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "DELETE"
+    ],
+    "path": "/api/v1/assets/{asset_id}",
+    "module": "videocreator.api.v1.routes_resources"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/voices",
+    "module": "videocreator.api.v1.routes_resources"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "PUT"
+    ],
+    "path": "/api/v1/voices",
+    "module": "videocreator.api.v1.routes_resources"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/voices/preview",
+    "module": "videocreator.api.v1.routes_resources"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/styles",
+    "module": "videocreator.api.v1.routes_production"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/styles",
+    "module": "videocreator.api.v1.routes_production"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "PATCH"
+    ],
+    "path": "/api/v1/styles/{preset_id}",
+    "module": "videocreator.api.v1.routes_production"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "DELETE"
+    ],
+    "path": "/api/v1/styles/{preset_id}",
+    "module": "videocreator.api.v1.routes_production"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/videos",
+    "module": "videocreator.api.v1.routes_production"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/videos",
+    "module": "videocreator.api.v1.routes_production"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/videos/{video_id}",
+    "module": "videocreator.api.v1.routes_production"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "PATCH"
+    ],
+    "path": "/api/v1/videos/{video_id}",
+    "module": "videocreator.api.v1.routes_production"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/videos/{video_id}/render",
+    "module": "videocreator.api.v1.routes_production"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/videos/{video_id}/restyle",
+    "module": "videocreator.api.v1.routes_production"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/videos/{video_id}/qc",
+    "module": "videocreator.api.v1.routes_production"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/studio/sessions",
+    "module": "videocreator.api.v1.routes_production"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/studio/sessions",
+    "module": "videocreator.api.v1.routes_production"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/studio/sessions/{session_id}/confirm",
+    "module": "videocreator.api.v1.routes_production"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/studio/sessions/{session_id}/revise",
+    "module": "videocreator.api.v1.routes_production"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/watchlist",
+    "module": "videocreator.api.v1.routes_trends_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/watchlist",
+    "module": "videocreator.api.v1.routes_trends_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "PATCH"
+    ],
+    "path": "/api/v1/watchlist/{item_id}",
+    "module": "videocreator.api.v1.routes_trends_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "DELETE"
+    ],
+    "path": "/api/v1/watchlist/{item_id}",
+    "module": "videocreator.api.v1.routes_trends_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/trends",
+    "module": "videocreator.api.v1.routes_trends_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/trends/scan",
+    "module": "videocreator.api.v1.routes_trends_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/trends/link",
+    "module": "videocreator.api.v1.routes_trends_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/trends/{item_id}/analyse",
+    "module": "videocreator.api.v1.routes_trends_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/suggestions",
+    "module": "videocreator.api.v1.routes_trends_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/suggestions/{suggestion_id}/accept",
+    "module": "videocreator.api.v1.routes_trends_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/suggestions/{suggestion_id}/dismiss",
+    "module": "videocreator.api.v1.routes_trends_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/trends/{trend_id}/send-to-localize",
+    "module": "videocreator.api.v1.routes_trends_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/trends/send-to-batch",
+    "module": "videocreator.api.v1.routes_trends_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/approvals",
+    "module": "videocreator.api.v1.routes_publishing"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/approvals/{video_id}/approve",
+    "module": "videocreator.api.v1.routes_publishing"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/approvals/{video_id}/reject",
+    "module": "videocreator.api.v1.routes_publishing"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/approvals/bulk-approve",
+    "module": "videocreator.api.v1.routes_publishing"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/approvals/{video_id}/post-now",
+    "module": "videocreator.api.v1.routes_publishing"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/videos/{video_id}/publish-pack",
+    "module": "videocreator.api.v1.routes_publishing"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/accounts",
+    "module": "videocreator.api.v1.routes_publishing"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/accounts",
+    "module": "videocreator.api.v1.routes_publishing"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "PATCH"
+    ],
+    "path": "/api/v1/accounts/{account_id}",
+    "module": "videocreator.api.v1.routes_publishing"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "DELETE"
+    ],
+    "path": "/api/v1/accounts/{account_id}",
+    "module": "videocreator.api.v1.routes_publishing"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/oauth/{platform}/authorize",
+    "module": "videocreator.api.v1.routes_publishing"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/posts",
+    "module": "videocreator.api.v1.routes_publishing"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/posts/{post_id}/retry",
+    "module": "videocreator.api.v1.routes_publishing"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/posts/{post_id}/cancel",
+    "module": "videocreator.api.v1.routes_publishing"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/performance",
+    "module": "videocreator.api.v1.routes_publishing"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/dashboard",
+    "module": "videocreator.api.v1.routes_settings_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/settings",
+    "module": "videocreator.api.v1.routes_settings_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "PUT"
+    ],
+    "path": "/api/v1/settings",
+    "module": "videocreator.api.v1.routes_settings_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/secrets",
+    "module": "videocreator.api.v1.routes_settings_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "PUT"
+    ],
+    "path": "/api/v1/secrets",
+    "module": "videocreator.api.v1.routes_settings_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/ai/usage",
+    "module": "videocreator.api.v1.routes_settings_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/models",
+    "module": "videocreator.api.v1.routes_models_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/models/{model_id}/install",
+    "module": "videocreator.api.v1.routes_models_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/models/{model_id}/verify",
+    "module": "videocreator.api.v1.routes_models_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "DELETE"
+    ],
+    "path": "/api/v1/models/{model_id}",
+    "module": "videocreator.api.v1.routes_models_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/key-pool",
+    "module": "videocreator.api.v1.routes_models_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/key-pool",
+    "module": "videocreator.api.v1.routes_models_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "PATCH"
+    ],
+    "path": "/api/v1/key-pool/{key_id}",
+    "module": "videocreator.api.v1.routes_models_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "DELETE"
+    ],
+    "path": "/api/v1/key-pool/{key_id}",
+    "module": "videocreator.api.v1.routes_models_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/localize/projects",
+    "module": "videocreator.api.v1.routes_localize_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/localize/projects",
+    "module": "videocreator.api.v1.routes_localize_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/localize/upload",
+    "module": "videocreator.api.v1.routes_localize_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/localize/projects/{project_id}",
+    "module": "videocreator.api.v1.routes_localize_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "PATCH"
+    ],
+    "path": "/api/v1/localize/projects/{project_id}",
+    "module": "videocreator.api.v1.routes_localize_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/localize/projects/{project_id}/preview-segment",
+    "module": "videocreator.api.v1.routes_localize_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/localize/projects/{project_id}/extract",
+    "module": "videocreator.api.v1.routes_localize_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/localize/projects/{project_id}/render",
+    "module": "videocreator.api.v1.routes_localize_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/batches",
+    "module": "videocreator.api.v1.routes_batch_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/batches",
+    "module": "videocreator.api.v1.routes_batch_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/batches/{batch_id}",
+    "module": "videocreator.api.v1.routes_batch_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/batches/{batch_id}/retry",
+    "module": "videocreator.api.v1.routes_batch_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/autopilot/rules",
+    "module": "videocreator.api.v1.routes_autopilot_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/autopilot/rules",
+    "module": "videocreator.api.v1.routes_autopilot_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "PATCH"
+    ],
+    "path": "/api/v1/autopilot/rules/{rule_id}",
+    "module": "videocreator.api.v1.routes_autopilot_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "DELETE"
+    ],
+    "path": "/api/v1/autopilot/rules/{rule_id}",
+    "module": "videocreator.api.v1.routes_autopilot_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/autopilot/rules/{rule_id}/trigger",
+    "module": "videocreator.api.v1.routes_autopilot_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/autopilot/runs",
+    "module": "videocreator.api.v1.routes_autopilot_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/characters",
+    "module": "videocreator.api.v1.routes_characters_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/characters",
+    "module": "videocreator.api.v1.routes_characters_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "PATCH"
+    ],
+    "path": "/api/v1/characters/{character_id}",
+    "module": "videocreator.api.v1.routes_characters_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "DELETE"
+    ],
+    "path": "/api/v1/characters/{character_id}",
+    "module": "videocreator.api.v1.routes_characters_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/characters/{character_id}/upload-ref",
+    "module": "videocreator.api.v1.routes_characters_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/characters/{character_id}/cutout",
+    "module": "videocreator.api.v1.routes_characters_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/images",
+    "module": "videocreator.api.v1.routes_characters_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/images",
+    "module": "videocreator.api.v1.routes_characters_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/images/{image_id}/cutout",
+    "module": "videocreator.api.v1.routes_characters_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/images/{image_id}/animate",
+    "module": "videocreator.api.v1.routes_characters_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/channel-voices",
+    "module": "videocreator.api.v1.routes_characters_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/channel-voices",
+    "module": "videocreator.api.v1.routes_characters_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "DELETE"
+    ],
+    "path": "/api/v1/channel-voices/{voice_id}",
+    "module": "videocreator.api.v1.routes_characters_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/news/projects",
+    "module": "videocreator.api.v1.routes_news_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/news/projects",
+    "module": "videocreator.api.v1.routes_news_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/news/projects/{project_id}",
+    "module": "videocreator.api.v1.routes_news_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "PATCH"
+    ],
+    "path": "/api/v1/news/projects/{project_id}",
+    "module": "videocreator.api.v1.routes_news_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/news/projects/{project_id}/summarize",
+    "module": "videocreator.api.v1.routes_news_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/news/projects/{project_id}/render",
+    "module": "videocreator.api.v1.routes_news_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/editor/media",
+    "module": "videocreator.api.v1.routes_editor_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/editor/projects",
+    "module": "videocreator.api.v1.routes_editor_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/editor/projects",
+    "module": "videocreator.api.v1.routes_editor_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/editor/projects/{project_id}",
+    "module": "videocreator.api.v1.routes_editor_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "PATCH"
+    ],
+    "path": "/api/v1/editor/projects/{project_id}",
+    "module": "videocreator.api.v1.routes_editor_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/editor/projects/{project_id}/render",
+    "module": "videocreator.api.v1.routes_editor_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/workflows",
+    "module": "videocreator.api.v1.routes_workflows_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/workflows",
+    "module": "videocreator.api.v1.routes_workflows_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/workflows/import",
+    "module": "videocreator.api.v1.routes_workflows_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/workflows/{workflow_id}",
+    "module": "videocreator.api.v1.routes_workflows_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "PATCH"
+    ],
+    "path": "/api/v1/workflows/{workflow_id}",
+    "module": "videocreator.api.v1.routes_workflows_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "DELETE"
+    ],
+    "path": "/api/v1/workflows/{workflow_id}",
+    "module": "videocreator.api.v1.routes_workflows_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/workflows/{workflow_id}/export",
+    "module": "videocreator.api.v1.routes_workflows_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/workflows/{workflow_id}/run",
+    "module": "videocreator.api.v1.routes_workflows_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/novels/split-preview",
+    "module": "videocreator.api.v1.routes_specialized_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/novels/projects",
+    "module": "videocreator.api.v1.routes_specialized_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/novels/projects",
+    "module": "videocreator.api.v1.routes_specialized_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/novels/projects/{project_id}",
+    "module": "videocreator.api.v1.routes_specialized_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/novels/projects/{project_id}/render",
+    "module": "videocreator.api.v1.routes_specialized_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/podcasts/projects",
+    "module": "videocreator.api.v1.routes_specialized_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/podcasts/projects",
+    "module": "videocreator.api.v1.routes_specialized_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/podcasts/projects/{project_id}",
+    "module": "videocreator.api.v1.routes_specialized_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/podcasts/projects/{project_id}/render",
+    "module": "videocreator.api.v1.routes_specialized_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/lipsync/projects",
+    "module": "videocreator.api.v1.routes_specialized_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/lipsync/projects",
+    "module": "videocreator.api.v1.routes_specialized_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/lipsync/projects/{project_id}",
+    "module": "videocreator.api.v1.routes_specialized_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/lipsync/projects/{project_id}/upload-portrait",
+    "module": "videocreator.api.v1.routes_specialized_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/lipsync/projects/{project_id}/render",
+    "module": "videocreator.api.v1.routes_specialized_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/onboarding/status",
+    "module": "videocreator.api.v1.routes_onboarding_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/onboarding/complete",
+    "module": "videocreator.api.v1.routes_onboarding_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/onboarding/reset",
+    "module": "videocreator.api.v1.routes_onboarding_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/backup/summary",
+    "module": "videocreator.api.v1.routes_onboarding_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/backup/export",
+    "module": "videocreator.api.v1.routes_onboarding_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/backup/restore",
+    "module": "videocreator.api.v1.routes_onboarding_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/freecut/{subpath:path}",
+    "module": "videocreator.api.routes_freecut_bridge"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/freecut",
+    "module": "videocreator.api.routes_freecut_bridge"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/assets/{subpath:path}",
+    "module": "videocreator.api.routes_freecut_bridge"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/moss-tts/{subpath:path}",
+    "module": "videocreator.api.routes_freecut_bridge"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/editor/jobs/{job}",
+    "module": "videocreator.api.routes_freecut_bridge"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/editor/jobs/{job}/prepare",
+    "module": "videocreator.api.routes_freecut_bridge"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/editor/heartbeat",
+    "module": "videocreator.api.routes_freecut_bridge"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "PUT"
+    ],
+    "path": "/api/editor/result",
+    "module": "videocreator.api.routes_freecut_bridge"
   }
 ]
