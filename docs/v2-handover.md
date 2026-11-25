@@ -112,18 +112,25 @@ flowchart TD
 
 ## 6. Danh mục Điểm nóng & Đề xuất Refactor Tiếp theo
 
-### Ưu tiên 1 — Tách nhỏ các file Backend ở ngưỡng 600–850 dòng
-- `src/videocreator/models_manager.py` (845 dòng) → tách thành gói `models/` (`catalog.py`, `downloader.py`, `smoke.py`, `asr.py`).
+### Ưu tiên 1 — Tách nhỏ các file Backend ở ngưỡng 560–850 dòng
+- `src/videocreator/models_manager.py` (845 dòng) → tách thành gói `models/` (`catalog.py`, `downloader.py`, `smoke.py`, `asr.py`), giữ `models_manager.py` làm facade re-export.
 - `src/videocreator/tts/synthesizer.py` (773 dòng) → tách `edge_engine.py`, `vieneu_engine.py`, `audio_fit.py`, giữ `synthesizer.py` làm facade mỏng.
 - `src/videocreator/autopilot/rules.py` (677 dòng) → tách `crud.py` và `runner.py`.
-- `src/videocreator/api/v1/routes_resources.py` (644 dòng) & `routes_production.py` (568 dòng) → tách theo từng tài nguyên (`workspaces`, `products`, `footage`, `videos`).
+- `src/videocreator/api/v1/routes_resources.py` (644 dòng) & `routes_production.py` (568 dòng) → tách theo từng tài nguyên (`workspaces`, `products`, `footage`, `videos`, `batch`).
+- `src/videocreator/pipeline/podcast_studio.py` (626 dòng) & `workflow_engine.py` (617 dòng) → tách phần dựng hình sóng nhạc/avatar và bộ chạy từng loại node DAG.
 
-### Đã hoàn tất trên nhánh `ui-redesign` — Tách Component & Thiết kế lại toàn bộ UI/UX
-- Đã tách nhỏ `web-next/src/app/localize/` (`page.tsx`, `useLocalizeProject.ts`, `types.ts`, `CreateLocalizeForm.tsx`, `SpeakerVoicePanel.tsx`, `BilingualSegmentsTable.tsx`), `web-next/src/app/settings/` (`page.tsx`, `types.ts`, `AppearanceAndWorkerTab.tsx`, `AiKeysPoolTab.tsx`, `LocalModelsManagerTab.tsx`, `BackupRestoreTab.tsx`) và `web-next/src/components/shell/` (`Sidebar.tsx`, `NavItem.tsx`, `WorkspaceSwitcher.tsx`, `CommandPalette.tsx`, `QueueBar.tsx`).
+### Ưu tiên 2 — Tách Component cho 4 trang Next.js cỡ vừa (480–650 dòng)
+- `web-next/src/app/approval/page.tsx` (647 dòng) → tách `ApprovalQueueGrid.tsx`, `ScheduleSlotForm.tsx`, `PublishHistoryList.tsx`.
+- `web-next/src/app/characters/page.tsx` (596 dòng) → tách `CharacterCreatorPanel.tsx`, `CharacterGalleryGrid.tsx`, `ChannelVoiceRecorderCard.tsx`.
+- `web-next/src/app/welcome/page.tsx` (590 dòng) → tách 4 bước wizard (`StepSystemCheck`, `StepWorkspaceSetup`, `StepAiKeysBudget`, `StepVoiceFinish`).
+- `web-next/src/app/trends/page.tsx` (487 dòng) → tách `TrendScanForm.tsx` & `TrendFormulaList.tsx`.
+
+### Đã hoàn tất trên nhánh `ui-redesign` (`2.1.0`) — Tách Component & Thiết kế lại toàn bộ UI/UX
+- Đã tách nhỏ `web-next/src/app/localize/` (`page.tsx` còn 321 dòng + `useLocalizeProject.ts`, `types.ts`, `CreateLocalizeForm.tsx`, `SpeakerVoicePanel.tsx`, `BilingualSegmentsTable.tsx`), `web-next/src/app/settings/` (`page.tsx` + `types.ts`, `AppearanceAndWorkerTab.tsx`, `AiKeysPoolTab.tsx`, `LocalModelsManagerTab.tsx`, `BackupRestoreTab.tsx`) và `web-next/src/components/shell/` (`Sidebar.tsx`, `NavItem.tsx`, `WorkspaceSwitcher.tsx`, `CommandPalette.tsx`, `QueueBar.tsx`).
 - Đã chuyển đổi toàn bộ **20/20 trang Next.js** sang hệ semantic tokens Sáng / Tối / Hệ thống (`0` mã màu hex cứng trên toàn bộ `web-next/src/`).
 
-### Ưu tiên 3 — Dọn tầng UI Jinja2/HTMX cũ (V1) & Nâng cấp Ảnh AI thật
-- Khi chốt chuyển 100% sang Next.js Studio UI, có thể nâng cấp các bài test V1 cũ sang `/api/v1/*` rồi xóa `src/videocreator/api/routes_*.py` (ngoài `v1/`) và `src/videocreator/web/templates/`.
+### Ưu tiên 3 — Dọn tầng UI Jinja2/HTMX cũ (V1 ~5.852 dòng) & Nâng cấp Ảnh AI thật
+- Khi chốt chuyển 100% sang Next.js Studio UI, có thể nâng cấp các bài test V1 cũ sang `/api/v1/*` rồi xóa 21 router HTML cũ trong `src/videocreator/api/routes_*.py` và 20 template trong `src/videocreator/web/templates/` (**lưu ý bắt buộc giữ lại** `routes_freecut_bridge.py`, `routes_media.py`, `routes_assets.py` vì Next.js đang proxy `/freecut/*`, `/files/*`, `/assets/*`).
 - Nối `characters.py::generate_ai_image` với Gemini Imagen / Flux API thật khi có mạng thay cho khung nền màu định sẵn (`ai_image_canvas_placeholder`).
 
 ---
