@@ -778,6 +778,14 @@
   {
     "kind": "http",
     "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/jobs/{job_id}/retry",
+    "module": "videocreator.api.v1.routes_jobs"
+  },
+  {
+    "kind": "http",
+    "methods": [
       "GET"
     ],
     "path": "/api/v1/queue/status",

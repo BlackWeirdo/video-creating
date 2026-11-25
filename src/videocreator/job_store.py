@@ -37,6 +37,10 @@ SUBSCRIPTION_PROVIDER = "claude_cli"
 WAKE_COOLDOWN_S = 300
 
 QUEUE_PAUSED_SETTING_KEY = "queue_paused"
+MAX_JOB_ATTEMPTS = 3
+CRASH_LOOP_FAILURE_MESSAGE = (
+    "Tác vụ bị gián đoạn nhiều lần liên tiếp — có thể do thiếu RAM hoặc lỗi thư viện hệ thống."
+)
 VALID_LANES: tuple[str, ...] = ("io", "compute")
 JOB_STATUSES: tuple[str, ...] = ("queued", "running", "waiting_quota", "done", "failed")
 
@@ -50,12 +54,23 @@ def set_queue_paused(db_file: Path, paused: bool) -> bool:
     return paused
 
 
-def recover_interrupted_jobs(db_file: Path) -> int:
-    """Resets any jobs stuck in 'running' back to 'queued' on startup, and posts stuck in
-    'publishing' back to 'scheduled'. A post that already has a platform container/reel id keeps
-    it: the next publish round asks the platform for that container's state instead of creating a
-    new one (spec §6), so it is finished, not posted twice."""
+def recover_interrupted_jobs(db_file: Path, *, max_attempts: int = MAX_JOB_ATTEMPTS) -> int:
+    """Resets jobs stuck in 'running' back to 'queued' on startup unless they have already crashed
+    `max_attempts` times (in which case they transition to 'failed' to break crash loops), and resets
+    posts stuck in 'publishing' back to 'scheduled'."""
+    cap = max(1, int(max_attempts))
     with get_write_conn(db_file) as conn:
+        failed_cur = conn.execute(
+            """
+            UPDATE jobs
+            SET status = 'failed',
+                error = ?,
+                finished_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+            WHERE status = 'running' AND COALESCE(attempts, 0) >= ?
+            """,
+            (CRASH_LOOP_FAILURE_MESSAGE, cap),
+        )
+        failed_jobs = int(failed_cur.rowcount or 0)
         cur = conn.execute(
             """
             UPDATE jobs
@@ -68,6 +83,12 @@ def recover_interrupted_jobs(db_file: Path) -> int:
             "UPDATE posts SET status = 'scheduled' WHERE status = 'publishing'"
         )
         recovered_posts = int(posts_cur.rowcount or 0)
+    if failed_jobs:
+        logger.warning(
+            "Marked %d repeatedly interrupted job(s) as failed (attempts >= %d)",
+            failed_jobs,
+            cap,
+        )
     if recovered_jobs:
         logger.info("Recovered %d interrupted running job(s) back to queued", recovered_jobs)
     if recovered_posts:
@@ -76,6 +97,33 @@ def recover_interrupted_jobs(db_file: Path) -> int:
             recovered_posts,
         )
     return recovered_jobs
+
+
+def retry_failed_job(db_file: Path, job_id: int) -> dict[str, Any]:
+    """Manually resets a failed or waiting_quota job back to `queued` with `attempts = 0`."""
+    with get_write_conn(db_file) as conn:
+        row = conn.execute("SELECT * FROM jobs WHERE id = ?", (int(job_id),)).fetchone()
+        if row is None:
+            raise LookupError(f"Job {job_id} not found")
+        if str(row["status"]) == "running":
+            raise ValueError(f"Job {job_id} is currently running")
+        conn.execute(
+            """
+            UPDATE jobs
+            SET status = 'queued',
+                attempts = 0,
+                error = NULL,
+                started_at = NULL,
+                finished_at = NULL,
+                progress = 0.0,
+                step = ''
+            WHERE id = ?
+            """,
+            (int(job_id),),
+        )
+        fresh = conn.execute("SELECT * FROM jobs WHERE id = ?", (int(job_id),)).fetchone()
+        assert fresh is not None
+        return dict(fresh)
 
 
 def requeue_waiting_quota_jobs(db_file: Path) -> int:
@@ -123,7 +171,7 @@ def claim_next_queued_job(
         if lane is not None:
             row = conn.execute(
                 """
-                SELECT id, kind, ref_id, status, lane, workspace_id, progress, step, created_at
+                SELECT id, kind, ref_id, status, lane, workspace_id, progress, step, attempts, created_at
                 FROM jobs
                 WHERE status = 'queued' AND lane = ?
                 ORDER BY priority DESC, id ASC
@@ -134,7 +182,7 @@ def claim_next_queued_job(
         else:
             row = conn.execute(
                 """
-                SELECT id, kind, ref_id, status, lane, workspace_id, progress, step, created_at
+                SELECT id, kind, ref_id, status, lane, workspace_id, progress, step, attempts, created_at
                 FROM jobs
                 WHERE status = 'queued'
                 ORDER BY priority DESC, id ASC
@@ -144,20 +192,25 @@ def claim_next_queued_job(
         if row is None:
             return None
         job_id = int(row["id"])
+        next_attempts = int(row["attempts"] or 0) + 1
         cur = conn.execute(
             """
             UPDATE jobs
             SET status = 'running',
+                attempts = ?,
                 started_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now'),
                 finished_at = NULL,
                 error = NULL
             WHERE id = ? AND status = 'queued'
             """,
-            (job_id,),
+            (next_attempts, job_id),
         )
         if cur.rowcount != 1:
             return None
-        return dict(row)
+        claimed = dict(row)
+        claimed["status"] = "running"
+        claimed["attempts"] = next_attempts
+        return claimed
 
 
 def update_job_progress(

@@ -4,8 +4,9 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 
+from videocreator.api.v1.routes_system import clear_nav_counts_cache
 from videocreator.db import get_conn, record_audit
-from videocreator.job_store import get_queue_summary, list_jobs, set_queue_paused
+from videocreator.job_store import get_queue_summary, list_jobs, retry_failed_job, set_queue_paused
 from videocreator.jobs import JobWorker, get_job
 from videocreator.paths import AppPaths
 
@@ -45,6 +46,28 @@ async def api_get_job(request: Request, job_id: int) -> JSONResponse:
     job = get_job(paths.db_file, job_id)
     if job is None:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+    return JSONResponse({"job": job})
+
+
+@router.post("/jobs/{job_id}/retry")
+async def api_retry_job(request: Request, job_id: int) -> JSONResponse:
+    paths: AppPaths = request.app.state.paths
+    try:
+        job = retry_failed_job(paths.db_file, job_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    with get_conn(paths.db_file) as conn:
+        record_audit(
+            conn,
+            actor="api",
+            action="job.retried",
+            object_type="job",
+            object_id=job_id,
+            detail=str(job.get("kind") or ""),
+        )
+    clear_nav_counts_cache()
     return JSONResponse({"job": job})
 
 
