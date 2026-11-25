@@ -8,7 +8,7 @@ from pathlib import Path
 
 import numpy as np
 
-from videocreator.models_manager import get_local_model
+from videocreator.ai_models.catalog import get_local_model
 from videocreator.paths import AppPaths, find_ffmpeg_binary
 from videocreator.pipeline.ffmpeg import run_ffmpeg
 from videocreator.pipeline.probe import probe_duration
@@ -274,3 +274,13 @@ def separate_vocals_and_bgm_smart(
         allow_creative_filters=True,
     )
     return vocal_wav, bgm_wav, False
+
+
+def separate_vocals_and_bgm(
+    paths: AppPaths,
+    input_media: Path,
+    out_dir: Path,
+) -> tuple[Path, Path]:
+    """Separates vocal dialogue and background music WAV stems via UVR MDX-Net ONNX or FFmpeg DSP fallback."""
+    vocal_wav, bgm_wav, _used_mdx = separate_vocals_and_bgm_smart(paths, input_media, out_dir)
+    return vocal_wav, bgm_wav
