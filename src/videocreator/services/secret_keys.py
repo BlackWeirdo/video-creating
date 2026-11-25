@@ -5,6 +5,8 @@ KNOWN_SECRET_KEYS: tuple[tuple[str, str], ...] = (
     ("GEMINI_API_KEY", "Gemini API Key (dự phòng vision/writer/TTS)"),
     ("ANTHROPIC_API_KEY", "Anthropic API Key (dự phòng writer/checker/Studio)"),
     ("MUSE_API_KEY", "Meta Model API Key (Muse Spark)"),
+    ("MUSE_GATEWAY_API_KEY", "Muse Gateway API Key (/v1/*)"),
+    ("MUSE_GATEWAY_WEBHOOK_SECRET", "Muse Gateway Webhook HMAC Secret"),
     ("OPENAI_API_KEY", "OpenAI API Key (TTS dự phòng)"),
     ("TELEGRAM_BOT_TOKEN", "Telegram Bot Token"),
     ("R2_ACCOUNT_ID", "Cloudflare R2 Account ID"),

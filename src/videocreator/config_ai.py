@@ -109,3 +109,32 @@ class VideoGenConfig(BaseModel):
     models: dict[str, VideoGenModelConfig] = Field(
         default_factory=_default_videogen_models
     )
+
+
+class MuseGatewaySidecarConfig(BaseModel):
+    auto_start: bool = True
+    gateway_entry: str = ""
+    port: int = Field(default=1412, ge=1024, le=65535)
+    media_max_mb: int = Field(default=2048, ge=256)
+    long_render_grace_ms: int = 300_000
+
+
+class MuseGatewayConfig(BaseModel):
+    enabled: bool = False
+    mode: Literal["local_sidecar", "remote"] = "local_sidecar"
+    base_url: str = "http://127.0.0.1:1412"
+    remote_hardened_confirmed: bool = False
+    poll_interval_s: int = Field(default=5, ge=2, le=60)
+    max_parallel: int = Field(default=8, ge=1, le=64)
+    renders_per_account: int = Field(default=2, ge=1, le=4)
+    daily_cap_video_per_account: int = 20
+    daily_cap_image_per_account: int = 60
+    daily_cap_audio_per_account: int = 30
+    max_attempts: int = Field(default=3, ge=1, le=5)
+    task_timeout_min: int = Field(default=30, ge=5, le=180)
+    default_video_model: str = "muse-video"
+    default_image_model: str = "muse-image"
+    default_voice: str = "Glad Kite"
+    use_webhook: bool = True
+    include_in_vcx_backup: bool = False
+    sidecar: MuseGatewaySidecarConfig = Field(default_factory=MuseGatewaySidecarConfig)

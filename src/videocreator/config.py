@@ -13,6 +13,7 @@ from videocreator.config_ai import (
     AIConfig,
     BudgetConfig,
     ModelPriceConfig,
+    MuseGatewayConfig,
     StudioConfig,
     VideoGenConfig,
     default_prices,
@@ -173,6 +174,7 @@ class Settings(BaseModel):
     tiktok: TikTokConfig = Field(default_factory=TikTokConfig)
     studio: StudioConfig = Field(default_factory=StudioConfig)
     videogen: VideoGenConfig = Field(default_factory=VideoGenConfig)
+    muse_gateway: MuseGatewayConfig = Field(default_factory=MuseGatewayConfig)
     retention: RetentionConfig = Field(default_factory=RetentionConfig)
     r2: R2Config = Field(default_factory=R2Config)
     worker: WorkerConfig = Field(default_factory=WorkerConfig)
