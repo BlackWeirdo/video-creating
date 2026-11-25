@@ -2092,6 +2092,406 @@
     "methods": [
       "GET"
     ],
+    "path": "/api/v1/muse/status",
+    "module": "videocreator.api.v1.routes_muse_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/muse/pair",
+    "module": "videocreator.api.v1.routes_muse_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/muse/pair/{pair_id}",
+    "module": "videocreator.api.v1.routes_muse_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/muse/sidecar/start",
+    "module": "videocreator.api.v1.routes_muse_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/muse/sidecar/stop",
+    "module": "videocreator.api.v1.routes_muse_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/muse/models",
+    "module": "videocreator.api.v1.routes_muse_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/muse/tasks",
+    "module": "videocreator.api.v1.routes_muse_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/muse/tasks",
+    "module": "videocreator.api.v1.routes_muse_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/muse/tasks/{task_id}",
+    "module": "videocreator.api.v1.routes_muse_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/muse/tasks/{task_id}/cancel",
+    "module": "videocreator.api.v1.routes_muse_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/muse/tasks/{task_id}/retry",
+    "module": "videocreator.api.v1.routes_muse_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/muse/tasks/{task_id}/continue",
+    "module": "videocreator.api.v1.routes_muse_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/muse/tasks/{task_id}/import",
+    "module": "videocreator.api.v1.routes_muse_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/muse/dispatch",
+    "module": "videocreator.api.v1.routes_muse_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/muse/refs/upload",
+    "module": "videocreator.api.v1.routes_muse_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/muse/trends/{trend_id}/remix",
+    "module": "videocreator.api.v1.routes_muse_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/muse/storyboards",
+    "module": "videocreator.api.v1.routes_muse_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/muse/storyboards",
+    "module": "videocreator.api.v1.routes_muse_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/muse/storyboards/{sb_id}",
+    "module": "videocreator.api.v1.routes_muse_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "PATCH"
+    ],
+    "path": "/api/v1/muse/storyboards/{sb_id}",
+    "module": "videocreator.api.v1.routes_muse_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "DELETE"
+    ],
+    "path": "/api/v1/muse/storyboards/{sb_id}",
+    "module": "videocreator.api.v1.routes_muse_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/muse/storyboards/{sb_id}/generate",
+    "module": "videocreator.api.v1.routes_muse_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/muse/storyboards/{sb_id}/assemble",
+    "module": "videocreator.api.v1.routes_muse_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/muse/storyboards/{sb_id}/segments/{seg_idx}/regenerate",
+    "module": "videocreator.api.v1.routes_muse_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/muse/admin/accounts",
+    "module": "videocreator.api.v1.routes_muse_admin_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/muse/admin/accounts/cookies",
+    "module": "videocreator.api.v1.routes_muse_admin_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/muse/admin/accounts/login",
+    "module": "videocreator.api.v1.routes_muse_admin_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/muse/admin/accounts/login/{job_id}",
+    "module": "videocreator.api.v1.routes_muse_admin_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "DELETE"
+    ],
+    "path": "/api/v1/muse/admin/accounts/login/{job_id}",
+    "module": "videocreator.api.v1.routes_muse_admin_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "PATCH"
+    ],
+    "path": "/api/v1/muse/admin/accounts/{account_id}",
+    "module": "videocreator.api.v1.routes_muse_admin_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "DELETE"
+    ],
+    "path": "/api/v1/muse/admin/accounts/{account_id}",
+    "module": "videocreator.api.v1.routes_muse_admin_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/muse/admin/accounts/{account_id}/test",
+    "module": "videocreator.api.v1.routes_muse_admin_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/muse/admin/accounts/{account_id}/open-browser",
+    "module": "videocreator.api.v1.routes_muse_admin_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/muse/admin/pool",
+    "module": "videocreator.api.v1.routes_muse_admin_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "PATCH"
+    ],
+    "path": "/api/v1/muse/admin/pool",
+    "module": "videocreator.api.v1.routes_muse_admin_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/muse/admin/pool/keepalive",
+    "module": "videocreator.api.v1.routes_muse_admin_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/muse/admin/combos",
+    "module": "videocreator.api.v1.routes_muse_admin_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/muse/admin/combos",
+    "module": "videocreator.api.v1.routes_muse_admin_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "PATCH"
+    ],
+    "path": "/api/v1/muse/admin/combos/{combo_id}",
+    "module": "videocreator.api.v1.routes_muse_admin_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "DELETE"
+    ],
+    "path": "/api/v1/muse/admin/combos/{combo_id}",
+    "module": "videocreator.api.v1.routes_muse_admin_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/muse/admin/settings",
+    "module": "videocreator.api.v1.routes_muse_admin_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "PATCH"
+    ],
+    "path": "/api/v1/muse/admin/settings",
+    "module": "videocreator.api.v1.routes_muse_admin_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/muse/admin/keys",
+    "module": "videocreator.api.v1.routes_muse_admin_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "PATCH"
+    ],
+    "path": "/api/v1/muse/admin/keys/{key_id}",
+    "module": "videocreator.api.v1.routes_muse_admin_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/muse/admin/usage",
+    "module": "videocreator.api.v1.routes_muse_admin_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/muse/admin/usage.csv",
+    "module": "videocreator.api.v1.routes_muse_admin_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/muse/admin/overview",
+    "module": "videocreator.api.v1.routes_muse_admin_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/muse/admin/cleanup",
+    "module": "videocreator.api.v1.routes_muse_admin_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/muse/admin/update-check",
+    "module": "videocreator.api.v1.routes_muse_admin_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/integrations/muse/webhook",
+    "module": "videocreator.api.v1.routes_muse_webhook_v1"
+  },
+  {
+    "kind": "http",
+    "methods": [
+      "GET"
+    ],
     "path": "/freecut/{subpath:path}",
     "module": "videocreator.api.mounts.freecut_bridge"
   },

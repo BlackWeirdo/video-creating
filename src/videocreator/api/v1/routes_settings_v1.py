@@ -15,6 +15,8 @@ from videocreator.config import Settings, load_settings, save_settings
 from videocreator.db import get_conn, query_all, query_one, record_audit
 from videocreator.job_store import get_queue_summary
 from videocreator.jobs import JobWorker
+from videocreator.muse_gateway.errors import MuseGatewayError
+from videocreator.muse_gateway.security import validate_gateway_base_url
 from videocreator.paths import AppPaths
 from videocreator.secrets_store import SecretsStore
 from videocreator.workspaces import get_workspace
@@ -151,6 +153,14 @@ async def api_v1_update_settings(
             status_code=400, detail=f"Invalid timezone: {validated.schedule.timezone}"
         ) from exc
 
+    try:
+        validated.muse_gateway.base_url = validate_gateway_base_url(
+            validated.muse_gateway.base_url, validated.muse_gateway.mode
+        )
+    except MuseGatewayError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    prev_remote_ack = bool((cur.get("muse_gateway") or {}).get("remote_hardened_confirmed"))
     save_settings(paths.config_file, validated)
     worker: JobWorker | None = getattr(request.app.state, "worker", None)
     if worker is not None:
@@ -165,6 +175,14 @@ async def api_v1_update_settings(
             object_type="config",
             detail=f"io={validated.worker.io_concurrency}, compute={validated.worker.compute_concurrency}",
         )
+        if validated.muse_gateway.remote_hardened_confirmed and not prev_remote_ack:
+            record_audit(
+                conn,
+                actor="api",
+                action="muse.remote_hardened_confirmed",
+                object_type="muse_gateway",
+                detail=f"base_url={validated.muse_gateway.base_url}",
+            )
     return JSONResponse({"settings": validated.model_dump(mode="json")})
 
 

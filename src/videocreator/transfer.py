@@ -17,12 +17,19 @@ from cryptography.fernet import Fernet, InvalidToken
 from videocreator.config import load_settings, save_settings
 from videocreator.db import get_user_version, max_supported_migration_version, migrate
 from videocreator.job_store import recover_interrupted_jobs, set_queue_paused
+from videocreator.muse_gateway.admin import (
+    export_muse_gateway_backup,
+    restore_muse_gateway_backup,
+)
+from videocreator.muse_gateway.errors import MuseGatewayError
 from videocreator.paths import AppPaths
 from videocreator.secrets_store import SecretsStore
 from videocreator.studio.session import recover_stuck_studio_sessions
 
 
 logger = logging.getLogger("videocreator.transfer")
+
+MUSE_VCX_BACKUP_KEY = "__MUSE_GATEWAY_BACKUP_JSON__"
 
 
 class ExportPasswordError(ValueError):
@@ -59,6 +66,18 @@ def export_config_bundle(
         val = sec.get(k)
         if val is not None:
             secret_map[k] = val
+
+    cur_settings = load_settings(paths.config_file)
+    if (
+        cur_settings.muse_gateway.include_in_vcx_backup
+        and cur_settings.muse_gateway.mode == "local_sidecar"
+    ):
+        try:
+            gw_bkp = export_muse_gateway_backup(paths)
+            if gw_bkp.get("files"):
+                secret_map[MUSE_VCX_BACKUP_KEY] = json.dumps(gw_bkp, ensure_ascii=False)
+        except (MuseGatewayError, PermissionError) as exc:
+            logger.warning("Skipping Muse Gateway state in .vcx export: %s", exc)
 
     salt = os.urandom(16)
     fernet = Fernet(_derive_fernet_key(clean_pw, salt))
@@ -198,7 +217,13 @@ def import_config_bundle(
 
             clear_nav_counts_cache()
 
+        raw_muse_bkp = secret_map.pop(MUSE_VCX_BACKUP_KEY, None)
         sec = secrets_store or SecretsStore(paths.secrets_file)
         sec.replace_all({str(k): str(v) for k, v in secret_map.items()})
+        if raw_muse_bkp and settings.muse_gateway.mode == "local_sidecar":
+            try:
+                restore_muse_gateway_backup(paths, json.loads(raw_muse_bkp))
+            except (MuseGatewayError, PermissionError, ValueError) as exc:
+                logger.warning("Could not restore Muse Gateway backup from .vcx: %s", exc)
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)

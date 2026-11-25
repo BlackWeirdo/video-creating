@@ -17,6 +17,7 @@ from videocreator.secrets_store import SecretsStore
 LOCALHOST_HOSTS: frozenset[str] = frozenset({"127.0.0.1", "localhost", "::1"})
 SAFE_METHODS: frozenset[str] = frozenset({"GET", "HEAD", "OPTIONS", "TRACE"})
 PUBLIC_HEALTH_PATHS: frozenset[str] = frozenset({"/health", "/api/v1/health"})
+HMAC_WEBHOOK_PATHS: frozenset[str] = frozenset({"/api/v1/integrations/muse/webhook"})
 PROXIED_PREFIXES: tuple[str, ...] = (
     "/api/v1/",
     "/api/editor/",
@@ -155,7 +156,7 @@ class NonLocalhostBasicAuthMiddleware(BaseHTTPMiddleware):
 
         # The actual bind host (e.g. from --host) wins over config.toml.
         host = self.bind_host or settings.host
-        if host.strip().lower() in LOCALHOST_HOSTS:
+        if host.strip().lower() in LOCALHOST_HOSTS or request.url.path in HMAC_WEBHOOK_PATHS:
             return await call_next(request)
 
         expected_pw = self.secrets_store.get("UI_PASSWORD")

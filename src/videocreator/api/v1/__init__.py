@@ -13,6 +13,9 @@ from videocreator.api.v1.routes_jobs import router as jobs_router
 from videocreator.api.v1.routes_localize_v1 import router as localize_v1_router
 from videocreator.api.v1.routes_manual_v1 import router as manual_v1_router
 from videocreator.api.v1.routes_models_v1 import router as models_v1_router
+from videocreator.api.v1.routes_muse_admin_v1 import router as muse_admin_v1_router
+from videocreator.api.v1.routes_muse_v1 import router as muse_v1_router
+from videocreator.api.v1.routes_muse_webhook_v1 import router as muse_webhook_v1_router
 from videocreator.api.v1.routes_news_v1 import router as news_v1_router
 from videocreator.api.v1.routes_onboarding_v1 import router as onboarding_v1_router
 from videocreator.api.v1.routes_production import router as production_router
@@ -47,3 +50,6 @@ v1_router.include_router(onboarding_v1_router)
 v1_router.include_router(broll_v1_router)
 v1_router.include_router(manual_v1_router)
 v1_router.include_router(ai_v1_router)
+v1_router.include_router(muse_v1_router)
+v1_router.include_router(muse_admin_v1_router)
+v1_router.include_router(muse_webhook_v1_router)
