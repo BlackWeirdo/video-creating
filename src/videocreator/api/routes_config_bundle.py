@@ -50,14 +50,24 @@ async def import_settings_route(
                 if written > MAX_IMPORT_VCX_BYTES:
                     raise HTTPException(status_code=413, detail="File cấu hình (.vcx) vượt quá giới hạn 512 MB")
                 out_f.write(chunk)
-        await asyncio.to_thread(
-            import_config_bundle,
-            paths,
-            tmp_vcx,
-            password,
-            as_server=as_server,
-            secrets_store=request.app.state.secrets,
-        )
+        worker = getattr(request.app.state, "worker", None)
+        was_paused = bool(worker.is_paused) if worker is not None else False
+        if worker is not None and not was_paused:
+            worker.pause()
+            await worker.wait_until_idle(timeout_s=10.0)
+        try:
+            await asyncio.to_thread(
+                import_config_bundle,
+                paths,
+                tmp_vcx,
+                password,
+                as_server=as_server,
+                secrets_store=request.app.state.secrets,
+            )
+        except Exception:
+            if worker is not None and not was_paused:
+                worker.resume()
+            raise
         # If imported as client on an active server, stop background server workers to prevent split-brain
         new_role = load_settings(paths.config_file).role
         if new_role == "client":

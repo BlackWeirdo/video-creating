@@ -149,14 +149,25 @@ async def api_v1_backup_restore(
                 secrets_store=request.app.state.secrets,
             )
 
-        await asyncio.to_thread(
-            import_config_bundle,
-            paths,
-            tmp_vcx,
-            password,
-            as_server=as_server,
-            secrets_store=request.app.state.secrets,
-        )
+        worker = getattr(request.app.state, "worker", None)
+        was_paused = bool(worker.is_paused) if worker is not None else False
+        if worker is not None and not was_paused:
+            worker.pause()
+            await worker.wait_until_idle(timeout_s=10.0)
+
+        try:
+            await asyncio.to_thread(
+                import_config_bundle,
+                paths,
+                tmp_vcx,
+                password,
+                as_server=as_server,
+                secrets_store=request.app.state.secrets,
+            )
+        except Exception:
+            if worker is not None and not was_paused:
+                worker.resume()
+            raise
         new_role = load_settings(paths.config_file).role
         if new_role == "client":
             for svc_attr in ("scheduler", "tg_service", "worker"):

@@ -233,6 +233,21 @@ class JobWorker:
         self.compute_concurrency = int(compute_concurrency)
         self._stop_event = asyncio.Event()
         self._tasks: list[asyncio.Task[None]] = []
+        self._active_executions = 0
+
+    @property
+    def active_executions(self) -> int:
+        return self._active_executions
+
+    async def wait_until_idle(self, timeout_s: float = 10.0) -> bool:
+        """Waits until no in-flight job handler is actively executing in this worker."""
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + max(0.1, timeout_s)
+        while self._active_executions > 0:
+            if loop.time() >= deadline:
+                return False
+            await asyncio.sleep(0.05)
+        return True
 
     @property
     def is_paused(self) -> bool:
@@ -286,9 +301,13 @@ class JobWorker:
                 if wake_quota:
                     wake_expired_quota_jobs(self.db_file)
                 if not self.is_paused:
-                    processed = await run_one_job(
-                        self.db_file, self.registry, lane=lane
-                    )
+                    self._active_executions += 1
+                    try:
+                        processed = await run_one_job(
+                            self.db_file, self.registry, lane=lane
+                        )
+                    finally:
+                        self._active_executions = max(0, self._active_executions - 1)
                     if processed:
                         continue
             except Exception as exc:

@@ -14,9 +14,11 @@ from pathlib import Path
 from cryptography.fernet import Fernet, InvalidToken
 
 from videocreator.config import load_settings, save_settings
-from videocreator.db import migrate
+from videocreator.db import get_user_version, max_supported_migration_version, migrate
+from videocreator.job_store import recover_interrupted_jobs, set_queue_paused
 from videocreator.paths import AppPaths
 from videocreator.secrets_store import SecretsStore
+from videocreator.studio.session import recover_stuck_studio_sessions
 
 
 class ExportPasswordError(ValueError):
@@ -149,7 +151,27 @@ def import_config_bundle(
         except zipfile.BadZipFile as exc:
             raise ValueError("Invalid .vcx archive file") from exc
 
-        # Password verified! Now safely replace config.toml, app.db, and secrets
+        # Validate archive DB schema version BEFORE overwriting config.toml, app.db, or secrets
+        extracted_db = tmp_dir / "app.db"
+        if extracted_db.exists():
+            max_ver = max_supported_migration_version()
+            probe_conn = sqlite3.connect(str(extracted_db))
+            try:
+                src_ver = get_user_version(probe_conn)
+            finally:
+                probe_conn.close()
+            if src_ver > max_ver:
+                raise ValueError(
+                    f"Bản sao lưu .vcx thuộc phiên bản mới hơn (user_version={src_ver} > {max_ver}), không thể khôi phục."
+                )
+
+        # Password & schema verified! Pause queue during swap, then replace config.toml, app.db, and secrets
+        if paths.db_file.exists():
+            try:
+                set_queue_paused(paths.db_file, True)
+            except Exception:
+                pass
+
         extracted_cfg = tmp_dir / "config.toml"
         if extracted_cfg.exists():
             shutil.copy2(extracted_cfg, paths.config_file)
@@ -157,7 +179,6 @@ def import_config_bundle(
         settings.role = "server" if as_server else "client"
         save_settings(paths.config_file, settings)
 
-        extracted_db = tmp_dir / "app.db"
         if extracted_db.exists():
             src_conn = sqlite3.connect(str(extracted_db))
             dst_conn = sqlite3.connect(str(paths.db_file))
@@ -167,6 +188,11 @@ def import_config_bundle(
                 dst_conn.close()
                 src_conn.close()
             migrate(paths.db_file)
+            recover_interrupted_jobs(paths.db_file)
+            recover_stuck_studio_sessions(paths.db_file)
+            from videocreator.api.v1.routes_system import clear_nav_counts_cache
+
+            clear_nav_counts_cache()
 
         sec = secrets_store or SecretsStore(paths.secrets_file)
         sec.replace_all({str(k): str(v) for k, v in secret_map.items()})

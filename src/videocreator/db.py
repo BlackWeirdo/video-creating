@@ -69,6 +69,14 @@ def _migration_version(sql_file: Path, fallback_idx: int) -> int:
     return int(prefix) if prefix.isdigit() else fallback_idx
 
 
+def max_supported_migration_version(migrations_dir: Path | None = None) -> int:
+    mig_dir = migrations_dir or DEFAULT_MIGRATIONS_DIR
+    sql_files = sorted(mig_dir.glob("*.sql"), key=lambda p: p.name)
+    if not sql_files:
+        return 0
+    return max(_migration_version(f, idx) for idx, f in enumerate(sql_files, start=1))
+
+
 def _strip_explicit_tx(script: str) -> str:
     """Removes top-level BEGIN;/COMMIT; lines so `migrate()` controls a single transaction."""
     out: list[str] = []
