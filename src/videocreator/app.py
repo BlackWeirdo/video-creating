@@ -73,6 +73,19 @@ def create_app(
         if current_settings.role == "server" and start_worker:
             import asyncio
 
+            if (
+                current_settings.muse_gateway.enabled
+                and current_settings.muse_gateway.mode == "local_sidecar"
+                and current_settings.muse_gateway.sidecar.auto_start
+            ):
+                from videocreator.muse_gateway.errors import MuseGatewayError
+                from videocreator.muse_gateway.sidecar import ensure_muse_sidecar_running
+
+                try:
+                    await asyncio.to_thread(ensure_muse_sidecar_running, paths)
+                except MuseGatewayError as exc:
+                    logger.warning("Muse Gateway auto-start skipped: %s", exc)
+
             worker.start()
             scheduler.start()
             tg_task = asyncio.create_task(tg_service.start())
@@ -88,6 +101,9 @@ def create_app(
             scheduler.stop()
             await tg_service.stop()
             await worker.stop()
+            from videocreator.muse_gateway.sidecar import stop_muse_sidecar
+
+            stop_muse_sidecar(paths, only_if_owned=True)
             logger.info("Stopped Video Creator")
 
     app = FastAPI(

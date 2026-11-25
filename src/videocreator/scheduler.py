@@ -135,6 +135,17 @@ class AppScheduler:
             max_instances=1,
         )
 
+        # 10. Every N seconds (default 5s): non-blocking Muse Gateway multi-lane dispatcher
+        self._scheduler.add_job(
+            self._tick_muse_dispatcher,
+            "interval",
+            seconds=max(2, int(settings.muse_gateway.poll_interval_s)),
+            id="muse_dispatcher_tick",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+        )
+
         self._scheduler.start()
         logger.info(
             "Started APScheduler (publish_due, token_check, nightly_backup, daily_report, weekly_report, collect_metrics, daily_trend_scan, inbox_and_deferred, autopilot_tick)"
@@ -204,6 +215,14 @@ class AppScheduler:
             await asyncio.to_thread(run_autopilot_tick, self.paths)
         except Exception as exc:
             logger.error("Error in autopilot_tick: %s", exc)
+
+    async def _tick_muse_dispatcher(self) -> None:
+        try:
+            from videocreator.muse_gateway.dispatcher import run_muse_dispatcher_tick
+
+            await asyncio.to_thread(run_muse_dispatcher_tick, self.paths)
+        except Exception as exc:
+            logger.error("Error in muse_dispatcher_tick: %s", exc)
 
     def stop(self) -> None:
         if self._scheduler is not None and self._scheduler.running:

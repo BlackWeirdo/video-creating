@@ -1,0 +1,727 @@
+diff --git a/src/app/api/config/route.ts b/src/app/api/config/route.ts
+index 5ac40c0..f2c97c3 100644
+--- a/src/app/api/config/route.ts
++++ b/src/app/api/config/route.ts
+@@ -5,9 +5,11 @@ export const dynamic = 'force-dynamic';
+ 
+ export async function GET() {
+   return NextResponse.json({
+-    cmdMode: process.env.MUSE_CMD_MODE || 'auto',
+-    baseUrl: 'http://localhost:1412/v1',
++    cmdMode: 'off',
++    hardened: true,
++    fork: 'vc-hardened',
++    baseUrl: 'http://127.0.0.1:1412/v1',
+     model: 'muse-web',
+-    apiKeyHint: 'không bắt buộc auth (local) — điền gì cũng được',
++    apiKeyHint: 'vc-hardened local gateway',
+   });
+ }
+diff --git a/src/app/api/update/route.ts b/src/app/api/update/route.ts
+index 6b70763..92fa155 100644
+--- a/src/app/api/update/route.ts
++++ b/src/app/api/update/route.ts
+@@ -1,6 +1,5 @@
+ import fs from 'node:fs';
+ import path from 'node:path';
+-import { spawn } from 'node:child_process';
+ import { NextResponse } from 'next/server';
+ 
+ export const runtime = 'nodejs';
+@@ -70,47 +69,9 @@ export async function GET() {
+   return NextResponse.json(data);
+ }
+ 
+-// Apply update: only meaningful for the npm-installed channel — spawn
+-// `npm i -g muse-gateway` detached and let it replace the package under the
+-// running process. The user then restarts the gateway to run the new code.
+ export async function POST() {
+-  if (channel() !== 'npm') {
+-    return NextResponse.json(
+-      { error: 'Chỉ hỗ trợ tự cập nhật cho bản cài qua npm (npm i -g muse-gateway).' },
+-      { status: 400 }
+-    );
+-  }
+-  const current = currentVersion();
+-  const latest = await latestVersion();
+-  if (!latest || cmpVer(latest, current) <= 0) {
+-    return NextResponse.json({ ok: false, message: 'Đang chạy bản mới nhất.' });
+-  }
+-  // The version string lands inside a cmd.exe command line — pin it to
+-  // strict semver so a poisoned registry response can't inject arguments.
+-  if (!/^\d+\.\d+\.\d+(-[\w.-]+)?$/.test(latest)) {
+-    return NextResponse.json({ error: 'Registry trả version không hợp lệ.' }, { status: 502 });
+-  }
+-  try {
+-    // Chain the whole update in one detached cmd: install → stop the old
+-    // instance (pid-file kill) → breathe so the port frees → relaunch the
+-    // server on the NEW build. A plain `npm i -g` leaves the old process
+-    // holding :1412, which is exactly the "updated but still old" trap.
+-    const cmd =
+-      `npm i -g muse-gateway@${latest} && timeout /t 3 /nobreak >nul && ` +
+-      `muse-gateway stop && timeout /t 3 /nobreak >nul && muse-gateway --serve`;
+-    const child = spawn('cmd.exe', ['/c', cmd], {
+-      detached: true,
+-      stdio: 'ignore',
+-      windowsHide: true,
+-    });
+-    child.unref();
+-    cache = null; // next GET re-checks after the install
+-    return NextResponse.json({
+-      ok: true,
+-      latest,
+-      message: `Đang cài v${latest} — gateway tự restart sau ~40 giây, dashboard sẽ hồi lại trên bản mới.`,
+-    });
+-  } catch (err) {
+-    return NextResponse.json({ error: `Không chạy được npm: ${(err as Error)?.message || err}` }, { status: 500 });
+-  }
++  return NextResponse.json(
++    { error: 'Auto-update disabled in vc-hardened build.' },
++    { status: 403 }
++  );
+ }
+diff --git a/src/app/v1/responses/route.ts b/src/app/v1/responses/route.ts
+index e246488..500eb69 100644
+--- a/src/app/v1/responses/route.ts
++++ b/src/app/v1/responses/route.ts
+@@ -1,17 +1,4 @@
+-import { NextRequest, NextResponse } from 'next/server';
+-import { musePool } from '@/lib/musePool';
+-import { apiKeyService } from '@/lib/apiKeys';
+-import { isRemoteHeaders } from '@/lib/remoteDetect';
+-import { extractPromptFromResponseInput } from '@/lib/promptExtractor';
+-import {
+-  buildBridgeInstructions,
+-  collectBridgeTools,
+-  parseMuseToolCalls,
+-  extractWorkspaceCwd,
+-  buildProjectContext,
+-} from '@/lib/toolBridge';
+-import { licenseGate } from '@/lib/licenseGate';
+-import { publicOrigin } from '@/lib/requestOrigin';
++import { NextResponse } from 'next/server';
+ 
+ const corsHeaders = {
+   'Access-Control-Allow-Origin': '*',
+@@ -23,364 +10,14 @@ export async function OPTIONS() {
+   return new NextResponse(null, { status: 200, headers: corsHeaders });
+ }
+ 
+-export async function POST(req: NextRequest) {
+-  const gate = licenseGate(corsHeaders);
+-  if (gate) return gate;
+-  try {
+-    const apiKey = apiKeyService.resolveKey(
+-      req.headers.get('authorization') || req.headers.get('x-api-key'),
+-      isRemoteHeaders(req.headers),
+-      req.headers.get('origin'),
+-    );
+-    if (apiKey === null) {
+-      return NextResponse.json(
+-        { error: { message: 'Invalid or missing API key.', type: 'authentication_error' } },
+-        { status: 401, headers: corsHeaders }
+-      );
+-    }
+-
+-    const body = await req.json();
+-    console.log('[Responses API Request received]:', JSON.stringify(body).slice(0, 300));
+-
+-    const model = body.model || 'muse-chat';
+-
+-    // Per-key access restriction: key may only call allow-listed models/combos
+-    if (!apiKeyService.allowsModel(apiKey, model)) {
+-      return NextResponse.json(
+-        { error: { message: `This API key is not allowed to use model "${model}".`, type: 'permission_error' } },
+-        { status: 403, headers: corsHeaders }
+-      );
+-    }
+-    const ua = req.headers.get('user-agent');
+-    const keyName = apiKey === 'open' ? 'open' : apiKey.name;
+-    // Idempotency: same opt-in contract as /v1/chat/completions — a retried
+-    // task must not re-post its prompt into the thread.
+-    const idem: string | null =
+-      (body as any).idempotency_key ?? (body as any).task_id ?? (body as any).task ?? null;
+-    const stream = body.stream ?? true;
+-    const prompt = extractPromptFromResponseInput(body.input || body.messages || body.prompt);
+-
+-    console.log('[Responses API Extracted User Prompt]:', prompt.slice(0, 200));
+-
+-    if (!prompt) {
+-      return NextResponse.json(
+-        { error: { message: 'Could not extract a user prompt from the input.', type: 'invalid_request_error' } },
+-        { status: 400, headers: corsHeaders }
+-      );
+-    }
+-
+-    // Tool definitions advertised by the client (Codex). When present, the
+-    // Muse prompt carries bridge instructions and replies may contain
+-    // tool-call markers instead of plain text.
+-    const tools = collectBridgeTools(body);
+-
+-    // The bridge runs on the user's machine: when Codex reports a workspace
+-    // via <environment_context><cwd>, attach a bounded project snapshot so
+-    // Muse can reason about the project even though it cannot emit client-side
+-    // tool calls.
+-    const cwd = extractWorkspaceCwd(body);
+-    const projectCtx = buildProjectContext(cwd);
+-
+-    const musePrompt =
+-      (tools.length ? `${buildBridgeInstructions(tools)}\n` : '') +
+-      projectCtx +
+-      prompt;
+-
+-    const responseId = 'resp_' + Date.now();
+-    const itemId = 'item_' + Date.now();
+-    const created = Math.floor(Date.now() / 1000);
+-
+-    const buildOutputItems = (reply: string) => {
+-      const calls = tools.length ? parseMuseToolCalls(reply) : [];
+-      if (calls.length > 0) {
+-        return calls.map((call, i) => ({
+-          id: `fc_${Date.now()}_${i}`,
+-          type: 'function_call',
+-          call_id: call.callId,
+-          name: call.name,
+-          arguments: call.arguments,
+-          status: 'completed',
+-        }));
+-      }
+-      return [
+-        {
+-          id: itemId,
+-          type: 'message',
+-          status: 'completed',
+-          role: 'assistant',
+-          content: [{ type: 'output_text', text: reply }],
+-        },
+-      ];
+-    };
+-
+-    const usageFor = (reply: string) => ({
+-      total_tokens: Math.max(1, Math.round(reply.length / 4)),
+-      input_tokens: Math.max(1, Math.round(prompt.length / 4)),
+-      output_tokens: Math.max(1, Math.round(reply.length / 4)),
+-    });
+-
+-    if (stream) {
+-      const encoder = new TextEncoder();
+-      const customReadable = new ReadableStream({
+-        async start(controller) {
+-          // Client (Codex) may disconnect/retry at any time; never let an
+-          // enqueue on a dead stream crash the handler.
+-          const safeEnqueue = (data: Uint8Array) => {
+-            try {
+-              controller.enqueue(data);
+-            } catch {}
+-          };
+-          const safeClose = () => {
+-            try {
+-              controller.close();
+-            } catch {}
+-          };
+-          const sendEvent = (type: string, payload: Record<string, any>) =>
+-            safeEnqueue(encoder.encode(`event: ${type}\ndata: ${JSON.stringify({ type, ...payload })}\n\n`));
+-
+-          const emitMessageItemAdded = () => {
+-            sendEvent('response.output_item.added', {
+-              response_id: responseId,
+-              output_index: 0,
+-              item: {
+-                id: itemId,
+-                type: 'message',
+-                status: 'in_progress',
+-                role: 'assistant',
+-                content: [],
+-              },
+-            });
+-            sendEvent('response.content_part.added', {
+-              response_id: responseId,
+-              item_id: itemId,
+-              output_index: 0,
+-              content_index: 0,
+-              part: { type: 'output_text', text: '' },
+-            });
+-          };
+-
+-          // The chat call below can run for minutes while the stream sits
+-          // silent — edge proxies cut idle streams (~100s on Cloudflare).
+-          // SSE comments keep bytes flowing until real events resume.
+-          const keepAlive = setInterval(
+-            () => safeEnqueue(encoder.encode(': ka\n\n')),
+-            15_000,
+-          );
+-          try {
+-            sendEvent('response.created', {
+-              response: {
+-                id: responseId,
+-                object: 'response',
+-                created_at: created,
+-                model,
+-                status: 'in_progress',
+-                output: [],
+-              },
+-            });
+-
+-            let replyText = '';
+-            let replyMedia: string[] = [];
+-            if (tools.length) {
+-              // Buffered mode: a tool-call marker must never leak as message
+-              // text mid-stream — output items are only emitted once known.
+-              const r = await musePool.chat({
+-                prompt: musePrompt,
+-                signal: req.signal,
+-                cwd,
+-                model,
+-                ua,
+-                keyName,
+-                endpoint: '/v1/responses',
+-                idem,
+-              });
+-              replyText = r.text;
+-              replyMedia = r.media;
+-            } else {
+-              emitMessageItemAdded();
+-              const r = await musePool.chat({
+-                prompt: musePrompt,
+-                signal: req.signal,
+-                cwd,
+-                model,
+-                ua,
+-                keyName,
+-                endpoint: '/v1/responses',
+-                idem,
+-                onChunk: (chunk: string) => {
+-                  replyText += chunk;
+-                  sendEvent('response.output_text.delta', {
+-                    response_id: responseId,
+-                    item_id: itemId,
+-                    output_index: 0,
+-                    content_index: 0,
+-                    delta: chunk,
+-                  });
+-                },
+-              });
+-              replyMedia = r.media;
+-            }
+-            clearInterval(keepAlive);
+-
+-            // Generated media links arrive with the completed reply — append
+-            // them (and stream a final delta) so clients can resolve files.
+-            if (replyMedia.length) {
+-              const origin = publicOrigin(req);
+-              const block =
+-                '\n\nAttachments:\n' +
+-                replyMedia.map((u) => `- ${u.startsWith('http') ? u : origin + u}`).join('\n');
+-              replyText += block;
+-              if (!tools.length) {
+-                sendEvent('response.output_text.delta', {
+-                  response_id: responseId,
+-                  item_id: itemId,
+-                  output_index: 0,
+-                  content_index: 0,
+-                  delta: block,
+-                });
+-              }
+-            }
+-
+-            const calls = tools.length ? parseMuseToolCalls(replyText) : [];
+-
+-            if (calls.length > 0) {
+-              calls.forEach((call, i) => {
+-                const fcId = `fc_${Date.now()}_${i}`;
+-                sendEvent('response.output_item.added', {
+-                  response_id: responseId,
+-                  output_index: i,
+-                  item: {
+-                    id: fcId,
+-                    type: 'function_call',
+-                    call_id: call.callId,
+-                    name: call.name,
+-                    arguments: '',
+-                    status: 'in_progress',
+-                  },
+-                });
+-                sendEvent('response.function_call_arguments.delta', {
+-                  response_id: responseId,
+-                  item_id: fcId,
+-                  output_index: i,
+-                  delta: call.arguments,
+-                });
+-                sendEvent('response.function_call_arguments.done', {
+-                  response_id: responseId,
+-                  item_id: fcId,
+-                  output_index: i,
+-                  arguments: call.arguments,
+-                });
+-                sendEvent('response.output_item.done', {
+-                  response_id: responseId,
+-                  output_index: i,
+-                  item: {
+-                    id: fcId,
+-                    type: 'function_call',
+-                    call_id: call.callId,
+-                    name: call.name,
+-                    arguments: call.arguments,
+-                    status: 'completed',
+-                  },
+-                });
+-              });
+-            } else {
+-              if (tools.length) emitMessageItemAdded();
+-              sendEvent('response.output_text.done', {
+-                response_id: responseId,
+-                item_id: itemId,
+-                output_index: 0,
+-                content_index: 0,
+-                text: replyText,
+-              });
+-              sendEvent('response.content_part.done', {
+-                response_id: responseId,
+-                item_id: itemId,
+-                output_index: 0,
+-                content_index: 0,
+-                part: { type: 'output_text', text: replyText },
+-              });
+-              sendEvent('response.output_item.done', {
+-                response_id: responseId,
+-                output_index: 0,
+-                item: {
+-                  id: itemId,
+-                  type: 'message',
+-                  status: 'completed',
+-                  role: 'assistant',
+-                  content: [{ type: 'output_text', text: replyText }],
+-                },
+-              });
+-            }
+-
+-            sendEvent('response.completed', {
+-              response: {
+-                id: responseId,
+-                object: 'response',
+-                created_at: created,
+-                model,
+-                status: 'completed',
+-                output: buildOutputItems(replyText),
+-                usage: usageFor(replyText),
+-              },
+-            });
+-            safeEnqueue(encoder.encode('data: [DONE]\n\n'));
+-            safeClose();
+-          } catch (err: any) {
+-            clearInterval(keepAlive);
+-            console.error('[Responses API Stream Error]:', err);
+-            sendEvent('response.failed', {
+-              response: {
+-                id: responseId,
+-                object: 'response',
+-                status: 'failed',
+-                error: { message: err?.message || 'Upstream error' },
+-              },
+-            });
+-            safeClose();
+-          }
+-        },
+-      });
+-
+-      return new Response(customReadable, {
+-        headers: {
+-          'Content-Type': 'text/event-stream; charset=utf-8',
+-          'Cache-Control': 'no-cache, no-transform',
+-          'Connection': 'keep-alive',
+-          ...corsHeaders,
+-        },
+-      });
+-    }
+-
+-    // Synchronous (Non-streaming) response
+-    const { text, media } = await musePool.chat({
+-      prompt: musePrompt,
+-      signal: req.signal,
+-      cwd,
+-      model,
+-      ua,
+-      keyName,
+-      endpoint: '/v1/responses',
+-      idem,
+-    });
+-    const origin = publicOrigin(req);
+-    const content = media.length
+-      ? `${text}\n\nAttachments:\n${media.map((u) => `- ${u.startsWith('http') ? u : origin + u}`).join('\n')}`
+-      : text;
+-    const responsePayload = {
+-      id: responseId,
+-      object: 'response',
+-      created_at: created,
+-      model,
+-      status: 'completed',
+-      output: buildOutputItems(content),
+-      usage: usageFor(content),
+-    };
+-
+-    return NextResponse.json(responsePayload, { headers: corsHeaders });
+-  } catch (err: any) {
+-    console.error('[Responses API Error]:', err);
+-    return NextResponse.json(
+-      { error: { message: err?.message || 'Internal server error', type: 'server_error' } },
+-      { status: 500, headers: corsHeaders }
+-    );
+-  }
++export async function POST() {
++  return NextResponse.json(
++    {
++      error: {
++        message: '/v1/responses is disabled in vc-hardened build; use /v1/tasks or /v1/chat/completions.',
++        type: 'gone_error',
++      },
++    },
++    { status: 410, headers: corsHeaders },
++  );
+ }
+diff --git a/src/lib/gateway.test.ts b/src/lib/gateway.test.ts
+index 7556f94..752659b 100644
+--- a/src/lib/gateway.test.ts
++++ b/src/lib/gateway.test.ts
+@@ -319,3 +319,12 @@ test('chat /voice options sit in brackets before the text', () => {
+   assert.equal(parseVoiceCommand('[9x] hi').ok, false);
+   assert.deepEqual(parseVoiceCommand('[nam]'), { ok: true, text: '', voice: 'Helio', speed: null });
+ });
++
++test('vc-hardened build disables local command execution and workspace context reads', async () => {
++  const { isCommandAllowed, runLocalCommand, extractWorkspaceCwd, buildProjectContext } = await import('./toolBridge.ts');
++  assert.equal(isCommandAllowed('dir'), false);
++  assert.equal(isCommandAllowed('whoami'), false);
++  assert.throws(() => runLocalCommand('whoami'), /permanently disabled/);
++  assert.equal(extractWorkspaceCwd({ messages: [{ role: 'user', content: '<cwd>C:\\secret</cwd>' }] }), null);
++  assert.equal(buildProjectContext(process.cwd()), '');
++});
+diff --git a/src/lib/museDriver.ts b/src/lib/museDriver.ts
+index abd78ee..36b8026 100644
+--- a/src/lib/museDriver.ts
++++ b/src/lib/museDriver.ts
+@@ -4,7 +4,6 @@ import fs from 'fs';
+ import path from 'path';
+ import { getBrowserExecutable, getSavedSessions, parseCookieString, formatCookiesForPuppeteer } from './museService';
+ import { settingsService } from './settings';
+-import { parseCommandRequests, isCommandAllowed, runLocalCommand } from './toolBridge';
+ import './logBuffer';
+ import { MEDIA_DIR, persistMediaFile } from './mediaStore';
+ import { mp3DurationSec } from './mp3';
+@@ -532,54 +531,29 @@ class MuseDriverService {
+           lastMediaInfo = result.mediaInfo ?? [];
+           partial = !!result.partial;
+         }
+-        const cmds = parseCommandRequests(result.text).filter(isCommandAllowed);
+-        if (!cmds.length || round === MAX_CMD_ROUNDS) {
+-          // Clarification stall — Muse sometimes stops to ask "which of these
+-          // faces / confirm the choice" with option buttons instead of
+-          // generating, and the task then waits for media that never comes.
+-          // Only when the reply is media-LESS (a finished generation with a
+-          // "want edits?" follow-up carries media and must not trigger this)
+-          // and reads like a blocking question do we answer once: pick the
+-          // most reasonable option per the refs' described roles, don't ask
+-          // again, generate now. A second clarification falls through to
+-          // return so the task surfaces Muse's actual question as the error.
+-          if (
+-            !clarified &&
+-            !result.media.length &&
+-            looksLikeClarification(result.text)
+-          ) {
+-            clarified = true;
+-            console.log('[MuseDriver] clarification detected — auto-answering');
+-            toSend =
+-              'Không cần xác nhận thêm — tự chọn phương án hợp lý nhất theo đúng vai trò từng file đính kèm trong yêu cầu ban đầu (khung hình = bối cảnh/tư thế, ảnh chân dung = nhân vật chính phải giống hệt, ảnh trang phục = chỉ lấy đồ). Không hỏi lại — TẠO NGAY media.';
+-            continue;
+-          }
+-          // Muse sometimes renders fewer pictures than asked ("4 ảnh" with
+-          // 3 shown) — ask once, in the same thread, for the missing ones.
+-          // It also replies "done — 4 images" with nothing attached at all;
+-          // the same nudge re-asks for the whole set.
+-          const gotImages = lastMediaInfo.filter((m) => m.kind === 'image').length;
+-          if (outputKind === 'image' && result.text && gotImages < expectedImages && !signal?.aborted) {
+-            topUpFor = expectedImages - gotImages;
+-            console.log(`[MuseDriver] got ${gotImages}/${expectedImages} images — asking for ${topUpFor} more`);
+-            if (buffered && onChunk) onChunk(buffered);
+-            toSend = gotImages
+-              ? `Mới có ${gotImages} ảnh hiển thị. Tạo thêm ${topUpFor} ảnh nữa cùng yêu cầu trên, khác với các ảnh đã có — mỗi ảnh là một file riêng.`
+-              : `Chưa có ảnh nào hiển thị trong chat. Tạo lại ${topUpFor} ảnh theo đúng yêu cầu trên — mỗi ảnh là một file riêng.`;
+-            continue;
+-          }
++        if (
++          !clarified &&
++          !result.media.length &&
++          looksLikeClarification(result.text)
++        ) {
++          clarified = true;
++          console.log('[MuseDriver] clarification detected — auto-answering');
++          toSend =
++            'Không cần xác nhận thêm — tự chọn phương án hợp lý nhất theo đúng vai trò từng file đính kèm trong yêu cầu ban đầu (khung hình = bối cảnh/tư thế, ảnh chân dung = nhân vật chính phải giống hệt, ảnh trang phục = chỉ lấy đồ). Không hỏi lại — TẠO NGAY media.';
++          continue;
++        }
++        const gotImages = lastMediaInfo.filter((m) => m.kind === 'image').length;
++        if (outputKind === 'image' && result.text && gotImages < expectedImages && !signal?.aborted) {
++          topUpFor = expectedImages - gotImages;
++          console.log(`[MuseDriver] got ${gotImages}/${expectedImages} images — asking for ${topUpFor} more`);
+           if (buffered && onChunk) onChunk(buffered);
+-          return makeResult();
++          toSend = gotImages
++            ? `Mới có ${gotImages} ảnh hiển thị. Tạo thêm ${topUpFor} ảnh nữa cùng yêu cầu trên, khác với các ảnh đã có — mỗi ảnh là một file riêng.`
++            : `Chưa có ảnh nào hiển thị trong chat. Tạo lại ${topUpFor} ảnh theo đúng yêu cầu trên — mỗi ảnh là một file riêng.`;
++          continue;
+         }
+-
+-        for (const c of cmds) console.log('[MuseDriver] Muse requested command:', c);
+-        const results = cmds.map(
+-          (c) => `$ ${c}\n${runLocalCommand(c, cwd)}`
+-        );
+-        toSend =
+-          `[COMMAND OUTPUT — executed on the user's machine]\n` +
+-          results.join('\n\n').slice(0, 24000) +
+-          `\n[/COMMAND OUTPUT]`;
++        if (buffered && onChunk) onChunk(buffered);
++        return makeResult();
+       }
+       return makeResult();
+     } catch (err) {
+diff --git a/src/lib/toolBridge.ts b/src/lib/toolBridge.ts
+index c0ed189..1f3bb6c 100644
+--- a/src/lib/toolBridge.ts
++++ b/src/lib/toolBridge.ts
+@@ -27,91 +27,12 @@ import path from 'path';
+ import { execSync } from 'child_process';
+ import { extractTextFromItem } from './promptExtractor';
+ 
+-export function extractWorkspaceCwd(body: any): string | null {
+-  const items: any[] = [];
+-  for (const src of [body?.input, body?.messages]) {
+-    if (Array.isArray(src)) items.push(...src);
+-  }
+-  for (const it of items) {
+-    const txt = typeof it === 'string' ? it : extractTextFromItem(it);
+-    const m = /<cwd>([^<]+)<\/cwd>/i.exec(txt || '');
+-    if (m) return m[1].trim();
+-  }
++export function extractWorkspaceCwd(_body: any): string | null {
+   return null;
+ }
+ 
+-// AGENTS.md is intentionally excluded: its content is instruction-shaped
+-// ("agent operating contract") which trips the upstream model's prompt-
+-// injection guard and yields a generic refusal.
+-const KEY_FILES = [
+-  'README.md', 'README', 'package.json', 'pyproject.toml',
+-  'Cargo.toml', 'go.mod', 'pom.xml', 'build.gradle', 'Makefile', 'turbo.json',
+-];
+-
+-export function buildProjectContext(cwd: string | null): string {
+-  if (!cwd) return '';
+-  let root: string;
+-  try {
+-    if (!fs.existsSync(cwd) || !fs.statSync(cwd).isDirectory()) return '';
+-    root = cwd;
+-  } catch {
+-    return '';
+-  }
+-  const parts: string[] = [];
+-  try {
+-    let files: string[] = [];
+-    if (fs.existsSync(path.join(root, '.git'))) {
+-      try {
+-        files = execSync('git ls-files', { cwd: root, timeout: 15000 })
+-          .toString().split(/\r?\n/).filter(Boolean);
+-      } catch {}
+-    }
+-    if (!files.length) {
+-      // shallow walk, 2 levels
+-      for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+-        if (entry.name.startsWith('.') || entry.name === 'node_modules') continue;
+-        if (entry.isFile()) files.push(entry.name);
+-        else if (entry.isDirectory()) {
+-          try {
+-            for (const sub of fs.readdirSync(path.join(root, entry.name))) {
+-              files.push(`${entry.name}/${sub}`);
+-            }
+-          } catch {}
+-        }
+-      }
+-    }
+-    if (!process.env.MUSE_CTX_NO_TREE) {
+-      // Compact summary only — a raw 300-line path dump trips the upstream
+-      // model's injection guard. Drop hidden/agent-looking paths and junk
+-      // names; keep top-level dirs plus a bounded sample of real files.
+-      const SKIP_SEG = new Set(['node_modules', 'dist', 'build', 'out', 'coverage',
+-        '__pycache__', '.next', '.turbo', 'target', '.venv', 'venv']);
+-      const topDirs = new Set<string>();
+-      const clean: string[] = [];
+-      for (const f of files) {
+-        const segs = f.split('/');
+-        if (segs.some(s => s.startsWith('.') || SKIP_SEG.has(s))) continue;
+-        if (!/^[A-Za-z0-9_\-./()[\] ]+$/.test(f)) continue;
+-        if (segs.length > 1) topDirs.add(segs[0] + '/');
+-        else clean.push(f);
+-        if (segs.length > 1 && clean.length < 120) clean.push(f);
+-      }
+-      const summary = [...topDirs].sort().slice(0, 40).join('\n') +
+-        '\n' + clean.slice(0, 80).join('\n');
+-      parts.push(`Project at ${root} — ${files.length} tracked files. Top-level dirs and sample paths:\n${summary}`);
+-    }
+-  } catch {}
+-
+-  for (const kf of process.env.MUSE_CTX_NO_FILES ? [] : KEY_FILES) {
+-    try {
+-      const p = path.join(root, kf);
+-      if (fs.existsSync(p) && fs.statSync(p).isFile()) {
+-        parts.push(`--- ${kf} ---\n` + fs.readFileSync(p, 'utf8').slice(0, 3000));
+-      }
+-    } catch {}
+-  }
+-  const ctx = parts.join('\n');
+-  return ctx ? `[PROJECT CONTEXT]\n${ctx.slice(0, 16000)}\n[/PROJECT CONTEXT]\n` : '';
++export function buildProjectContext(_cwd: string | null): string {
++  return '';
+ }
+ 
+ // ---- Local command execution (agent loop) ----------------------------------
+@@ -129,11 +50,8 @@ const ASK_HINT =
+ const READONLY_CMD =
+   /^(dir\b|ls\b|type\b|cat\b|findstr\b|rg\b|git\s+(status|log|diff|show|ls-files|branch|rev-parse|remote)\b|tokei\b|cloc\b|where\b|echo\b|tree\b|pwd\b|whoami\b|hostname\b|node\s+--version|npm\s+--version|bun\s+--version|python\s+--version)/i;
+ 
+-export function isCommandAllowed(cmd: string): boolean {
+-  const mode = process.env.MUSE_CMD_MODE || 'auto';
+-  if (mode === 'off') return false;
+-  if (mode === 'readonly') return READONLY_CMD.test(cmd.trim());
+-  return true;
++export function isCommandAllowed(_cmd: string): boolean {
++  return false;
+ }
+ 
+ const KNOWN_CMD = new Set([
+@@ -206,26 +124,8 @@ export function parseCommandRequests(reply: string): string[] {
+   return cmds;
+ }
+ 
+-export function runLocalCommand(cmd: string, cwd?: string | null): string {
+-  try {
+-    // cmd.exe can't run PowerShell verb-noun commands — wrap them.
+-    const isPs = PS_VERB.test(cmd.trim()) && !/^(powershell|pwsh)\b/i.test(cmd.trim());
+-    const full = isPs
+-      ? `powershell -NoProfile -Command "[Console]::OutputEncoding=[Text.Encoding]::UTF8; ${cmd.replace(/"/g, '\\"')}"`
+-      : `chcp 65001 >nul & ${cmd}`;
+-    const out = execSync(full, {
+-      shell: 'cmd.exe',
+-      cwd: cwd && fs.existsSync(cwd) ? cwd : undefined,
+-      timeout: 60000,
+-      maxBuffer: 2 * 1024 * 1024,
+-      windowsHide: true,
+-    });
+-    const s = out.toString('utf8').trim();
+-    return s.slice(0, 8000) || '(no output)';
+-  } catch (e: any) {
+-    const s = `${(e.stdout?.toString('utf8') || '')}${(e.stderr?.toString('utf8') || '')}`.trim();
+-    return `[exit code ${e.status ?? '?'}]\n${s.slice(0, 8000) || String(e.message || e)}`;
+-  }
++export function runLocalCommand(_cmd: string, _cwd?: string | null): string {
++  throw new Error('Local command execution is permanently disabled in vc-hardened build.');
+ }
+ 
+ const MAX_TOOLS = 12;

@@ -27,7 +27,7 @@ def estimate_videogen_cost(
 ) -> float:
     """Calculates estimated USD cost (`per_second_usd * seconds`) for `model_key` (`FR-BRL-03`)."""
     clean_key = model_key.replace("gateway_api:", "").replace("_api", "").strip().lower()
-    if clean_key == "manual":
+    if clean_key in ("manual", "muse", "muse-video"):
         return 0.0
     m_cfg = settings.videogen.models.get(clean_key)
     if m_cfg is not None:

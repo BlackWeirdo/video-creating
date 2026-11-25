@@ -17,6 +17,7 @@ from videocreator import __version__
 from videocreator.api.v1.deps import resolve_workspace_id
 from videocreator.db import query_all, query_one
 from videocreator.job_store import get_queue_summary, list_jobs
+from videocreator.muse_gateway.store import count_active_muse_tasks
 from videocreator.paths import AppPaths
 from videocreator.workspaces import get_active_workspace_id
 
@@ -136,6 +137,7 @@ def _build_snapshot(
     return {
         "active_workspace_id": active_ws,
         "queue": get_queue_summary(paths.db_file, workspace_id=workspace_id),
+        "muse_queue": count_active_muse_tasks(paths.db_file, workspace_id=workspace_id),
         "recent_jobs": list_jobs(paths.db_file, workspace_id=workspace_id, limit=15),
         "nav_counts": get_nav_counts(
             paths.db_file, ws_id=effective_ws, use_cache=use_nav_cache
