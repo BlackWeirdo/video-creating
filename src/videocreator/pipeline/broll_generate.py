@@ -43,6 +43,10 @@ def get_videogen_provider(
     settings = load_settings(paths.config_file)
     secrets = SecretsStore(paths.secrets_file)
     clean = source_key.replace("gateway_api:", "").replace("_api", "").strip().lower()
+    if clean in ("muse", "muse-video"):
+        from videocreator.ai.muse_videogen import MuseVideoGenProvider
+
+        return MuseVideoGenProvider(paths, settings, secrets, paths.work_dir)
     if clean == "veo":
         return VeoVideoGenProvider(settings, secrets, paths.work_dir)
     return GatewayVideoGenProvider(clean, settings, secrets, paths.work_dir)
@@ -57,8 +61,9 @@ def generate_broll(
     image_path: Path | None = None,
     provider: VideoGenProvider | None = None,
     auto_keep: bool = True,
+    workspace_id: int = 1,
 ) -> dict[str, Any]:
-    """Generates a B-roll clip via the selected `source` (`manual`, `kling`, `seedance`, `veo`, etc.).
+    """Generates a B-roll clip via the selected `source` (`manual`, `muse`, `kling`, `seedance`, `veo`, etc.).
 
     Checks `budget.generative_daily_usd` BEFORE calling any paid API (`BR-COST-02`, `FR-BRL-03`).
     """
@@ -77,6 +82,37 @@ def generate_broll(
         }
 
     settings = load_settings(paths.config_file)
+    if clean_source in ("muse", "muse-video") and provider is None:
+        from videocreator.muse_gateway.store import create_muse_task
+
+        refs: list[dict[str, Any]] = []
+        if image_path is not None and image_path.is_file():
+            from videocreator.muse_gateway.refs import stage_uploaded_muse_ref
+
+            staged = stage_uploaded_muse_ref(
+                paths,
+                filename=image_path.name,
+                data=image_path.read_bytes(),
+                workspace_id=workspace_id,
+            )
+            refs.append({"type": "upload", "upload_id": staged["upload_id"]})
+        task = create_muse_task(
+            paths.db_file,
+            workspace_id=workspace_id,
+            kind="video",
+            model=settings.muse_gateway.default_video_model or "muse-video",
+            purpose="broll",
+            prompt=prompt,
+            params={"duration": max(1, min(60, int(seconds))), "ratio": "9:16"},
+            refs=refs,
+            priority=5,
+        )
+        return {
+            "mode": "muse_queued",
+            "muse_task_id": int(task["id"]),
+            "task": task,
+            "estimated_cost_usd": 0.0,
+        }
     est_cost = estimate_videogen_cost(settings, clean_source, seconds)
 
     # Enforce generative daily budget ceiling BEFORE calling API

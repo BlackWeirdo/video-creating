@@ -43,6 +43,7 @@ COMPUTE_JOB_KINDS: frozenset[str] = frozenset(
         "lipsync_render",
         "editor_render",
         "workflow_run",
+        "muse_storyboard_assemble",
         "audio_separate",
         "whisper_asr",
         "inpaint_subtitles",
@@ -113,6 +114,7 @@ USER_FACING_KINDS = frozenset(
         "lipsync_render",
         "editor_render",
         "workflow_run",
+        "muse_storyboard_assemble",
         "batch_run",
     }
 )

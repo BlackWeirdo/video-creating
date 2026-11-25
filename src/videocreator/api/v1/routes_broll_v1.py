@@ -26,6 +26,7 @@ SUGGEST_CANCELLED_ERROR = "Đã huỷ bởi người dùng"
 
 
 class BrollCreateBody(BaseModel):
+    workspace_id: int | None = None
     prompt: str
     source: str = "manual"
     seconds: int = 6
@@ -45,7 +46,12 @@ async def api_v1_list_broll(
             "key": "manual",
             "label": "Trạm việc tay (Muse / Gemini / Flow — $0 gói thuê bao, mặc định)",
             "est_6s": 0.0,
-        }
+        },
+        {
+            "key": "muse",
+            "label": "Muse Gateway (Tự động đa luồng qua tài khoản Muse — $0 gói thuê bao)",
+            "est_6s": 0.0,
+        },
     ]
     for m_key, m_cfg in cfg.videogen.models.items():
         sources.append(
@@ -129,13 +135,15 @@ async def api_v1_cancel_broll_suggest(request: Request) -> JSONResponse:
 @router.post("/broll", status_code=201)
 async def api_v1_create_broll(request: Request, body: BrollCreateBody) -> JSONResponse:
     paths: AppPaths = request.app.state.paths
+    ws_id = resolve_workspace_id(paths.db_file, body.workspace_id, require_active=True)
     try:
         res = await asyncio.to_thread(
             generate_broll,
             paths,
             prompt=body.prompt.strip(),
             source=body.source.strip(),
-            seconds=max(4, min(10, int(body.seconds))),
+            seconds=max(1, min(60, int(body.seconds))),
+            workspace_id=ws_id,
         )
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

@@ -4,6 +4,10 @@ from __future__ import annotations
 from videocreator.autopilot import run_autopilot_tick
 from videocreator.jobs import JobRegistry
 from videocreator.models_manager import run_download_model_job
+from videocreator.muse_gateway.storyboard import (
+    STORYBOARD_ASSEMBLE_JOB_KIND,
+    run_storyboard_assemble_job,
+)
 from videocreator.paths import AppPaths
 from videocreator.pipeline.broll_suggest import BROLL_SUGGEST_JOB_KIND, run_broll_suggest_job
 from videocreator.pipeline.batch_studio import run_batch_run_job
@@ -107,6 +111,10 @@ def register_job_handlers(job_registry: JobRegistry, paths: AppPaths) -> None:
     job_registry.register(
         "workflow_run",
         lambda ref_id: run_workflow_job(paths, int(ref_id or 0)),
+    )
+    job_registry.register(
+        STORYBOARD_ASSEMBLE_JOB_KIND,
+        lambda ref_id: run_storyboard_assemble_job(paths, int(ref_id or 0)),
     )
     job_registry.register(
         "batch_run",
