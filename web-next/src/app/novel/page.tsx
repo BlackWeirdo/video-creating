@@ -3,7 +3,12 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { BookOpen, Eye, Play, Plus, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
-import { apiFetch, useWorkspace } from "@/lib/api";
+import {
+  apiFetch,
+  ChannelVoiceOption,
+  CharacterOption,
+  useWorkspace,
+} from "@/lib/api";
 import { JobProgressBanner, useJobProgress } from "@/components/JobProgressBanner";
 import { SimulationBadge } from "@/components/SimulationBadge";
 import { PageHeader } from "@/components/vc/PageHeader";
@@ -40,19 +45,6 @@ interface NovelProject {
   ready_chapters: number;
   chapters: NovelChapter[];
   simulation_flags?: string[];
-}
-
-interface CharacterOption {
-  id: number;
-  name: string;
-  voice_id: string;
-}
-
-interface ChannelVoiceOption {
-  id: number;
-  name: string;
-  speaker_name: string;
-  voice_token: string;
 }
 
 const BASE_NOVEL_VOICES = [

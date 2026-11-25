@@ -55,19 +55,21 @@ export function CreateLocalizeForm({
     onError("");
     const fd = new FormData();
     fd.append("file", file);
-    const resp = await fetch("/api/v1/localize/upload", {
-      method: "POST",
-      body: fd,
-    });
-    const data = await resp.json();
-    if (!resp.ok) {
-      onError(data.detail || "Tải video thất bại");
-      return;
+    try {
+      const data = await apiFetch<{ source_media_path?: string }>(
+        "/api/v1/localize/upload",
+        {
+          method: "POST",
+          body: fd,
+        }
+      );
+      setSourceMediaPath(data.source_media_path || "");
+      const m = `Đã tải video nguồn: ${data.source_media_path}`;
+      onMessage(m);
+      toast.success(m);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Tải video thất bại");
     }
-    setSourceMediaPath(data.source_media_path || "");
-    const m = `Đã tải video nguồn: ${data.source_media_path}`;
-    onMessage(m);
-    toast.success(m);
   };
 
   const handleCreate = async (e: React.FormEvent) => {

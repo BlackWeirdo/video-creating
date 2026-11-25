@@ -213,44 +213,35 @@ def test_bug_1_4_apifetch_preserves_plain_text_error_and_handles_204() -> None:
     node_bin = find_node_runtime()
     assert node_bin is not None
     api_ts = (REPO_ROOT / "web-next" / "src" / "lib" / "api.ts").read_text(encoding="utf-8")
-    assert "ApiError" in api_ts
-    assert "parseApiResponse" in api_ts
+    client_ts = (REPO_ROOT / "web-next" / "src" / "lib" / "api" / "client.ts").read_text(encoding="utf-8")
+    assert "@/lib/api/client" in api_ts
+    assert "ApiError" in client_ts
+    assert "parseApiResponse" in client_ts
 
     script = """
     import assert from 'node:assert/strict';
-    import fs from 'node:fs';
+    import * as mod from './web-next/src/lib/api/client.ts';
 
-    // Strip React client context part and dynamically evaluate ApiError + parseApiResponse + apiFetch via TS strip
-    const fullSrc = fs.readFileSync('web-next/src/lib/api.ts', 'utf8');
-    const cutIdx = fullSrc.indexOf('interface WorkspaceContextValue');
-    const pureClientTs = fullSrc.slice(0, cutIdx).replace('"use client";', '');
-    const tmpMts = 'web-next/.next_apifetch_probe.mts';
-    fs.writeFileSync(tmpMts, pureClientTs, 'utf8');
-    try {
-      const mod = await import('./web-next/.next_apifetch_probe.mts');
-      // 1) Plain-text 502 error body must NOT throw TypeError: Body is unusable
-      await assert.rejects(
-        () => mod.parseApiResponse(new Response('Upstream Gateway Timeout Plaintext', { status: 502 })),
-        (err) => err instanceof mod.ApiError && err.status === 502 && err.message === 'Upstream Gateway Timeout Plaintext'
-      );
-      // 2) JSON {detail} 422 error body extracts detail string & status
-      await assert.rejects(
-        () => mod.parseApiResponse(new Response(JSON.stringify({ detail: 'Thiếu trường bắt buộc' }), { status: 422 })),
-        (err) => err instanceof mod.ApiError && err.status === 422 && err.message === 'Thiếu trường bắt buộc'
-      );
-      // 3) 204 No Content returns undefined without JSON parse error
-      const res204 = await mod.parseApiResponse(new Response(null, { status: 204 }));
-      assert.equal(res204, undefined);
-      // 4) AbortSignal is forwarded cleanly to global fetch (1.6 prerequisite)
-      const ac = new AbortController();
-      ac.abort();
-      await assert.rejects(
-        () => mod.apiFetch('http://127.0.0.1:9/api/v1/dashboard', { signal: ac.signal }),
-        (err) => err && err.name === 'AbortError'
-      );
-    } finally {
-      fs.rmSync(tmpMts, { force: true });
-    }
+    // 1) Plain-text 502 error body must NOT throw TypeError: Body is unusable
+    await assert.rejects(
+      () => mod.parseApiResponse(new Response('Upstream Gateway Timeout Plaintext', { status: 502 })),
+      (err) => err instanceof mod.ApiError && err.status === 502 && err.message === 'Upstream Gateway Timeout Plaintext'
+    );
+    // 2) JSON {detail} 422 error body extracts detail string & status
+    await assert.rejects(
+      () => mod.parseApiResponse(new Response(JSON.stringify({ detail: 'Thiếu trường bắt buộc' }), { status: 422 })),
+      (err) => err instanceof mod.ApiError && err.status === 422 && err.message === 'Thiếu trường bắt buộc'
+    );
+    // 3) 204 No Content returns undefined without JSON parse error
+    const res204 = await mod.parseApiResponse(new Response(null, { status: 204 }));
+    assert.equal(res204, undefined);
+    // 4) AbortSignal is forwarded cleanly to global fetch (1.6 prerequisite)
+    const ac = new AbortController();
+    ac.abort();
+    await assert.rejects(
+      () => mod.apiFetch('http://127.0.0.1:9/api/v1/dashboard', { signal: ac.signal }),
+      (err) => mod.isAbortError(err)
+    );
     """
     proc = subprocess.run(
         [node_bin, "--experimental-strip-types", "--input-type=module", "-e", script],

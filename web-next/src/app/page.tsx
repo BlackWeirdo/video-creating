@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import {
   Activity,
@@ -16,6 +16,8 @@ import {
   Scissors,
 } from "lucide-react";
 import { apiFetch, JobRecord, useWorkspace, Workspace } from "@/lib/api";
+import { useApiQuery } from "@/hooks/useApiQuery";
+import { useQueueSnapshot } from "@/hooks/useQueueSnapshot";
 import { NAV_CLUSTERS } from "@/config/navigation";
 import { PageHeader } from "@/components/vc/PageHeader";
 import { PolicyBadge } from "@/components/vc/PolicyBadge";
@@ -64,38 +66,23 @@ const CLUSTER_ICONS = {
 
 export default function DashboardPage() {
   const { activeWorkspaceId, activeWorkspace } = useWorkspace();
-  const [data, setData] = useState<DashboardData | null>(null);
   const [recentJobs, setRecentJobs] = useState<JobRecord[]>([]);
-  const [error, setError] = useState("");
 
-  useEffect(() => {
-    let active = true;
-    apiFetch<DashboardData>(`/api/v1/dashboard?workspace_id=${activeWorkspaceId}`)
-      .then((res) => {
-        if (active) {
-          setData(res);
-          setError("");
-        }
-      })
-      .catch((err) => {
-        if (active)
-          setError(err instanceof Error ? err.message : "Không thể tải dữ liệu tổng quan");
-      });
-    return () => {
-      active = false;
-    };
-  }, [activeWorkspaceId]);
+  const { data, error } = useApiQuery<DashboardData>(
+    (signal) =>
+      apiFetch<DashboardData>(
+        `/api/v1/dashboard?workspace_id=${activeWorkspaceId}`,
+        { signal }
+      ),
+    [activeWorkspaceId],
+    { fallbackError: "Không thể tải dữ liệu tổng quan" }
+  );
 
-  useEffect(() => {
-    const onSnapshot = (ev: Event) => {
-      const detail = (ev as CustomEvent<{ recent_jobs?: JobRecord[] }>).detail;
-      if (Array.isArray(detail?.recent_jobs)) {
-        setRecentJobs(detail.recent_jobs.slice(0, 6));
-      }
-    };
-    window.addEventListener("vc:queue-snapshot", onSnapshot);
-    return () => window.removeEventListener("vc:queue-snapshot", onSnapshot);
-  }, []);
+  useQueueSnapshot((detail) => {
+    if (Array.isArray(detail.recent_jobs)) {
+      setRecentJobs(detail.recent_jobs.slice(0, 6));
+    }
+  });
 
   const counts = data?.counts;
   const pendingCount = counts?.videos_by_status?.pending_approval || 0;

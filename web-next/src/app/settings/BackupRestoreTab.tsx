@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { Archive, Download, Rocket, Upload } from "lucide-react";
 import { toast } from "sonner";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, apiFetchBlob } from "@/lib/api";
 import { BackupSummary } from "@/app/settings/types";
 import { Card, CardTitleRow, SectionHeading } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -32,27 +32,29 @@ export function BackupRestoreTab({
   const handleExport = async () => {
     onError("");
     onMessage("");
-    const resp = await fetch("/api/v1/backup/export", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password: backupPassword, save_copy: true }),
-    });
-    if (!resp.ok) {
-      onError("Xuất sao lưu thất bại (kiểm tra mật khẩu từ 4 ký tự trở lên).");
-      return;
+    try {
+      const blob = await apiFetchBlob("/api/v1/backup/export", {
+        method: "POST",
+        body: JSON.stringify({ password: backupPassword, save_copy: true }),
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "videocreator-v2-backup.vcx";
+      a.click();
+      URL.revokeObjectURL(url);
+      setBackupPassword("");
+      const m = "Đã xuất gói sao lưu .vcx mã hóa và lưu bản cục bộ.";
+      onMessage(m);
+      toast.success(m);
+      await onReload();
+    } catch (err) {
+      onError(
+        err instanceof Error
+          ? err.message
+          : "Xuất sao lưu thất bại (kiểm tra mật khẩu từ 4 ký tự trở lên)."
+      );
     }
-    const blob = await resp.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "videocreator-v2-backup.vcx";
-    a.click();
-    URL.revokeObjectURL(url);
-    setBackupPassword("");
-    const m = "Đã xuất gói sao lưu .vcx mã hóa và lưu bản cục bộ.";
-    onMessage(m);
-    toast.success(m);
-    await onReload();
   };
 
   const executeRestore = async () => {

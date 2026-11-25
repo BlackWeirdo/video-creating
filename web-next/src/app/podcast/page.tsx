@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Mic, Play, Plus } from "lucide-react";
 import { toast } from "sonner";
-import { apiFetch, useWorkspace } from "@/lib/api";
+import { apiFetch, ChannelVoiceOption, useWorkspace } from "@/lib/api";
 import { JobProgressBanner, useJobProgress } from "@/components/JobProgressBanner";
 import { SimulationBadge } from "@/components/SimulationBadge";
 import { PageHeader } from "@/components/vc/PageHeader";
@@ -33,13 +33,6 @@ interface PodcastProject {
   output_path: string;
   video_url: string;
   simulation_flags?: string[];
-}
-
-interface ChannelVoiceOption {
-  id: number;
-  name: string;
-  speaker_name: string;
-  voice_token: string;
 }
 
 const BASE_PODCAST_VOICES = [

@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { AudioWaveform, Play, Plus, Upload } from "lucide-react";
 import { toast } from "sonner";
-import { apiFetch, useWorkspace } from "@/lib/api";
+import { apiFetch, CharacterOption, useWorkspace } from "@/lib/api";
 import { JobProgressBanner, useJobProgress } from "@/components/JobProgressBanner";
 import { SimulationBadge } from "@/components/SimulationBadge";
 import { PageHeader } from "@/components/vc/PageHeader";
@@ -17,11 +17,6 @@ import {
   TextareaBox,
   TextInput,
 } from "@/components/ui/form-controls";
-
-interface CharacterOption {
-  id: number;
-  name: string;
-}
 
 interface LipsyncProject {
   id: number;
