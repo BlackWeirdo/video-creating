@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse
 
 from videocreator import __version__
 from videocreator.config import Settings, load_settings
@@ -123,19 +123,6 @@ def _collect_dashboard_stats(db_file: Path, settings: Settings) -> dict[str, Any
         },
         "provider_states": provider_states,
     }
-
-
-@router.get("/health")
-async def health(request: Request) -> JSONResponse:
-    paths: AppPaths = request.app.state.paths
-    cfg = load_settings(paths.config_file)
-    return JSONResponse(
-        {
-            "status": "ok",
-            "role": cfg.role,
-            "version": __version__,
-        }
-    )
 
 
 @router.get("/", response_class=HTMLResponse)

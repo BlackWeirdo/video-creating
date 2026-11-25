@@ -9,6 +9,7 @@ from videocreator.api.mounts.freecut_bridge import (
     HeartbeatBody,
     router as freecut_router,
 )
+from videocreator.api.mounts.health import router as health_router
 from videocreator.api.mounts.media import router as media_router
 from videocreator.api.mounts.oauth import router as oauth_router
 from videocreator.api.mounts.ui_fallback import router as ui_fallback_router
@@ -18,6 +19,7 @@ __all__ = [
     "MAX_IMPORT_VCX_BYTES",
     "config_bundle_router",
     "freecut_router",
+    "health_router",
     "media_router",
     "oauth_router",
     "ui_fallback_router",

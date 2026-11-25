@@ -1,58 +1,19 @@
 """Routes for AI subscription CLI health check, quota recovery, and routing dashboard (Phase 18)."""
 from __future__ import annotations
 
-import subprocess
-from pathlib import Path
-from typing import Any
-
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from videocreator import __version__
 from videocreator.ai.cli_base import find_claude_binary
-from videocreator.ai.quota import clear_provider_rest, mark_provider_error
+from videocreator.ai.quota import clear_provider_rest
 from videocreator.config import load_settings
 from videocreator.db import get_conn, query_all, record_audit
 from videocreator.paths import AppPaths
+from videocreator.services.ai_cli_health import check_claude_cli_health
 from videocreator.templating import get_templates
 
 router = APIRouter()
-
-
-def check_claude_cli_health(db_file: Path) -> dict[str, Any]:
-    """Checks whether `claude.exe` is installed and accessible on the host machine."""
-    binary = find_claude_binary()
-    if not binary:
-        msg = "Không tìm thấy claude.exe trên máy. Hãy cài @anthropic-ai/claude-code và chạy `claude login`."
-        mark_provider_error(db_file, "claude_cli", msg)
-        return {"ok": False, "binary": None, "version": None, "message": msg}
-
-    try:
-        proc = subprocess.run(
-            [binary, "--version"],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=15,
-            check=False,
-        )
-        version_str = (proc.stdout or proc.stderr).strip()
-        if proc.returncode == 0 and version_str:
-            clear_provider_rest(db_file, "claude_cli")
-            return {
-                "ok": True,
-                "binary": binary,
-                "version": version_str,
-                "message": f"Sẵn sàng: {version_str} ({binary})",
-            }
-        err = f"claude --version trả mã {proc.returncode}: {version_str}"
-        mark_provider_error(db_file, "claude_cli", err)
-        return {"ok": False, "binary": binary, "version": None, "message": err}
-    except Exception as exc:
-        err = f"Lỗi kiểm tra claude.exe: {exc}"
-        mark_provider_error(db_file, "claude_cli", err)
-        return {"ok": False, "binary": binary, "version": None, "message": err}
 
 
 @router.get("/ai-routes", response_class=HTMLResponse)

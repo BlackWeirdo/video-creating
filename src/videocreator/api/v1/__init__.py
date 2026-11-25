@@ -3,12 +3,15 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
+from videocreator.api.v1.routes_ai_v1 import router as ai_v1_router
 from videocreator.api.v1.routes_autopilot_v1 import router as autopilot_v1_router
 from videocreator.api.v1.routes_batch_v1 import router as batch_v1_router
+from videocreator.api.v1.routes_broll_v1 import router as broll_v1_router
 from videocreator.api.v1.routes_characters_v1 import router as characters_v1_router
 from videocreator.api.v1.routes_editor_v1 import router as editor_v1_router
 from videocreator.api.v1.routes_jobs import router as jobs_router
 from videocreator.api.v1.routes_localize_v1 import router as localize_v1_router
+from videocreator.api.v1.routes_manual_v1 import router as manual_v1_router
 from videocreator.api.v1.routes_models_v1 import router as models_v1_router
 from videocreator.api.v1.routes_news_v1 import router as news_v1_router
 from videocreator.api.v1.routes_onboarding_v1 import router as onboarding_v1_router
@@ -41,3 +44,6 @@ v1_router.include_router(editor_v1_router)
 v1_router.include_router(workflows_v1_router)
 v1_router.include_router(specialized_v1_router)
 v1_router.include_router(onboarding_v1_router)
+v1_router.include_router(broll_v1_router)
+v1_router.include_router(manual_v1_router)
+v1_router.include_router(ai_v1_router)

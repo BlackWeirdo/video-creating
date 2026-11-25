@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -11,7 +12,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from videocreator import __version__
-from videocreator.api.legacy_v1 import include_legacy_v1_and_core_mounts
+from videocreator.api.legacy_v1 import (
+    include_core_mounts_only,
+    include_legacy_v1_and_core_mounts,
+)
 from videocreator.api.mounts import freecut_router, ui_fallback_router
 from videocreator.api.v1 import v1_router
 from videocreator.auth import NonLocalhostBasicAuthMiddleware
@@ -108,10 +112,14 @@ def create_app(
         allow_headers=["*"],
     )
 
-    if paths.static_dir.exists():
+    disable_legacy_v1 = os.environ.get("VIDEOCREATOR_DISABLE_LEGACY_V1", "").strip() == "1"
+    if not disable_legacy_v1 and paths.static_dir.exists():
         app.mount("/static", StaticFiles(directory=str(paths.static_dir)), name="static")
 
-    include_legacy_v1_and_core_mounts(app)
+    if disable_legacy_v1:
+        include_core_mounts_only(app)
+    else:
+        include_legacy_v1_and_core_mounts(app)
     app.include_router(v1_router)
     app.include_router(freecut_router)
     app.include_router(ui_fallback_router)

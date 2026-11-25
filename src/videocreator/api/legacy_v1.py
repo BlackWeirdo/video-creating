@@ -9,6 +9,7 @@ from fastapi import FastAPI
 
 from videocreator.api.mounts import (
     config_bundle_router,
+    health_router,
     media_router,
     oauth_router,
 )
@@ -34,8 +35,17 @@ from videocreator.api.routes_voices import router as voices_router
 from videocreator.api.routes_watchlist import router as watchlist_router
 
 
+def include_core_mounts_only(app: FastAPI) -> None:
+    """Register only V2-essential root mounts (`health`, `config_bundle`, `media`, `oauth`) when legacy V1 is disabled."""
+    app.include_router(health_router)
+    app.include_router(config_bundle_router)
+    app.include_router(media_router)
+    app.include_router(oauth_router)
+
+
 def include_legacy_v1_and_core_mounts(app: FastAPI) -> None:
-    """Register root mounts (`config_bundle`, `media`, `oauth`) and legacy V1 HTML routers in exact snapshot order."""
+    """Register root mounts (`health`, `config_bundle`, `media`, `oauth`) and legacy V1 HTML routers in exact snapshot order."""
+    app.include_router(health_router)
     app.include_router(dashboard_router)
     app.include_router(settings_router)
     app.include_router(config_bundle_router)

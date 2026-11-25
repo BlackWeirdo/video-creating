@@ -6,7 +6,7 @@ import json
 from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from videocreator.api.v1.deps import resolve_workspace_id, serialize_v1_video
@@ -18,6 +18,7 @@ from videocreator.pipeline.qc import run_video_qc
 from videocreator.pipeline.render import render_video
 from videocreator.pipeline.restyle import restyle_video
 from videocreator.pipeline.styles import get_style_preset
+from videocreator.posting.captions import build_manual_bundle_zip
 from videocreator.products import product_name_map
 
 router = APIRouter()
@@ -343,3 +344,17 @@ async def api_v1_run_video_qc(request: Request, video_id: int) -> JSONResponse:
             (json.dumps(qc, ensure_ascii=False), video_id),
         )
     return JSONResponse({"video_id": video_id, "qc": qc})
+
+
+@router.get("/videos/{video_id}/manual-bundle")
+async def api_v1_download_manual_bundle(request: Request, video_id: int) -> FileResponse:
+    paths: AppPaths = request.app.state.paths
+    try:
+        zip_path = await asyncio.to_thread(build_manual_bundle_zip, paths, video_id)
+    except (LookupError, FileNotFoundError) as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return FileResponse(
+        zip_path,
+        media_type="application/zip",
+        filename=f"video_{video_id}_manual_bundle.zip",
+    )
