@@ -5,7 +5,7 @@
 - **Tài liệu tích hợp & PoC Muse Gateway**: `docs/integrations/muse-gateway.md`, `docs/integrations/muse-gateway-poc.md`, bản vá `tools/muse-gateway-patches/0001-vc-hardening.patch`
 - **Tài liệu hướng dẫn nhân sự & kiểm tra máy sạch**: `docs/staff-release-notes.md`
 - **Hồ sơ kiểm kê & đối chiếu Refactor**: `docs/refactor/baseline.md`, `docs/refactor/v1-inventory.md`
-- **Bộ cài Offline `2.4.0` (`feat/muse-gateway`)**: `installer/dist/VideoCreatorV2Setup.exe` (**585.6 MB**, SHA-256: `c29a23c107b4d0f33846cfcb3fd505933f7c063abcd8ceb81eb7870e87fe574e`)
+- **Bộ cài Offline `2.4.0` (`feat/muse-gateway`)**: `installer/dist/VideoCreatorV2Setup.exe` (**585.6 MB**, SHA-256: `e0c4f1f13179d9117ffacadee9da7ac844156c5ed44e2ba07740aba06fc1b3ea`)
 - **Bản sao lưu Bộ cài `2.0.0` (`v2` gốc)**: `installer/dist/VideoCreatorV2Setup_2.0.0_v2.exe` (**596.1 MB**, SHA-256: `0b8b45c6328049ef56c504fa0c7935e6dea536ca3d91dc34caa9a5c5d3c9622d`)
 - **Độ phủ Kiểm thử tự động**: **79 tệp test Python** (`pytest -m local` đạt **287 passed, 1 skipped**, `pytest -m models` đạt **4 passed**, cùng smoke test tùy chọn `pytest -m muse_live`) + **3 tệp unit test TypeScript frontend** (`npm test` đạt **10/10 pass**), `320` HTTP/Mount routes được khóa thứ tự bằng `tests/snapshots/routes.json`.
 
