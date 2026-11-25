@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useState } from "react";
 import { Check, Play, RefreshCw, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { apiFetch, useWorkspace } from "@/lib/api";
+import { useApiQuery } from "@/hooks/useApiQuery";
 import { PageHeader } from "@/components/vc/PageHeader";
 import { EmptyState } from "@/components/vc/StatCard";
 import { Card, SectionHeading } from "@/components/ui/card";
@@ -23,27 +24,25 @@ interface StudioSession {
 
 export default function StudioPage() {
   const { activeWorkspaceId } = useWorkspace();
-  const [sessions, setSessions] = useState<StudioSession[]>([]);
   const [prompt, setPrompt] = useState("");
   const [reviseMap, setReviseMap] = useState<Record<number, string>>({});
   const [msg, setMsg] = useState("");
-  const [err, setErr] = useState("");
 
-  const load = useCallback(async () => {
-    try {
-      const data = await apiFetch<{ sessions: StudioSession[] }>(
-        `/api/v1/studio/sessions?workspace_id=${activeWorkspaceId}`
+  const { data, error: err, setError: setErr, reload: load } = useApiQuery<
+    StudioSession[]
+  >(
+    async (signal) => {
+      const res = await apiFetch<{ sessions: StudioSession[] }>(
+        `/api/v1/studio/sessions?workspace_id=${activeWorkspaceId}`,
+        { signal }
       );
-      setSessions(data.sessions || []);
-      setErr("");
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Lỗi tải Studio AI");
-    }
-  }, [activeWorkspaceId]);
+      return res.sessions || [];
+    },
+    [activeWorkspaceId],
+    { fallbackError: "Lỗi tải Studio AI" }
+  );
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const sessions = data || [];
 
   const startSession = async (e: React.FormEvent) => {
     e.preventDefault();

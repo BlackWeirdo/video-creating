@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useState } from "react";
 import { Archive, Cpu, KeyRound, Palette, Settings } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { useApiQuery } from "@/hooks/useApiQuery";
 import { PageHeader } from "@/components/vc/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { TabPanel, TabsBar, TabsRoot, TabTrigger } from "@/components/ui/overlays";
@@ -37,10 +38,9 @@ export default function SettingsPage() {
   const [backupSummary, setBackupSummary] = useState<BackupSummary | null>(null);
 
   const [msg, setMsg] = useState("");
-  const [err, setErr] = useState("");
 
-  const load = useCallback(async () => {
-    try {
+  const { error: err, setError: setErr, reload: load } = useApiQuery(
+    async (signal) => {
       const [cfgRes, vRes, secRes, usageRes, modRes, kpRes, bkRes] =
         await Promise.all([
           apiFetch<{
@@ -51,42 +51,42 @@ export default function SettingsPage() {
               schedule: { timezone: string };
               models?: { mirror_base_url?: string };
             };
-          }>("/api/v1/settings"),
+          }>("/api/v1/settings", { signal }),
           apiFetch<{
             catalog: VoiceOption[];
             voice: { vi_provider: string; vi_voice: string };
-          }>("/api/v1/voices"),
-          apiFetch<{ secrets: SecretMeta[] }>("/api/v1/secrets"),
-          apiFetch<{ spent_today_usd: number }>("/api/v1/ai/usage"),
-          apiFetch<{ models: LocalModelRow[] }>("/api/v1/models"),
-          apiFetch<{ keys: PooledKeyRow[] }>("/api/v1/key-pool"),
-          apiFetch<BackupSummary>("/api/v1/backup/summary"),
+          }>("/api/v1/voices", { signal }),
+          apiFetch<{ secrets: SecretMeta[] }>("/api/v1/secrets", { signal }),
+          apiFetch<{ spent_today_usd: number }>("/api/v1/ai/usage", { signal }),
+          apiFetch<{ models: LocalModelRow[] }>("/api/v1/models", { signal }),
+          apiFetch<{ keys: PooledKeyRow[] }>("/api/v1/key-pool", { signal }),
+          apiFetch<BackupSummary>("/api/v1/backup/summary", { signal }),
         ]);
-      const s = cfgRes.settings;
-      setIoConc(s.worker?.io_concurrency ?? 4);
-      setComputeConc(s.worker?.compute_concurrency ?? 1);
-      setDailyUsd(s.budget?.daily_usd ?? 5.0);
-      setApiFallback(s.ai?.policy?.api_fallback ?? "ask");
-      setTimezone(s.schedule?.timezone ?? "Asia/Ho_Chi_Minh");
-      setMirrorBaseUrl(s.models?.mirror_base_url ?? "");
+      return { cfgRes, vRes, secRes, usageRes, modRes, kpRes, bkRes };
+    },
+    [],
+    {
+      fallbackError: "Không thể tải cài đặt hệ thống",
+      onSuccess: ({ cfgRes, vRes, secRes, usageRes, modRes, kpRes, bkRes }) => {
+        const s = cfgRes.settings;
+        setIoConc(s.worker?.io_concurrency ?? 4);
+        setComputeConc(s.worker?.compute_concurrency ?? 1);
+        setDailyUsd(s.budget?.daily_usd ?? 5.0);
+        setApiFallback(s.ai?.policy?.api_fallback ?? "ask");
+        setTimezone(s.schedule?.timezone ?? "Asia/Ho_Chi_Minh");
+        setMirrorBaseUrl(s.models?.mirror_base_url ?? "");
 
-      setCatalog(vRes.catalog || []);
-      setViProvider(vRes.voice?.vi_provider || "edge");
-      setViVoice(vRes.voice?.vi_voice || "vi-VN-HoaiMyNeural-Female");
-      setSecrets(secRes.secrets || []);
-      setSpentToday(usageRes.spent_today_usd || 0);
-      setLocalModels(modRes.models || []);
-      setPoolKeys(kpRes.keys || []);
-      setBackupSummary(bkRes);
-      setErr("");
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Không thể tải cài đặt hệ thống");
+        setCatalog(vRes.catalog || []);
+        setViProvider(vRes.voice?.vi_provider || "edge");
+        setViVoice(vRes.voice?.vi_voice || "vi-VN-HoaiMyNeural-Female");
+        setSecrets(secRes.secrets || []);
+        setSpentToday(usageRes.spent_today_usd || 0);
+        setLocalModels(modRes.models || []);
+        setPoolKeys(kpRes.keys || []);
+        setBackupSummary(bkRes);
+      },
     }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  );
 
   const readyModels = localModels.filter((m) => m.status === "ready").length;
 

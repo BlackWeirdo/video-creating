@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useState } from "react";
 import Link from "next/link";
 import {
   addEdge,
@@ -17,6 +17,7 @@ import "@xyflow/react/dist/style.css";
 import { Download, Play, Plus, Save, Workflow as WorkflowIcon } from "lucide-react";
 import { toast } from "sonner";
 import { apiFetch, useWorkspace } from "@/lib/api";
+import { useApiQuery } from "@/hooks/useApiQuery";
 import { JobProgressBanner, useJobProgress } from "@/components/JobProgressBanner";
 import { PageHeader } from "@/components/vc/PageHeader";
 import { Card } from "@/components/ui/card";
@@ -47,14 +48,12 @@ const NODE_PALETTE = [
 
 export default function WorkflowsPage() {
   const { activeWorkspaceId } = useWorkspace();
-  const [workflows, setWorkflows] = useState<WorkflowRecord[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [wfName, setWfName] = useState("Quy trình tự động mới");
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [activeJobId, setActiveJobId] = useState<number | null>(null);
   const [msg, setMsg] = useState("");
-  const [err, setErr] = useState("");
 
   const selectWorkflow = useCallback(
     (wf: WorkflowRecord) => {
@@ -66,25 +65,39 @@ export default function WorkflowsPage() {
     [setEdges, setNodes]
   );
 
-  const load = useCallback(async () => {
-    try {
+  const { data, error: err, setError: setErr, reload: load } = useApiQuery<
+    WorkflowRecord[]
+  >(
+    async (signal) => {
       const res = await apiFetch<{ workflows: WorkflowRecord[] }>(
-        `/api/v1/workflows?workspace_id=${activeWorkspaceId}`
+        `/api/v1/workflows?workspace_id=${activeWorkspaceId}`,
+        { signal }
       );
-      const list = res.workflows || [];
-      setWorkflows(list);
-      if (list.length > 0 && selectedId === null) {
-        selectWorkflow(list[0]);
-      }
-      setErr("");
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Lỗi tải Quy trình tự động");
+      return res.workflows || [];
+    },
+    [activeWorkspaceId],
+    {
+      fallbackError: "Lỗi tải Quy trình tự động",
+      onSuccess: (list) => {
+        setSelectedId((prev) => {
+          const existing = list.find((w) => w.id === prev);
+          if (existing) return prev;
+          if (list.length > 0) {
+            setWfName(list[0].name);
+            setNodes(list[0].nodes || []);
+            setEdges(list[0].edges || []);
+            return list[0].id;
+          }
+          setWfName("Quy trình tự động mới");
+          setNodes([]);
+          setEdges([]);
+          return null;
+        });
+      },
     }
-  }, [activeWorkspaceId, selectedId, selectWorkflow]);
+  );
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const workflows = data || [];
 
   const { job: activeJob } = useJobProgress(activeJobId, {
     onCompleted: () => {

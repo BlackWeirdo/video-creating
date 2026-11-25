@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useState } from "react";
 import { Mic, Play, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { apiFetch, ChannelVoiceOption, useWorkspace } from "@/lib/api";
+import { useApiQuery } from "@/hooks/useApiQuery";
 import { JobProgressBanner, useJobProgress } from "@/components/JobProgressBanner";
 import { SimulationBadge } from "@/components/SimulationBadge";
 import { PageHeader } from "@/components/vc/PageHeader";
@@ -48,9 +49,6 @@ const BASE_PODCAST_VOICES = [
 
 export default function PodcastStudioPage() {
   const { activeWorkspaceId } = useWorkspace();
-  const [projects, setProjects] = useState<PodcastProject[]>([]);
-  const [channelVoices, setChannelVoices] = useState<ChannelVoiceOption[]>([]);
-
   const [title, setTitle] = useState("");
   const [hostA, setHostA] = useState("Lan Anh");
   const [hostB, setHostB] = useState("Minh Quân");
@@ -63,29 +61,33 @@ export default function PodcastStudioPage() {
   const [renderingId, setRenderingId] = useState<number | null>(null);
   const [activeJobId, setActiveJobId] = useState<number | null>(null);
   const [msg, setMsg] = useState("");
-  const [err, setErr] = useState("");
 
-  const load = useCallback(async () => {
-    try {
+  const { data, error: err, setError: setErr, reload: load } = useApiQuery<{
+    projects: PodcastProject[];
+    channelVoices: ChannelVoiceOption[];
+  }>(
+    async (signal) => {
       const [res, cvRes] = await Promise.all([
         apiFetch<{ projects: PodcastProject[] }>(
-          `/api/v1/podcasts/projects?workspace_id=${activeWorkspaceId}`
+          `/api/v1/podcasts/projects?workspace_id=${activeWorkspaceId}`,
+          { signal }
         ),
         apiFetch<{ channel_voices: ChannelVoiceOption[] }>(
-          `/api/v1/channel-voices?workspace_id=${activeWorkspaceId}`
+          `/api/v1/channel-voices?workspace_id=${activeWorkspaceId}`,
+          { signal }
         ),
       ]);
-      setProjects(res.projects || []);
-      setChannelVoices(cvRes.channel_voices || []);
-      setErr("");
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Lỗi tải Studio Podcast");
-    }
-  }, [activeWorkspaceId]);
+      return {
+        projects: res.projects || [],
+        channelVoices: cvRes.channel_voices || [],
+      };
+    },
+    [activeWorkspaceId],
+    { fallbackError: "Lỗi tải Studio Podcast" }
+  );
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const projects = data?.projects || [];
+  const channelVoices = data?.channelVoices || [];
 
   const { job: activeJob, isRunning: jobRunning } = useJobProgress(activeJobId, {
     onCompleted: () => {

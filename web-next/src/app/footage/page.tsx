@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useState } from "react";
 import { Film, FolderInput, Save, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { apiFetch, useWorkspace } from "@/lib/api";
+import { useApiQuery } from "@/hooks/useApiQuery";
 import { PageHeader } from "@/components/vc/PageHeader";
 import { EmptyState } from "@/components/vc/StatCard";
 import { Card, SectionHeading } from "@/components/ui/card";
@@ -39,41 +40,44 @@ interface ShotItem {
 
 export default function FootagePage() {
   const { activeWorkspaceId } = useWorkspace();
-  const [footage, setFootage] = useState<FootageItem[]>([]);
-  const [shots, setShots] = useState<ShotItem[]>([]);
   const [localPath, setLocalPath] = useState("");
   const [noProduct, setNoProduct] = useState(true);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [focusMap, setFocusMap] = useState<Record<number, number>>({});
   const [msg, setMsg] = useState("");
-  const [err, setErr] = useState("");
 
-  const load = useCallback(async () => {
-    try {
+  const { data, error: err, setError: setErr, reload: load } = useApiQuery<{
+    footage: FootageItem[];
+    shots: ShotItem[];
+  }>(
+    async (signal) => {
       const [fRes, sRes] = await Promise.all([
         apiFetch<{ footage: FootageItem[] }>(
-          `/api/v1/footage?workspace_id=${activeWorkspaceId}`
+          `/api/v1/footage?workspace_id=${activeWorkspaceId}`,
+          { signal }
         ),
         apiFetch<{ shots: ShotItem[] }>(
-          `/api/v1/shots?workspace_id=${activeWorkspaceId}`
+          `/api/v1/shots?workspace_id=${activeWorkspaceId}`,
+          { signal }
         ),
       ]);
-      setFootage(fRes.footage || []);
-      setShots(sRes.shots || []);
-      const fm: Record<number, number> = {};
-      for (const s of sRes.shots || []) {
-        fm[s.id] = s.focus_x ?? 0.5;
-      }
-      setFocusMap(fm);
-      setErr("");
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Lỗi tải kho Footage & Shot");
+      return { footage: fRes.footage || [], shots: sRes.shots || [] };
+    },
+    [activeWorkspaceId],
+    {
+      fallbackError: "Lỗi tải kho Footage & Shot",
+      onSuccess: (bundle) => {
+        const fm: Record<number, number> = {};
+        for (const s of bundle.shots) {
+          fm[s.id] = s.focus_x ?? 0.5;
+        }
+        setFocusMap(fm);
+      },
     }
-  }, [activeWorkspaceId]);
+  );
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const footage = data?.footage || [];
+  const shots = data?.shots || [];
 
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useState } from "react";
 import { Music, Palette, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { apiFetch, useWorkspace } from "@/lib/api";
+import { useApiQuery } from "@/hooks/useApiQuery";
 import { PageHeader } from "@/components/vc/PageHeader";
 import { Card, SectionHeading } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -39,8 +40,6 @@ interface AudioAsset {
 
 export default function VideoStylePage() {
   const { activeWorkspaceId } = useWorkspace();
-  const [styles, setStyles] = useState<StylePreset[]>([]);
-  const [assets, setAssets] = useState<AudioAsset[]>([]);
   const [name, setName] = useState("");
   const [subStyle, setSubStyle] = useState("karaoke_highlight");
   const [highlightColor, setHighlightColor] = useState("#FFE082");
@@ -49,29 +48,30 @@ export default function VideoStylePage() {
   const [ducking, setDucking] = useState(true);
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [audioKind, setAudioKind] = useState<"music" | "sfx">("music");
-  const [err, setErr] = useState("");
 
-  const load = useCallback(async () => {
-    try {
+  const { data, error: err, setError: setErr, reload: load } = useApiQuery<{
+    styles: StylePreset[];
+    assets: AudioAsset[];
+  }>(
+    async (signal) => {
       const [sRes, aRes] = await Promise.all([
         apiFetch<{ styles: StylePreset[] }>(
-          `/api/v1/styles?workspace_id=${activeWorkspaceId}`
+          `/api/v1/styles?workspace_id=${activeWorkspaceId}`,
+          { signal }
         ),
         apiFetch<{ assets: AudioAsset[] }>(
-          `/api/v1/assets?workspace_id=${activeWorkspaceId}`
+          `/api/v1/assets?workspace_id=${activeWorkspaceId}`,
+          { signal }
         ),
       ]);
-      setStyles(sRes.styles || []);
-      setAssets(aRes.assets || []);
-      setErr("");
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Lỗi tải Phong cách & Âm thanh");
-    }
-  }, [activeWorkspaceId]);
+      return { styles: sRes.styles || [], assets: aRes.assets || [] };
+    },
+    [activeWorkspaceId],
+    { fallbackError: "Lỗi tải Phong cách & Âm thanh" }
+  );
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const styles = data?.styles || [];
+  const assets = data?.assets || [];
 
   const handleCreateStyle = async (e: React.FormEvent) => {
     e.preventDefault();

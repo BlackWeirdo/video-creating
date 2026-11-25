@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { Download, Newspaper, Play, Plus, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { apiFetch, useWorkspace } from "@/lib/api";
+import { useApiQuery } from "@/hooks/useApiQuery";
 import { JobProgressBanner, useJobProgress } from "@/components/JobProgressBanner";
 import { SimulationBadge } from "@/components/SimulationBadge";
 import { PageHeader } from "@/components/vc/PageHeader";
@@ -34,7 +35,6 @@ interface NewsProject {
 
 export default function NewsPage() {
   const { activeWorkspaceId } = useWorkspace();
-  const [projects, setProjects] = useState<NewsProject[]>([]);
   const [sourceKind, setSourceKind] = useState<"url" | "rss" | "raw_text">(
     "raw_text"
   );
@@ -43,23 +43,22 @@ export default function NewsPage() {
   const [rawText, setRawText] = useState("");
   const [activeJobId, setActiveJobId] = useState<number | null>(null);
   const [msg, setMsg] = useState("");
-  const [err, setErr] = useState("");
 
-  const load = useCallback(async () => {
-    try {
+  const { data, error: err, setError: setErr, reload: load } = useApiQuery<
+    NewsProject[]
+  >(
+    async (signal) => {
       const res = await apiFetch<{ projects: NewsProject[] }>(
-        `/api/v1/news/projects?workspace_id=${activeWorkspaceId}`
+        `/api/v1/news/projects?workspace_id=${activeWorkspaceId}`,
+        { signal }
       );
-      setProjects(res.projects || []);
-      setErr("");
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Lỗi tải Studio Tin tức");
-    }
-  }, [activeWorkspaceId]);
+      return res.projects || [];
+    },
+    [activeWorkspaceId],
+    { fallbackError: "Lỗi tải Studio Tin tức" }
+  );
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const projects = data || [];
 
   const { job: activeJob } = useJobProgress(activeJobId, {
     onCompleted: () => {

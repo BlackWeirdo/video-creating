@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { apiFetch, useWorkspace } from "@/lib/api";
+import { useApiQuery } from "@/hooks/useApiQuery";
 import { useJobProgress } from "@/components/JobProgressBanner";
 import {
   LocalizeProject,
@@ -13,8 +14,6 @@ import {
 
 export function useLocalizeProject() {
   const { activeWorkspaceId, activeWorkspace } = useWorkspace();
-  const [projects, setProjects] = useState<LocalizeProject[]>([]);
-  const [shots, setShots] = useState<ShotRow[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [previewAudioMap, setPreviewAudioMap] = useState<Record<string, string>>({});
   const [previewLoadingKey, setPreviewLoadingKey] = useState<string | null>(null);
@@ -22,36 +21,45 @@ export function useLocalizeProject() {
   const [cloneModalOpen, setCloneModalOpen] = useState(false);
   const [activeJobId, setActiveJobId] = useState<number | null>(null);
   const [msg, setMsg] = useState("");
-  const [err, setErr] = useState("");
 
   const wsPolicy = activeWorkspace?.content_policy || "strict_footage";
   const canCloneVoice = wsPolicy === "hybrid_remix" || wsPolicy === "full_ai";
 
-  const load = useCallback(async () => {
-    try {
+  const { data, error: err, setError: setErr, reload: load } = useApiQuery<{
+    projects: LocalizeProject[];
+    shots: ShotRow[];
+  }>(
+    async (signal) => {
       const [pRes, sRes] = await Promise.all([
         apiFetch<{ projects: LocalizeProject[] }>(
-          `/api/v1/localize/projects?workspace_id=${activeWorkspaceId}`
+          `/api/v1/localize/projects?workspace_id=${activeWorkspaceId}`,
+          { signal }
         ),
         apiFetch<{ shots: ShotRow[] }>(
-          `/api/v1/shots?workspace_id=${activeWorkspaceId}`
+          `/api/v1/shots?workspace_id=${activeWorkspaceId}`,
+          { signal }
         ),
       ]);
-      const list = pRes.projects || [];
-      setProjects(list);
-      setShots(sRes.shots || []);
-      if (list.length > 0 && selectedId === null) {
-        setSelectedId(list[0].id);
-      }
-      setErr("");
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Lỗi tải Studio Việt hóa");
+      return {
+        projects: pRes.projects || [],
+        shots: sRes.shots || [],
+      };
+    },
+    [activeWorkspaceId],
+    {
+      fallbackError: "Lỗi tải Studio Việt hóa",
+      onSuccess: (bundle) => {
+        setSelectedId((prev) =>
+          bundle.projects.some((p) => p.id === prev)
+            ? prev
+            : bundle.projects[0]?.id ?? null
+        );
+      },
     }
-  }, [activeWorkspaceId, selectedId]);
+  );
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const projects = data?.projects || [];
+  const shots = data?.shots || [];
 
   const { job: activeJob } = useJobProgress(activeJobId, {
     onCompleted: (j) => {

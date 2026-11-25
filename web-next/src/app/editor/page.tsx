@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { ExternalLink, Film, Play, Plus, Scissors, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { apiFetch, useWorkspace } from "@/lib/api";
+import { useApiQuery } from "@/hooks/useApiQuery";
 import { JobProgressBanner, useJobProgress } from "@/components/JobProgressBanner";
 import { PageHeader } from "@/components/vc/PageHeader";
 import { EmptyState } from "@/components/vc/StatCard";
@@ -42,43 +43,49 @@ interface EditorProject {
 
 export default function EditorPage() {
   const { activeWorkspaceId } = useWorkspace();
-  const [videos, setVideos] = useState<MediaClip[]>([]);
-  const [shots, setShots] = useState<MediaClip[]>([]);
   const [selectedJob, setSelectedJob] = useState<string>("");
-  const [projects, setProjects] = useState<EditorProject[]>([]);
   const [clips, setClips] = useState<TimelineClip[]>([]);
   const [subText, setSubText] = useState("Tiêu đề bản dựng đa kênh");
   const [projTitle, setProjTitle] = useState("Bản dựng đa lớp mới");
   const [activeJobId, setActiveJobId] = useState<number | null>(null);
   const [msg, setMsg] = useState("");
-  const [err, setErr] = useState("");
 
-  const load = useCallback(async () => {
-    try {
+  const { data, error: err, setError: setErr, reload: load } = useApiQuery<{
+    videos: MediaClip[];
+    shots: MediaClip[];
+    projects: EditorProject[];
+  }>(
+    async (signal) => {
       const [mRes, pRes] = await Promise.all([
         apiFetch<{ videos: MediaClip[]; shots: MediaClip[] }>(
-          `/api/v1/editor/media?workspace_id=${activeWorkspaceId}`
+          `/api/v1/editor/media?workspace_id=${activeWorkspaceId}`,
+          { signal }
         ),
         apiFetch<{ projects: EditorProject[] }>(
-          `/api/v1/editor/projects?workspace_id=${activeWorkspaceId}`
+          `/api/v1/editor/projects?workspace_id=${activeWorkspaceId}`,
+          { signal }
         ),
       ]);
-      const vids = mRes.videos || [];
-      setVideos(vids);
-      setShots(mRes.shots || []);
-      setProjects(pRes.projects || []);
-      if (vids.length > 0 && !selectedJob) {
-        setSelectedJob(String(vids[0].id));
-      }
-      setErr("");
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Lỗi tải Trình dựng");
+      return {
+        videos: mRes.videos || [],
+        shots: mRes.shots || [],
+        projects: pRes.projects || [],
+      };
+    },
+    [activeWorkspaceId],
+    {
+      fallbackError: "Lỗi tải Trình dựng",
+      onSuccess: (bundle) => {
+        setSelectedJob((prev) =>
+          prev || (bundle.videos.length > 0 ? String(bundle.videos[0].id) : "")
+        );
+      },
     }
-  }, [activeWorkspaceId, selectedJob]);
+  );
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const videos = data?.videos || [];
+  const shots = data?.shots || [];
+  const projects = data?.projects || [];
 
   const { job: activeJob, isRunning: jobRunning } = useJobProgress(activeJobId, {
     onCompleted: () => {

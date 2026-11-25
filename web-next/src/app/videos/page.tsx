@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { CheckCircle2, Clapperboard, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { apiFetch, useWorkspace } from "@/lib/api";
+import { useApiQuery } from "@/hooks/useApiQuery";
 import { PageHeader } from "@/components/vc/PageHeader";
 import { EmptyState } from "@/components/vc/StatCard";
 import { Card, SectionHeading } from "@/components/ui/card";
@@ -40,51 +41,64 @@ interface VideoSummary {
 
 export default function VideosPage() {
   const { activeWorkspaceId, activeWorkspace } = useWorkspace();
-  const [videos, setVideos] = useState<VideoSummary[]>([]);
-  const [shots, setShots] = useState<ShotOption[]>([]);
-  const [styles, setStyles] = useState<StyleOption[]>([]);
   const [title, setTitle] = useState("");
   const [selectedShotId, setSelectedShotId] = useState<number>(0);
   const [lineText, setLineText] = useState("");
   const [styleId, setStyleId] = useState("tiktok_karaoke");
   const [ratio, setRatio] = useState<"9:16" | "16:9" | "1:1">("9:16");
   const [voiceLang, setVoiceLang] = useState<"none" | "vi" | "en">("vi");
-  const [err, setErr] = useState("");
-
-  const load = useCallback(async () => {
-    try {
-      const [vRes, sRes, stRes] = await Promise.all([
-        apiFetch<{ videos: VideoSummary[] }>(
-          `/api/v1/videos?workspace_id=${activeWorkspaceId}`
-        ),
-        apiFetch<{ shots: ShotOption[] }>(
-          `/api/v1/shots?workspace_id=${activeWorkspaceId}`
-        ),
-        apiFetch<{ styles: StyleOption[] }>(
-          `/api/v1/styles?workspace_id=${activeWorkspaceId}`
-        ),
-      ]);
-      setVideos(vRes.videos || []);
-      setShots(sRes.shots || []);
-      setStyles(stRes.styles || []);
-      if (sRes.shots?.length && selectedShotId === 0) {
-        setSelectedShotId(sRes.shots[0].id);
-      }
-      if (activeWorkspace?.default_aspect_ratio) {
-        setRatio(activeWorkspace.default_aspect_ratio);
-      }
-      if (activeWorkspace?.style_preset) {
-        setStyleId(activeWorkspace.style_preset);
-      }
-      setErr("");
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Lỗi tải danh sách video");
-    }
-  }, [activeWorkspaceId, activeWorkspace, selectedShotId]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (activeWorkspace?.default_aspect_ratio) {
+      setRatio(activeWorkspace.default_aspect_ratio);
+    }
+    if (activeWorkspace?.style_preset) {
+      setStyleId(activeWorkspace.style_preset);
+    }
+  }, [activeWorkspace]);
+
+  const { data, error: err, setError: setErr, reload: load } = useApiQuery<{
+    videos: VideoSummary[];
+    shots: ShotOption[];
+    styles: StyleOption[];
+  }>(
+    async (signal) => {
+      const [vRes, sRes, stRes] = await Promise.all([
+        apiFetch<{ videos: VideoSummary[] }>(
+          `/api/v1/videos?workspace_id=${activeWorkspaceId}`,
+          { signal }
+        ),
+        apiFetch<{ shots: ShotOption[] }>(
+          `/api/v1/shots?workspace_id=${activeWorkspaceId}`,
+          { signal }
+        ),
+        apiFetch<{ styles: StyleOption[] }>(
+          `/api/v1/styles?workspace_id=${activeWorkspaceId}`,
+          { signal }
+        ),
+      ]);
+      return {
+        videos: vRes.videos || [],
+        shots: sRes.shots || [],
+        styles: stRes.styles || [],
+      };
+    },
+    [activeWorkspaceId],
+    {
+      fallbackError: "Lỗi tải danh sách video",
+      onSuccess: (bundle) => {
+        setSelectedShotId((prev) =>
+          bundle.shots.some((s) => s.id === prev)
+            ? prev
+            : bundle.shots[0]?.id ?? 0
+        );
+      },
+    }
+  );
+
+  const videos = data?.videos || [];
+  const shots = data?.shots || [];
+  const styles = data?.styles || [];
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();

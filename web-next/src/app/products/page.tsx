@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useState } from "react";
 import { FolderKanban, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { apiFetch, useWorkspace } from "@/lib/api";
+import { useApiQuery } from "@/hooks/useApiQuery";
 import { PageHeader } from "@/components/vc/PageHeader";
 import { EmptyState } from "@/components/vc/StatCard";
 import { Card, SectionHeading } from "@/components/ui/card";
@@ -31,7 +32,6 @@ const FACT_LABELS: Record<string, string> = {
 
 export default function ProductsPage() {
   const { activeWorkspaceId } = useWorkspace();
-  const [products, setProducts] = useState<Product[]>([]);
   const [name, setName] = useState("");
   const [material, setMaterial] = useState("");
   const [stone, setStone] = useState("");
@@ -40,23 +40,22 @@ export default function ProductsPage() {
   const [price, setPrice] = useState("");
   const [notes, setNotes] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
-  const [err, setErr] = useState("");
 
-  const load = useCallback(async () => {
-    try {
-      const data = await apiFetch<{ products: Product[] }>(
-        `/api/v1/products?workspace_id=${activeWorkspaceId}`
+  const { data, error: err, setError: setErr, reload: load } = useApiQuery<
+    Product[]
+  >(
+    async (signal) => {
+      const res = await apiFetch<{ products: Product[] }>(
+        `/api/v1/products?workspace_id=${activeWorkspaceId}`,
+        { signal }
       );
-      setProducts(data.products || []);
-      setErr("");
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Lỗi tải danh mục sản phẩm");
-    }
-  }, [activeWorkspaceId]);
+      return res.products || [];
+    },
+    [activeWorkspaceId],
+    { fallbackError: "Lỗi tải danh mục sản phẩm" }
+  );
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const products = data || [];
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();

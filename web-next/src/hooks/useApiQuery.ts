@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { isAbortError } from "@/lib/api/client";
+import { createAbortableQueryRunner } from "@/lib/api/query-controller";
 
 export interface UseApiQueryOptions<T> {
   fallbackError?: string;
@@ -29,38 +29,44 @@ export function useApiQuery<T>(
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>("");
 
-  const abortRef = useRef<AbortController | null>(null);
+  const runnerRef = useRef<ReturnType<typeof createAbortableQueryRunner> | null>(
+    null
+  );
+  if (!runnerRef.current) {
+    runnerRef.current = createAbortableQueryRunner();
+  }
+
   const fetcherRef = useRef(fetcher);
   const optionsRef = useRef(options);
   fetcherRef.current = fetcher;
   optionsRef.current = options;
 
   const reload = useCallback(async () => {
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
     setLoading(true);
-    try {
-      const result = await fetcherRef.current(controller.signal);
-      if (controller.signal.aborted) return;
-      setData(result);
-      setError("");
-      optionsRef.current?.onSuccess?.(result);
-    } catch (err) {
-      if (controller.signal.aborted || isAbortError(err)) return;
-      const fallback = optionsRef.current?.fallbackError || "Không thể tải dữ liệu";
-      setError(err instanceof Error ? err.message : fallback);
-    } finally {
-      if (abortRef.current === controller) {
-        setLoading(false);
-      }
-    }
+    await runnerRef.current!.run(
+      (signal) => fetcherRef.current(signal),
+      {
+        onSuccess: (result) => {
+          setData(result);
+          setError("");
+          optionsRef.current?.onSuccess?.(result);
+        },
+        onError: (msg) => {
+          setError(msg);
+        },
+        onSettledLatest: () => {
+          setLoading(false);
+        },
+      },
+      optionsRef.current?.fallbackError || "Không thể tải dữ liệu"
+    );
   }, []);
 
   useEffect(() => {
     void reload();
+    const runner = runnerRef.current!;
     return () => {
-      abortRef.current?.abort();
+      runner.abort();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);

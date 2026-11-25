@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -14,9 +14,13 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { apiFetch } from "@/lib/api";
+import { useApiQuery } from "@/hooks/useApiQuery";
+import {
+  VideoPreviewAndQcCard,
+  type VideoQcInfo,
+} from "@/app/videos/[id]/_components/VideoPreviewAndQcCard";
 import { JobProgressBanner, useJobProgress } from "@/components/JobProgressBanner";
 import { PageHeader } from "@/components/vc/PageHeader";
-import { EmptyState } from "@/components/vc/StatCard";
 import { Card, SectionHeading } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -56,11 +60,7 @@ interface VideoDetail {
       text: string;
     }>;
   };
-  qc: {
-    passed?: boolean;
-    integrated_lufs?: number | null;
-    issues?: string[];
-  };
+  qc: VideoQcInfo;
   syllable_budget: SyllableEntry[];
   error: string | null;
 }
@@ -87,34 +87,37 @@ export default function VideoDetailPage() {
   const [ttsAudioUrl, setTtsAudioUrl] = useState<string | null>(null);
   const [activeJobId, setActiveJobId] = useState<number | null>(null);
   const [msg, setMsg] = useState("");
-  const [err, setErr] = useState("");
 
-  const load = useCallback(async () => {
-    try {
+  const { error: err, setError: setErr, reload: load } = useApiQuery<{
+    video: VideoDetail;
+    styles: StylePreset[];
+  }>(
+    async (signal) => {
       const res = await apiFetch<{ video: VideoDetail }>(
-        `/api/v1/videos/${videoId}`
+        `/api/v1/videos/${videoId}`,
+        { signal }
       );
       const v = res.video;
-      setVideo(v);
-      setTitle(v.plan?.title || "");
-      setShots(v.plan?.shots || []);
-      setStyleId(v.style_preset || "tiktok_karaoke");
-      setRatio(v.aspect_ratio || "9:16");
-      setVoiceLang(v.voice_lang || "vi");
-
       const st = await apiFetch<{ styles: StylePreset[] }>(
-        `/api/v1/styles?workspace_id=${v.workspace_id}`
+        `/api/v1/styles?workspace_id=${v.workspace_id}`,
+        { signal }
       );
-      setStyles(st.styles || []);
-      setErr("");
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Không tải được chi tiết video");
+      return { video: v, styles: st.styles || [] };
+    },
+    [videoId],
+    {
+      fallbackError: "Không tải được chi tiết video",
+      onSuccess: ({ video: v, styles: stList }) => {
+        setVideo(v);
+        setStyles(stList);
+        setTitle(v.plan?.title || "");
+        setShots(v.plan?.shots || []);
+        setStyleId(v.style_preset || "tiktok_karaoke");
+        setRatio(v.aspect_ratio || "9:16");
+        setVoiceLang(v.voice_lang || "vi");
+      },
     }
-  }, [videoId]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  );
 
   const { job: activeJob } = useJobProgress(activeJobId, {
     onCompleted: () => {
@@ -410,52 +413,7 @@ export default function VideoDetailPage() {
           </div>
         </Card>
 
-        <Card className="lg:col-span-2 space-y-4">
-          <SectionHeading>Xem trước Thành phẩm &amp; Kiểm định Kỹ thuật</SectionHeading>
-          {video.output_url ? (
-            <video
-              controls
-              src={video.output_url}
-              className="w-full max-h-96 rounded-[10px] bg-black border border-[var(--border-subtle)]"
-            />
-          ) : (
-            <EmptyState
-              title="Chưa có tệp MP4 thành phẩm"
-              description='Bấm nút "Dựng Video" ở góc phải trên để xuất tệp MP4.'
-            />
-          )}
-
-          <div className="rounded-[11px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3.5 space-y-1.5 text-[13px]">
-            <div className="font-bold text-[var(--text-primary)]">
-              Báo cáo Kiểm định Âm lượng &amp; Khung hình (QC)
-            </div>
-            {video.qc?.passed === undefined ? (
-              <div className="text-[var(--text-muted)]">
-                Chưa chạy kiểm định kỹ thuật.
-              </div>
-            ) : (
-              <>
-                <Badge tone={video.qc.passed ? "emerald" : "rose"}>
-                  {video.qc.passed
-                    ? "✓ Đạt toàn bộ chỉ tiêu kỹ thuật"
-                    : "✗ Phát hiện lỗi kỹ thuật"}
-                </Badge>
-                {video.qc.integrated_lufs !== undefined &&
-                  video.qc.integrated_lufs !== null && (
-                    <div className="text-[12.5px] text-[var(--text-secondary)] tabular-nums pt-1">
-                      Độ lớn âm thanh trung bình:{" "}
-                      <strong>{video.qc.integrated_lufs.toFixed(1)} LUFS</strong>
-                    </div>
-                  )}
-                {video.qc.issues?.map((issue, i) => (
-                  <div key={i} className="text-[12.5px] text-[var(--st-rose-tx)]">
-                    • {issue}
-                  </div>
-                ))}
-              </>
-            )}
-          </div>
-        </Card>
+        <VideoPreviewAndQcCard outputUrl={video.output_url} qc={video.qc} />
       </div>
     </div>
   );

@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useState } from "react";
 import { Bot, Play, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { apiFetch, useWorkspace } from "@/lib/api";
+import { useApiQuery } from "@/hooks/useApiQuery";
 import { PageHeader } from "@/components/vc/PageHeader";
 import { EmptyState } from "@/components/vc/StatCard";
 import { Card, SectionHeading } from "@/components/ui/card";
@@ -43,9 +44,6 @@ interface AutopilotRun {
 
 export default function AutopilotPage() {
   const { activeWorkspaceId } = useWorkspace();
-  const [rules, setRules] = useState<AutopilotRule[]>([]);
-  const [runs, setRuns] = useState<AutopilotRun[]>([]);
-
   const [name, setName] = useState("");
   const [sourceMode, setSourceMode] =
     useState<AutopilotRule["source_mode"]>("products_ab");
@@ -53,29 +51,30 @@ export default function AutopilotPage() {
   const [dailyCap, setDailyCap] = useState(3);
   const [minScore, setMinScore] = useState(8.0);
   const [msg, setMsg] = useState("");
-  const [err, setErr] = useState("");
 
-  const load = useCallback(async () => {
-    try {
+  const { data, error: err, setError: setErr, reload: load } = useApiQuery<{
+    rules: AutopilotRule[];
+    runs: AutopilotRun[];
+  }>(
+    async (signal) => {
       const [rRes, runRes] = await Promise.all([
         apiFetch<{ rules: AutopilotRule[] }>(
-          `/api/v1/autopilot/rules?workspace_id=${activeWorkspaceId}`
+          `/api/v1/autopilot/rules?workspace_id=${activeWorkspaceId}`,
+          { signal }
         ),
         apiFetch<{ runs: AutopilotRun[] }>(
-          `/api/v1/autopilot/runs?workspace_id=${activeWorkspaceId}`
+          `/api/v1/autopilot/runs?workspace_id=${activeWorkspaceId}`,
+          { signal }
         ),
       ]);
-      setRules(rRes.rules || []);
-      setRuns(runRes.runs || []);
-      setErr("");
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Lỗi tải Kênh tự động");
-    }
-  }, [activeWorkspaceId]);
+      return { rules: rRes.rules || [], runs: runRes.runs || [] };
+    },
+    [activeWorkspaceId],
+    { fallbackError: "Lỗi tải Kênh tự động" }
+  );
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const rules = data?.rules || [];
+  const runs = data?.runs || [];
 
   const createRule = async (e: React.FormEvent) => {
     e.preventDefault();

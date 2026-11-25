@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useState } from "react";
 import { AudioWaveform, Play, Plus, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { apiFetch, CharacterOption, useWorkspace } from "@/lib/api";
+import { useApiQuery } from "@/hooks/useApiQuery";
 import { JobProgressBanner, useJobProgress } from "@/components/JobProgressBanner";
 import { SimulationBadge } from "@/components/SimulationBadge";
 import { PageHeader } from "@/components/vc/PageHeader";
@@ -34,8 +35,6 @@ interface LipsyncProject {
 
 export default function LipsyncStudioPage() {
   const { activeWorkspaceId } = useWorkspace();
-  const [projects, setProjects] = useState<LipsyncProject[]>([]);
-  const [characters, setCharacters] = useState<CharacterOption[]>([]);
   const [title, setTitle] = useState("");
   const [characterId, setCharacterId] = useState("");
   const [aspectRatio, setAspectRatio] = useState("9:16");
@@ -43,29 +42,33 @@ export default function LipsyncStudioPage() {
   const [renderingId, setRenderingId] = useState<number | null>(null);
   const [activeJobId, setActiveJobId] = useState<number | null>(null);
   const [msg, setMsg] = useState("");
-  const [err, setErr] = useState("");
 
-  const load = useCallback(async () => {
-    try {
+  const { data, error: err, setError: setErr, reload: load } = useApiQuery<{
+    projects: LipsyncProject[];
+    characters: CharacterOption[];
+  }>(
+    async (signal) => {
       const [lpRes, chRes] = await Promise.all([
         apiFetch<{ projects: LipsyncProject[] }>(
-          `/api/v1/lipsync/projects?workspace_id=${activeWorkspaceId}`
+          `/api/v1/lipsync/projects?workspace_id=${activeWorkspaceId}`,
+          { signal }
         ),
         apiFetch<{ characters: CharacterOption[] }>(
-          `/api/v1/characters?workspace_id=${activeWorkspaceId}`
+          `/api/v1/characters?workspace_id=${activeWorkspaceId}`,
+          { signal }
         ),
       ]);
-      setProjects(lpRes.projects || []);
-      setCharacters(chRes.characters || []);
-      setErr("");
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Lỗi tải Studio Nhép môi");
-    }
-  }, [activeWorkspaceId]);
+      return {
+        projects: lpRes.projects || [],
+        characters: chRes.characters || [],
+      };
+    },
+    [activeWorkspaceId],
+    { fallbackError: "Lỗi tải Studio Nhép môi" }
+  );
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const projects = data?.projects || [];
+  const characters = data?.characters || [];
 
   const { job: activeJob, isRunning: jobRunning } = useJobProgress(activeJobId, {
     onCompleted: () => {
