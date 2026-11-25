@@ -26,11 +26,11 @@ from videocreator.pipeline.compute_job import run_studio_project_job
 from videocreator.pipeline.characters import get_character
 from videocreator.pipeline.export import resolve_canvas_dimensions
 from videocreator.pipeline.ffmpeg import run_ffmpeg
-from videocreator.pipeline.podcast_studio import synthesize_with_local_fallback
 from videocreator.pipeline.probe import probe_duration
 from videocreator.pipeline.render import finalize_master_export
 from videocreator.pipeline.styles import resolve_style_preset
 from videocreator.state import transition
+from videocreator.tts import synthesize_with_local_fallback
 from videocreator.workspaces import require_workspace
 
 logger = logging.getLogger("videocreator.pipeline.lipsync_studio")
