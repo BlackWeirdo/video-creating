@@ -1,0 +1,10 @@
+[
+  {
+    "kind": "mount",
+    "methods": [
+      "MOUNT"
+    ],
+    "path": "/static",
+    "module": "starlette.staticfiles"
+  }
+]
