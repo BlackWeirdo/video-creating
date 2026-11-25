@@ -15,22 +15,21 @@ Các route này **không phải** giao diện Jinja2/HTMX cũ mà được Next.
 | `routes_oauth.py` | `mounts/oauth.py` | `GET /oauth/{platform}/start`, `/callback`, `POST /code` | Luồng callback OAuth 2.0 cho YouTube, TikTok, Threads. | `test_oauth.py`, `test_v2_phase03_channels_youtube_autopilot.py` |
 | `routes_config_bundle.py` | `mounts/config_bundle.py` | `POST /settings/export`, `POST /settings/import` | Xuất/nhập gói cấu hình mã hóa `.vcx` (song song với `/api/v1/backup/*`). | `test_transfer.py`, `test_wave1_bugfixes.py` |
 | *(Mới ở Wave 5)* | `mounts/ui_fallback.py` | `GET /ui-unavailable` | Màn hình chẩn đoán tiếng Việt độc lập khi tiến trình Next.js Standalone không khởi động được (thay cho hành vi rơi ngầm về V1). | `test_wave5_mounts_and_fallback.py` |
-
-> **Lưu ý thêm**: `GET /health` trong `routes_dashboard.py` vẫn đang được `wait_for_health()` trong `__main__.py` và các bài E2E gọi để kiểm tra tiến trình Uvicorn trước khi khởi chạy Next.js.
+| *(Mới ở `2.3.0`)* | `mounts/health.py` | `GET /health` | Endpoint kiểm tra sức khỏe tiến trình Uvicorn dùng chung độc lập với `routes_dashboard.py`. | `test_v23_imagen_and_parity.py` |
 
 ---
 
-## 2. Nhóm B — Các Router V1 Chưa Có Tương đương 1:1 trên `/api/v1` (Giữ cô lập trong `legacy_v1.py`)
+## 2. Nhóm B — Các Router V1 Đã Được Port Đủ 100% Sang `/api/v1/*` ở `2.3.0`
 
-Các tính năng dưới đây hiện mới có trên router V1 và chưa có API `/api/v1` tương đương hoàn chỉnh; do đó **không được xóa mù** ở phiên bản `2.2.0`:
+Ở phiên bản `2.3.0`, toàn bộ 5 nhóm endpoint còn thiếu từ V1 đã có mặt đầy đủ trên `/api/v1/*` (kiểm chứng tại `tests/test_v23_imagen_and_parity.py`):
 
-| Module | Dòng | Đường dẫn chưa có 1:1 ở `/api/v1` | Ghi chú nghiệp vụ & Test |
-|---|---:|---|---|
-| `routes_broll.py` | 180 | `/broll`, `/broll/suggest`, `/broll/suggest/cancel`, `/broll/create` | Gợi ý cảnh quay bù (B-roll checklist) cho kịch bản thiếu shot (`test_broll_suggest.py`). |
-| `routes_manual.py` | 96 | `/manual`, `/manual/create`, `/manual/{ticket_id}/upload`, `/cancel` | Luồng phiếu đăng thủ công (manual publish ticket) khi không nối token kênh (`test_posting_service.py`). |
-| `routes_ai.py` | 128 | `/ai-routes`, `/ai/check-cli`, `/ai/provider/{provider_name}/wake` | Kiểm tra kết nối CLI provider & đánh thức kết nối (`test_router.py`). |
-| `routes_posting.py` | 162 | `GET /posts/{post_id}/manual-bundle` (cùng `/schedule*`) | Xuất gói ZIP bài đăng đơn lẻ từ lịch đăng cũ (`test_posting_service.py`, `test_security_and_bugfixes.py`). |
-| `routes_studio.py` | 175 | `/studio/{session_id}/revise`, `/recheck` | Vòng lặp góp ý chỉnh sửa kịch bản AI nhiều lượt (`test_studio_checks.py`). |
+| Module V1 cũ | Module `/api/v1` tương đương (`2.3.0`) | Các đường dẫn `/api/v1/*` mới |
+|---|---|---|
+| `routes_broll.py` | `v1/routes_broll_v1.py` | `GET /api/v1/broll`, `POST /api/v1/broll`, `POST /api/v1/broll/suggest`, `POST /api/v1/broll/suggest/cancel`, `DELETE /api/v1/broll/{shot_id}` |
+| `routes_manual.py` | `v1/routes_manual_v1.py` | `GET /api/v1/manual-tickets`, `POST /api/v1/manual-tickets`, `POST /api/v1/manual-tickets/{ticket_id}/upload`, `POST /api/v1/manual-tickets/{ticket_id}/cancel` |
+| `routes_ai.py` | `v1/routes_ai_v1.py` + `services/ai_cli_health.py` | `GET /api/v1/ai/routes`, `POST /api/v1/ai/check-cli`, `POST /api/v1/ai/providers/{provider_name}/wake` |
+| `routes_posting.py` | `v1/routes_videos_v1.py` | `GET /api/v1/videos/{video_id}/manual-bundle` |
+| `routes_studio.py` | `v1/routes_studio_sessions_v1.py` | `GET /api/v1/studio/templates`, `POST /api/v1/studio/sessions/{session_id}/save-template`, `POST /api/v1/studio/templates/{template_id}/render` |
 
 ---
 
@@ -58,7 +57,6 @@ Toàn bộ nhóm dưới đây đã có trang Next.js 15 App Router + `/api/v1/*
 
 ---
 
-## 4. Lộ trình Dọn hẳn V1 ở Phiên bản Tương lai (`3.0`)
-1. Bổ sung `/api/v1/broll/*` và `/api/v1/manual-tickets/*` nếu còn nhu cầu nghiệp vụ cho Nhóm B.
-2. Chuyển các assertion HTML cũ trong 21 tệp test (`test_security_and_bugfixes.py`, `test_posting_service.py`, `test_approvals.py`, v.v.) sang gọi `/api/v1/*`.
-3. Gỡ lời gọi `include_legacy_v1_routers(app)` khỏi `src/videocreator/app.py` và xóa `src/videocreator/web/templates/` cùng các `routes_*.py` Nhóm C.
+## 4. Cờ Tắt Hẳn V1 (`VIDEOCREATOR_DISABLE_LEGACY_V1=1`) & Lộ trình Gỡ Ở `3.0`
+1. Đặt biến môi trường `VIDEOCREATOR_DISABLE_LEGACY_V1=1` để chạy `app.py` ở chế độ thuần V2 (`0` router Jinja2/HTMX được nạp, chỉ giữ `/health`, `/files`, `/oauth`, `/freecut`, `/ui-unavailable` và `/api/v1/*`).
+2. Khi không còn cần chạy `--classic-ui` dự phòng sau 1 vòng phát hành, chuyển các assertion HTML cũ trong 21 tệp test sang gọi `/api/v1/*`, đặt mặc định `VIDEOCREATOR_DISABLE_LEGACY_V1=1` và xóa `src/videocreator/web/templates/` cùng `routes_*.py` Nhóm C.

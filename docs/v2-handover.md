@@ -1,15 +1,16 @@
-# Tài liệu Tổng kết Bàn giao Kỹ thuật — Video Creator V2 (`2.2.0`)
+# Tài liệu Tổng kết Bàn giao Kỹ thuật — Video Creator V2 (`2.3.0`)
 
-- **Nhánh bàn giao hiện tại**: `refactor/modularize` (phiên bản **`2.2.0`**, mô-đun hóa toàn diện, tăng cường tái sử dụng mã nguồn & vá các lỗi bảo mật/đồng bộ từ `ui-redesign` `2.1.0`)
+- **Nhánh bàn giao hoàn chỉnh**: `feat/v2.3-complete` (phiên bản **`2.3.0`**, phát triển tiếp trên nền `refactor/modularize` `2.2.0` `ed41a2e`)
 - **Tài liệu đặc tả gốc**: `docs/video-creator-v2-spec.md`
+- **Tài liệu hướng dẫn nhân sự & kiểm tra máy sạch**: `docs/staff-release-notes.md`
 - **Hồ sơ kiểm kê & đối chiếu Refactor**: `docs/refactor/baseline.md`, `docs/refactor/v1-inventory.md`
-- **Bộ cài Offline `2.2.0` (`refactor/modularize`, đóng gói từ mã nguồn commit `2d521a5`)**: `installer/dist/VideoCreatorV2Setup.exe` (**585.4 MB**, SHA-256: `dd806cafcaac86fd17cc106a3f0d4868928071273867560da65d2460a4125c25`)
+- **Bộ cài Offline `2.3.0` (`feat/v2.3-complete`)**: `installer/dist/VideoCreatorV2Setup.exe` (**585.3 MB**, SHA-256: `5c758610c5e41b0925af5ee71f2ff2e5b8e0a79de9f7d0fdc7158fc89277d95c`)
 - **Bản sao lưu Bộ cài `2.0.0` (`v2` gốc)**: `installer/dist/VideoCreatorV2Setup_2.0.0_v2.exe` (**596.1 MB**, SHA-256: `0b8b45c6328049ef56c504fa0c7935e6dea536ca3d91dc34caa9a5c5d3c9622d`)
-- **Độ phủ Kiểm thử tự động**: **74 tệp test** trong `tests/` — `pytest -m local` đạt **271 passed, 1 skipped** (tăng từ 259 passed ở baseline `2.1.0`), `254` HTTP/Mount routes được khóa thứ tự bằng `tests/snapshots/routes.json`.
+- **Độ phủ Kiểm thử tự động**: **76 tệp test Python** (`pytest -m local` đạt **277 passed, 1 skipped**, `pytest -m models` đạt **4 passed**) + **2 tệp unit test TypeScript frontend** (`npm test` đạt **7/7 pass**), `270` HTTP/Mount routes được khóa thứ tự bằng `tests/snapshots/routes.json`.
 
 ---
 
-## 1. Lịch sử Phát triển các Mốc Bàn giao (`R1 → 2.2.0`)
+## 1. Lịch sử Phát triển các Mốc Bàn giao (`R1 → 2.3.0`)
 
 | Giai đoạn | Commit tiêu biểu | Nội dung chính |
 |---|---|---|
@@ -20,7 +21,8 @@
 | **Wave 2 (`2.2.0`)** | `6fe0c42` .. `53e95a7` | Tạo các khối dùng chung backend: `safe_paths.py`, `db_rows.py`, `pipeline/compute_job.py`, `services/{assets,voices_catalog,secret_keys}.py`, `api/v1/uploads.py`; xóa sổ hoàn toàn chiều import ngược từ `api/v1/*` về `api/routes_*`. |
 | **Wave 3 (`2.2.0`)** | `cb2b0ca` .. `d0945ba` | Tách 7 cụm module lớn ở backend (100% file dưới 450 dòng): `ai_models/`, `pipeline/asr.py`, `tts/*`, `autopilot/{crud,producers,runner}`, `pipeline/podcast_visuals.py`, `pipeline/workflows/{dag,store,node_runners,executor}`, tách nhỏ `routes_resources.py` và `routes_production.py`. |
 | **Wave 4 (`2.2.0`)** | `e728b69` .. `c1dc256` | Mô-đun hóa `lib/api/{types,client}.ts` + `lib/workspace-context.tsx`, bổ sung `hooks/{useApiQuery,useApiMutation,useQueueSnapshot,useLocalStorageState}.ts` (hủy request cũ bằng `AbortController` khi chuyển Workspace), đưa số lệnh `fetch()` thô bên ngoài client/proxy về `0`, tách nhỏ 4 trang lớn (`/approval`, `/characters`, `/welcome`, `/trends` đều dưới 300 dòng). |
-| **Wave 5–6 (`2.2.0`)** | `7122121` .. `2d521a5` | Kiểm kê 24 router V1 (`docs/refactor/v1-inventory.md`), tách gói `api/mounts/` (`/files`, `/freecut`, `/oauth`, `/settings/export|import`, `/ui-unavailable`), cô lập router HTML cũ vào `api/legacy_v1.py`, nâng phiên bản `2.2.0` và đóng gói bộ cài offline mới. |
+| **Wave 5–6 (`2.2.0`)** | `7122121` .. `ed41a2e` | Kiểm kê 24 router V1 (`docs/refactor/v1-inventory.md`), tách gói `api/mounts/` (`/files`, `/freecut`, `/oauth`, `/settings/export|import`, `/ui-unavailable`), cô lập router HTML cũ vào `api/legacy_v1.py`, nâng phiên bản `2.2.0` và đóng gói bộ cài offline. |
+| **Hoàn thiện Toàn diện (`2.3.0`)** | `c4633be` .. `2222888` | Đồng bộ **20/20 trang Next.js** sang `useApiQuery` (`createAbortableQueryRunner`), tách gọn `/novel`, `/batch`, `/videos/[id]` và thêm unit test TypeScript (`npm test`); bổ sung linter AST Python `F821`/`F401` (`test_static_python_lint.py`), nhãn `@pytest.mark.slow` và mẫu GitHub Actions CI (`docs/ci/github-actions-ci.yml` — copy sang `.github/workflows/ci.yml` bằng token có quyền `workflow`); thu hẹp bắt lỗi rộng; tách 4 module backend cuối cùng (`ai_images.py` tích hợp **Google GenAI Imagen 3**, `news_extractor.py`, `novel_chapters.py`, `batch_planner.py`); đạt **100% API parity V1→V2** (`270` routes) kèm cờ tắt hẳn V1 (`VIDEOCREATOR_DISABLE_LEGACY_V1=1`) và sổ tay nhân sự (`docs/staff-release-notes.md`). |
 
 ---
 
@@ -86,18 +88,18 @@ flowchart TD
 - **Gói Localize (`pipeline/localize/`)**: `project.py`, `extract.py`, `segments.py`, `voice.py`, `render.py`.
 - **Gói Autopilot (`autopilot/` + facade `rules.py`)**: `sources.py`, `crud.py`, `producers.py`, `runner.py`.
 - **Gói Visual Workflow DAG (`pipeline/workflows/` + facade `workflow_engine.py`)**: `dag.py`, `store.py`, `node_runners.py` (bảng điều phối `NODE_RUNNERS`), `executor.py`.
-- **Các Studio chuyên biệt khác**: `podcast_studio.py` + `podcast_visuals.py`, `novel_studio.py`, `news_studio.py`, `characters.py`, `channel_voices.py`, `batch_studio.py`, `editor.py`, `lipsync_studio.py`.
+- **Các Studio chuyên biệt khác**: `podcast_studio.py` + `podcast_visuals.py`, `novel_studio.py` + `novel_chapters.py`, `news_studio.py` + `news_extractor.py`, `characters.py` + `ai_images.py` (sinh ảnh thật **Gemini Imagen 3** `imagen-3.0-generate-002` + dự phòng phông nền local theo ngân sách ngày), `channel_voices.py`, `batch_studio.py` + `batch_planner.py`, `editor.py`, `lipsync_studio.py`.
 
 ### 3.3. Tầng API, Mounts Hạ tầng & Frontend Next.js 15
-- **API v1 (`/api/v1/*`)**:
-  - Đã tách gọn `routes_resources.py` thành `routes_products_v1.py`, `routes_footage_v1.py`, `routes_assets_v1.py`, `routes_voices_v1.py`; và `routes_production.py` thành `routes_styles_v1.py`, `routes_videos_v1.py`, `routes_studio_sessions_v1.py` (giữ nguyên 100% thứ tự route). Upload luồng lớn dùng chung `api/v1/uploads.py`.
+- **API v1 (`/api/v1/*` — 100% Parity với V1)**:
+  - Đã tách gọn `routes_resources.py` (`routes_products_v1.py`, `routes_footage_v1.py`, `routes_assets_v1.py`, `routes_voices_v1.py`) và `routes_production.py` (`routes_styles_v1.py`, `routes_videos_v1.py`, `routes_studio_sessions_v1.py`); bổ sung đầy đủ 5 nhóm endpoint còn lại ở `2.3.0` (`routes_broll_v1.py`, `routes_manual_v1.py`, `routes_ai_v1.py`, `/videos/{id}/manual-bundle`, `/studio/templates*`).
 - **Mounts Hạ tầng Thiết yếu (`src/videocreator/api/mounts/`)**:
-  - `mounts/media.py` (`/media/*`, `/files/*`), `mounts/freecut_bridge.py` (`/freecut*`, `/assets/{subpath}`, `/moss-tts/{subpath}`, `/api/editor/*` — **lưu ý**: `/assets/{subpath}` do `freecut_bridge` phục vụ cho trình dựng FreeCut, còn `routes_assets.py` chỉ là trang HTML V1 cũ), `mounts/oauth.py` (`/oauth/{platform}/*`), `mounts/config_bundle.py` (`/settings/export`, `/settings/import`), và `mounts/ui_fallback.py` (`/ui-unavailable`).
-  - Các router HTML V1 cũ được cô lập hoàn toàn trong `api/legacy_v1.py` (chi tiết tại `docs/refactor/v1-inventory.md`).
+  - `mounts/health.py` (`/health`), `mounts/media.py` (`/media/*`, `/files/*`), `mounts/freecut_bridge.py` (`/freecut*`, `/assets/{subpath}`, `/moss-tts/{subpath}`, `/api/editor/*`), `mounts/oauth.py` (`/oauth/{platform}/*`), `mounts/config_bundle.py` (`/settings/export`, `/settings/import`), và `mounts/ui_fallback.py` (`/ui-unavailable`).
+  - Các router HTML V1 cũ được cô lập trong `api/legacy_v1.py` và có thể tắt hoàn toàn bằng biến môi trường `VIDEOCREATOR_DISABLE_LEGACY_V1=1` (`0` router Jinja2 được nạp).
 - **Frontend Next.js 15 App Router (`web-next/src/`)**:
-  - **API Client & Context**: `lib/api/types.ts`, `lib/api/client.ts` (`ApiError`, `parseApiResponse`, `apiFetch`, `apiFetchBlob` — `0` lệnh `fetch()` thô bên ngoài `client.ts` và `proxy.ts`), `lib/workspace-context.tsx`, cùng facade tương thích `lib/api.ts`.
-  - **Shared Hooks**: `hooks/useApiQuery.ts` (tự hủy truy vấn cũ bằng `AbortController` khi chuyển nhanh giữa các Workspace), `hooks/useApiMutation.ts`, `hooks/useQueueSnapshot.ts`, `hooks/useLocalStorageState.ts`.
-  - **Các trang lớn đã tách `_components/` gọn dưới 300 dòng**: `app/approval/` (`199` dòng), `app/characters/` (`111` dòng), `app/welcome/` (`295` dòng), `app/trends/` (`171` dòng), cùng `app/localize/` và `app/settings/`.
+  - **API Client, Guard & Unit Tests**: `lib/api/types.ts`, `lib/api/client.ts` (`ApiError`, `parseApiResponse`, `apiFetch`, `apiFetchBlob`), `lib/api/query-controller.ts` (`createAbortableQueryRunner`), `lib/workspace-context.tsx`, cùng bộ kiểm thử `src/__tests__/{api-client,workspace-abort}.test.ts` chạy offline qua `npm test`.
+  - **Shared Hooks**: **20/20 trang** dùng `hooks/useApiQuery.ts` (tự hủy truy vấn cũ bằng `AbortController` khi chuyển Workspace), `hooks/useApiMutation.ts`, `hooks/useQueueSnapshot.ts`, `hooks/useLocalStorageState.ts`.
+  - **Các trang lớn đã tách `_components/` gọn nhẹ**: `app/approval/`, `app/characters/`, `app/welcome/`, `app/trends/`, `app/novel/`, `app/batch/`, `app/videos/[id]/`, `app/localize/` và `app/settings/`.
 
 ---
 
@@ -132,17 +134,19 @@ flowchart TD
 Set-Location c:\Users\ADMIN\video-creating
 $env:PYTHONIOENCODING = "utf-8"
 
-# 1. Kiểm tra nhanh các rào chắn kiến trúc, snapshot 254 route & token giao diện
-.\.venv\Scripts\pytest.exe tests\test_v2_r5_async_sse_and_architecture.py tests\test_arch_route_snapshot.py tests\test_v2_ui_nav_counts.py -q
+# 1. Kiểm tra nhanh linter tĩnh AST Python, rào chắn kiến trúc & snapshot 270 route
+.\.venv\Scripts\pytest.exe tests\test_static_python_lint.py tests\test_v2_r5_async_sse_and_architecture.py tests\test_arch_route_snapshot.py -q
 
-# 2. Lint & Build giao diện Next.js 15 Standalone
+# 2. Lint, Unit Tests & Build giao diện Next.js 15 Standalone
 Push-Location web-next
 $env:PATH = "c:\Users\ADMIN\video-creating\runtime\node;$env:PATH"
 npm run lint
+npm test
 npm run build
 Pop-Location
 
-# 3. Kiểm thử local toàn diện (271 passed, 1 skipped trên 74 tệp test)
+# 3. Kiểm thử local nhanh (bỏ qua nhóm E2E nặng) & kiểm thử local toàn diện (277 passed, 1 skipped)
+.\.venv\Scripts\pytest.exe -m "local and not slow" -q
 .\.venv\Scripts\pytest.exe -m local -q
 
 # 4. Kiểm thử suy luận AI CPU thật (khi đã tải model)

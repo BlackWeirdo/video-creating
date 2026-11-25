@@ -1,5 +1,5 @@
 ; Inno Setup Script for Video Creator V2 Offline Desktop Installer (Stage R6)
-#define MyAppVersion "2.2.0"
+#define MyAppVersion "2.3.0"
 
 [Setup]
 AppId={{C279BE7C-7B12-4A91-A8B8-13C763573B03}
