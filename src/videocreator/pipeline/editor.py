@@ -8,10 +8,12 @@ from pathlib import Path
 from typing import Any
 
 from videocreator.db import get_conn, query_all, query_one, record_audit
+from videocreator.db_rows import hydrate_row
 from videocreator.job_store import report_active_job_progress
 from videocreator.jsonutil import loads_or
 from videocreator.paths import AppPaths
 from videocreator.pipeline.assembly import load_shot_source, save_render_cache
+from videocreator.pipeline.compute_job import compute_job_scope
 from videocreator.pipeline.export import resolve_canvas_dimensions
 from videocreator.pipeline.ffmpeg import RenderError, run_ffmpeg
 from videocreator.pipeline.probe import probe_duration, probe_video
@@ -79,12 +81,12 @@ def list_editor_media(db_file: Path, *, workspace_id: int) -> dict[str, Any]:
 
 
 def _hydrate_editor_project(row: dict[str, Any]) -> dict[str, Any]:
-    out = dict(row)
-    out["tracks"] = loads_or(
-        row.get("tracks_json"),
-        {"video_clips": [], "audio_clips": [], "subtitles": []},
+    return hydrate_row(
+        row,
+        json_fields={
+            "tracks": ("tracks_json", {"video_clips": [], "audio_clips": [], "subtitles": []})
+        },
     )
-    return out
 
 
 def get_editor_project(db_file: Path, project_id: int) -> dict[str, Any] | None:
@@ -425,8 +427,9 @@ def render_editor_project(
 
 
 def run_editor_render_job(paths: AppPaths, project_id: int) -> str:
-    proj = get_editor_project(paths.db_file, project_id)
-    tracks = dict((proj or {}).get("tracks") or {})
-    style_preset = str(tracks.get("style_preset") or "tiktok_karaoke")
-    done = render_editor_project(paths, project_id, style_preset=style_preset)
+    with compute_job_scope():
+        proj = get_editor_project(paths.db_file, project_id)
+        tracks = dict((proj or {}).get("tracks") or {})
+        style_preset = str(tracks.get("style_preset") or "tiktok_karaoke")
+        done = render_editor_project(paths, project_id, style_preset=style_preset)
     return str(done.get("status") or "completed")

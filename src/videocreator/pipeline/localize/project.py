@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from videocreator.db import get_conn, query_all, query_one, record_audit
-from videocreator.jsonutil import loads_or
+from videocreator.db_rows import hydrate_row
 from videocreator.paths import AppPaths
 from videocreator.trends.download import fetch_reference_video
 from videocreator.tts.syllables import count_syllables, max_syllables_for_duration
@@ -64,20 +64,19 @@ def validate_localize_policy(
 
 
 def hydrate_project(row: dict[str, Any]) -> dict[str, Any]:
-    out = dict(row)
-    out["hardsub_box"] = loads_or(
-        row.get("hardsub_box_json"), {"x": 0.06, "y": 0.74, "w": 0.88, "h": 0.16}
+    out = hydrate_row(
+        row,
+        json_fields={
+            "hardsub_box": ("hardsub_box_json", {"x": 0.06, "y": 0.74, "w": 0.88, "h": 0.16}),
+            "anti_dup": ("anti_dup_json", {"mirror": False, "zoom": 1.04, "color_eq": True}),
+            "segments": ("segments_json", []),
+            "product_ids": ("product_ids_json", []),
+            "simulation_flags": ("simulation_flags_json", []),
+            "speaker_config": ("speaker_config_json", {}),
+            "ocr_cues": ("ocr_cues_json", []),
+        },
+        bool_fields=("clone_source_voice", "clone_consent_confirmed"),
     )
-    out["anti_dup"] = loads_or(
-        row.get("anti_dup_json"), {"mirror": False, "zoom": 1.04, "color_eq": True}
-    )
-    out["segments"] = loads_or(row.get("segments_json"), [])
-    out["product_ids"] = loads_or(row.get("product_ids_json"), [])
-    out["simulation_flags"] = loads_or(row.get("simulation_flags_json"), [])
-    out["speaker_config"] = loads_or(row.get("speaker_config_json"), {})
-    out["ocr_cues"] = loads_or(row.get("ocr_cues_json"), [])
-    out["clone_source_voice"] = bool(int(row.get("clone_source_voice") or 0))
-    out["clone_consent_confirmed"] = bool(int(row.get("clone_consent_confirmed") or 0))
     out["whisper_size"] = str(row.get("whisper_size") or "small")
     out["translation_style"] = str(row.get("translation_style") or "natural_tiktok")
     return out

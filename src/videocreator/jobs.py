@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import gc
 import inspect
 import logging
 import traceback
@@ -209,6 +210,8 @@ async def run_one_job(
         )
     finally:
         reset_active_job_context(token)
+        if job.get("lane") == "compute":
+            gc.collect()
     return True
 
 

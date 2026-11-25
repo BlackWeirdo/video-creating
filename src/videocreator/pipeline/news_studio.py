@@ -14,11 +14,13 @@ from urllib.parse import urlsplit
 from videocreator.approvals import try_autopilot_approve
 from videocreator.autopilot import parse_rss_or_atom_items
 from videocreator.db import get_conn, query_all, query_one, record_audit
+from videocreator.db_rows import hydrate_row
 from videocreator.job_store import report_active_job_progress
 from videocreator.jsonutil import loads_or
 from videocreator.paths import AppPaths
 from videocreator.pipeline.assembly import ensure_full_ai_canvas_shot
 from videocreator.pipeline.characters import generate_ai_image
+from videocreator.pipeline.compute_job import run_studio_project_job
 from videocreator.pipeline.render import render_video
 from videocreator.pipeline.styles import resolve_style_preset
 from videocreator.posting.publish_pack import build_publish_pack_zip
@@ -215,11 +217,14 @@ def create_news_project(
 
 
 def _hydrate_news(row: dict[str, Any]) -> dict[str, Any]:
-    out = dict(row)
-    out["facts"] = loads_or(row.get("facts_json"), {})
-    out["script"] = loads_or(row.get("script_json"), [])
-    out["simulation_flags"] = loads_or(row.get("simulation_flags_json"), [])
-    return out
+    return hydrate_row(
+        row,
+        json_fields={
+            "facts": ("facts_json", {}),
+            "script": ("script_json", []),
+            "simulation_flags": ("simulation_flags_json", []),
+        },
+    )
 
 
 def get_news_project(db_file: Path, project_id: int) -> dict[str, Any] | None:
@@ -526,5 +531,4 @@ def render_news_project(
 
 
 def run_news_render_job(paths: AppPaths, project_id: int) -> str:
-    res = render_news_project(paths, project_id)
-    return str(res.get("status") or "completed")
+    return run_studio_project_job(render_news_project, paths, project_id)

@@ -12,6 +12,7 @@ from typing import Any
 
 from videocreator.approvals import try_autopilot_approve
 from videocreator.db import get_conn, query_all, query_one, record_audit
+from videocreator.db_rows import hydrate_row
 from videocreator.job_store import report_active_job_progress
 from videocreator.jsonutil import loads_or
 from videocreator.models_manager import get_local_model
@@ -21,6 +22,7 @@ from videocreator.pipeline.assembly import (
     render_styled_still_png,
     save_render_cache,
 )
+from videocreator.pipeline.compute_job import run_studio_project_job
 from videocreator.pipeline.characters import get_character
 from videocreator.pipeline.export import resolve_canvas_dimensions
 from videocreator.pipeline.ffmpeg import run_ffmpeg
@@ -72,13 +74,14 @@ def compute_pcm_rms_envelope(wav_path: Path, *, window_ms: int = 120) -> dict[st
 
 
 def _hydrate_lipsync(row: dict[str, Any]) -> dict[str, Any]:
-    out = dict(row)
-    out["metrics"] = loads_or(row.get("metrics_json"), {})
-    out["simulation_flags"] = loads_or(row.get("simulation_flags_json"), ["lipsync_waveform_preview"])
-    out["video_url"] = (
-        f"/files/{str(row['output_path']).lstrip('/')}" if row.get("output_path") else ""
+    return hydrate_row(
+        row,
+        json_fields={
+            "metrics": ("metrics_json", {}),
+            "simulation_flags": ("simulation_flags_json", ["lipsync_waveform_preview"]),
+        },
+        media_url_from=("video_url", "output_path", ""),
     )
-    return out
 
 
 def get_lipsync_project(db_file: Path, project_id: int) -> dict[str, Any] | None:
@@ -413,5 +416,4 @@ def render_lipsync_project(
 
 
 def run_lipsync_render_job(paths: AppPaths, project_id: int) -> str:
-    res = render_lipsync_project(paths, project_id)
-    return str(res.get("status") or "completed")
+    return run_studio_project_job(render_lipsync_project, paths, project_id)

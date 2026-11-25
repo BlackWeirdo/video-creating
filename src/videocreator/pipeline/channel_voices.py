@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from videocreator.db import get_conn, query_all, query_one, record_audit
+from videocreator.db_rows import hydrate_row
 from videocreator.models_manager import get_local_model
 from videocreator.paths import AppPaths
 from videocreator.pipeline.ffmpeg import run_ffmpeg
@@ -34,10 +35,11 @@ VIENEU_PRESET_NAMES: frozenset[str] = frozenset(
 
 
 def _hydrate_channel_voice(row: dict[str, Any]) -> dict[str, Any]:
-    out = dict(row)
-    out["consent_confirmed"] = bool(int(row.get("consent_confirmed") or 0))
-    rel = str(row.get("ref_audio_path") or "").lstrip("/")
-    out["audio_url"] = f"/files/{rel}" if rel else ""
+    out = hydrate_row(
+        row,
+        bool_fields=("consent_confirmed",),
+        media_url_from=("audio_url", "ref_audio_path", ""),
+    )
     out["voice_token"] = f"channel_voice:{row['id']}"
     return out
 

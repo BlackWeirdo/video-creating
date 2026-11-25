@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from videocreator.db import get_conn, query_all, query_one, record_audit
-from videocreator.jsonutil import loads_or
+from videocreator.db_rows import hydrate_row
 from videocreator.models_manager import get_local_model
 from videocreator.paths import AppPaths
 from videocreator.pipeline.assembly import SEED_PALETTE, render_styled_still_png
@@ -31,17 +31,21 @@ def _image_dims(aspect_ratio: str) -> tuple[int, int]:
 
 
 def _hydrate_character(row: dict[str, Any]) -> dict[str, Any]:
-    out = dict(row)
-    out["style_tags"] = loads_or(row.get("style_tags_json"), [])
-    out["cutout_simulation_flags"] = loads_or(row.get("cutout_simulation_flags_json"), [])
-    return out
+    return hydrate_row(
+        row,
+        json_fields={
+            "style_tags": ("style_tags_json", []),
+            "cutout_simulation_flags": ("cutout_simulation_flags_json", []),
+        },
+    )
 
 
 def _hydrate_image(row: dict[str, Any]) -> dict[str, Any]:
-    out = dict(row)
-    out["is_product_shot"] = bool(row.get("is_product_shot", 0))
-    out["simulation_flags"] = loads_or(row.get("simulation_flags_json"), [])
-    return out
+    return hydrate_row(
+        row,
+        json_fields={"simulation_flags": ("simulation_flags_json", [])},
+        bool_fields=("is_product_shot",),
+    )
 
 
 def create_character(

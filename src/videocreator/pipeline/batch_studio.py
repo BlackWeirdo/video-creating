@@ -482,5 +482,6 @@ def run_batch_run(
 
 
 def run_batch_run_job(paths: AppPaths, batch_id: int) -> str:
-    res = run_batch_run(paths, batch_id)
-    return str(res.get("status") or "completed")
+    from videocreator.pipeline.compute_job import run_studio_project_job
+
+    return run_studio_project_job(run_batch_run, paths, batch_id)

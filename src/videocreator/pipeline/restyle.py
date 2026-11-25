@@ -133,4 +133,7 @@ def restyle_video(
 
 
 def run_restyle_job(paths: AppPaths, video_id: int) -> str:
-    return restyle_video(paths, video_id)
+    from videocreator.pipeline.compute_job import compute_job_scope
+
+    with compute_job_scope():
+        return restyle_video(paths, video_id)

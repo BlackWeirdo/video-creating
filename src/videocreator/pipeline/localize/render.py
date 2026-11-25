@@ -431,5 +431,6 @@ def run_localize_render(
 
 
 def run_localize_render_job(paths: AppPaths, project_id: int) -> str:
-    proj = run_localize_render(paths, project_id)
-    return str(proj.get("status") or "completed")
+    from videocreator.pipeline.compute_job import run_studio_project_job
+
+    return run_studio_project_job(run_localize_render, paths, project_id)

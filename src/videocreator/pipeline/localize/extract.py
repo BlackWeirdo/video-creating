@@ -206,5 +206,8 @@ def run_localize_extract(
 
 
 def run_localize_extract_job(paths: AppPaths, project_id: int) -> str:
-    proj = run_localize_extract(paths, project_id)
-    return str(proj.get("status") or "ready_to_edit")
+    from videocreator.pipeline.compute_job import run_studio_project_job
+
+    return run_studio_project_job(
+        run_localize_extract, paths, project_id, default_status="ready_to_edit"
+    )

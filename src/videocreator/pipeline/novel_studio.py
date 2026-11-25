@@ -9,11 +9,13 @@ from typing import Any
 
 from videocreator.approvals import try_autopilot_approve
 from videocreator.db import get_conn, query_all, query_one, record_audit
+from videocreator.db_rows import file_media_url, hydrate_row
 from videocreator.job_store import report_active_job_progress
 from videocreator.jsonutil import loads_or
 from videocreator.paths import AppPaths
 from videocreator.pipeline.assembly import ensure_full_ai_canvas_shot
 from videocreator.pipeline.characters import generate_ai_image
+from videocreator.pipeline.compute_job import run_studio_project_job
 from videocreator.pipeline.export import resolve_canvas_dimensions
 from videocreator.pipeline.render import render_video
 from videocreator.pipeline.styles import resolve_style_preset
@@ -113,19 +115,13 @@ def _hydrate_novel(db_file: Path, row: dict[str, Any]) -> dict[str, Any]:
         "SELECT * FROM novel_chapters WHERE project_id = ? ORDER BY chapter_index ASC",
         (int(row["id"]),),
     )
-    out = dict(row)
+    out = hydrate_row(row, json_fields={"simulation_flags": ("simulation_flags_json", [])})
     out["chapters"] = [
-        {
-            **ch,
-            "video_url": f"/files/{str(ch['output_path']).lstrip('/')}"
-            if ch.get("output_path")
-            else "",
-        }
+        {**ch, "video_url": file_media_url(ch.get("output_path"), empty="")}
         for ch in chapters
     ]
     out["total_chapters"] = len(chapters)
     out["ready_chapters"] = sum(1 for ch in chapters if ch.get("status") == "ready")
-    out["simulation_flags"] = loads_or(row.get("simulation_flags_json"), [])
     return out
 
 
@@ -502,5 +498,4 @@ def render_novel_project(
 
 
 def run_novel_render_job(paths: AppPaths, project_id: int) -> str:
-    res = render_novel_project(paths, project_id)
-    return str(res.get("status") or "completed")
+    return run_studio_project_job(render_novel_project, paths, project_id)
