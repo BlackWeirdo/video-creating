@@ -35,6 +35,12 @@ export interface JobRecord {
   log_tail: string | null;
 }
 
+export interface NavCounts {
+  approvals_pending: number;
+  suggestions_new: number;
+  failed_routes: string[];
+}
+
 export async function apiFetch<T = unknown>(
   path: string,
   options?: RequestInit

@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { AlertCircle, CheckCircle2, Loader2, X } from "lucide-react";
 import { apiFetch, JobRecord } from "@/lib/api";
+import { Badge } from "@/components/ui/badge";
 
 interface QueueSnapshotEventDetail {
   recent_jobs?: JobRecord[];
@@ -92,6 +93,14 @@ export function useJobProgress(
   return { job, isRunning };
 }
 
+const STATUS_LABEL_VI: Record<string, string> = {
+  queued: "Đang chờ tới lượt",
+  running: "Đang xử lý",
+  waiting_quota: "Tạm chờ hạn mức AI",
+  done: "Hoàn tất",
+  failed: "Gặp lỗi",
+};
+
 export function JobProgressBanner({
   job,
   jobId,
@@ -113,67 +122,78 @@ export function JobProgressBanner({
   const stepText =
     job?.step ||
     (status === "queued"
-      ? "Đang xếp hàng trong làn xử lý..."
+      ? "Tác vụ đã vào hàng đợi xử lý nền..."
       : status === "done"
-        ? "Hoàn tất"
-        : "Đang xử lý...");
+        ? "Tác vụ đã hoàn tất."
+        : "Hệ thống đang xử lý...");
 
   const isDone = status === "done";
   const isFailed = status === "failed";
+  const laneLabel = job?.lane === "io" ? "Tải & đăng" : "Xử lý video";
 
   return (
     <div
-      className={`border rounded-xl px-4 py-3 text-xs space-y-2 ${
+      role="status"
+      aria-live="polite"
+      className={`rounded-[13px] border px-4 py-3 text-[13px] space-y-2 ${
         isFailed
-          ? "bg-rose-500/10 border-rose-500/30 text-rose-200"
+          ? "bg-[var(--st-rose-bg)] border-[var(--st-rose-bd)] text-[var(--st-rose-tx)]"
           : isDone
-            ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-200"
-            : "bg-sky-500/10 border-sky-500/30 text-sky-100"
+            ? "bg-[var(--st-emerald-bg)] border-[var(--st-emerald-bd)] text-[var(--st-emerald-tx)]"
+            : "bg-[var(--bg-card)] border-[var(--c-bd)] text-[var(--text-primary)] shadow-[var(--shadow-sm)]"
       }`}
     >
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 font-medium">
+        <div className="flex flex-wrap items-center gap-2 font-semibold">
           {isFailed ? (
-            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+            <AlertCircle className="w-4 h-4 shrink-0" />
           ) : isDone ? (
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
           ) : (
-            <Loader2 className="w-4 h-4 text-sky-400 animate-spin shrink-0" />
+            <Loader2 className="w-4 h-4 text-[var(--c-icon)] animate-spin shrink-0" />
           )}
+          <Badge tone={isFailed ? "rose" : isDone ? "emerald" : "cluster"} className="tabular-nums">
+            {STATUS_LABEL_VI[status] || status} • {pct}%
+          </Badge>
           <span>
-            {label ? `${label} • ` : ""}Job #{jobId} ({job?.lane || "compute"}):{" "}
-            <strong className="uppercase">{status}</strong> — {pct}%
+            {label ? `${label} • ` : ""}Tác vụ #{jobId} ({laneLabel})
           </span>
         </div>
         {(isDone || isFailed) && onDismiss && (
           <button
             type="button"
             onClick={onDismiss}
-            className="text-slate-400 hover:text-white cursor-pointer"
-            title="Ẩn thanh tiến trình"
+            aria-label="Ẩn thanh tiến trình"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[var(--text-muted)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)] cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         )}
       </div>
 
-      <div className="w-full h-2 rounded-full bg-slate-900/80 overflow-hidden">
+      <div
+        role="progressbar"
+        aria-valuenow={pct}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        className="w-full h-2 rounded-full bg-[var(--bg-elevated)] overflow-hidden"
+      >
         <div
           className={`h-full transition-all duration-300 ${
             isFailed
               ? "bg-rose-500"
               : isDone
-                ? "bg-emerald-400"
-                : "bg-sky-400"
+                ? "bg-emerald-500"
+                : "bg-[var(--c-solid)]"
           }`}
           style={{ width: `${pct}%` }}
         />
       </div>
 
-      <div className="text-[11px] text-slate-300 flex flex-wrap justify-between gap-2">
+      <div className="text-[12.5px] text-[var(--text-secondary)] flex flex-wrap justify-between gap-2">
         <span>{stepText}</span>
         {isFailed && job?.error && (
-          <span className="text-rose-300 font-medium">{job.error}</span>
+          <span className="text-[var(--st-rose-tx)] font-semibold">{job.error}</span>
         )}
       </div>
     </div>

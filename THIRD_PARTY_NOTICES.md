@@ -14,8 +14,8 @@ Video Creator V2 bundles or integrates the following open-source projects and ex
    - License: MIT License
    - Usage: Visual drag-and-drop Workflow Node DAG canvas (`/workflows`).
 
-4. **Lucide React & Tailwind CSS**
-   - License: ISC / MIT Licenses.
+4. **Lucide React, Tailwind CSS, Radix UI Primitives, cmdk, sonner & next-themes**
+   - Licenses: ISC / MIT Licenses.
 
 5. **FastAPI, Uvicorn, Pydantic, APScheduler, Cryptography, yt-dlp**
    - Licenses: MIT, BSD-3-Clause, Apache-2.0, Unlicense (`yt-dlp`).

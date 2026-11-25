@@ -1,90 +1,79 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  Activity,
-  BookOpen,
-  Bot,
-  CheckCircle2,
-  Clapperboard,
-  Film,
-  Flame,
-  FolderKanban,
-  Languages,
-  Layers,
-  LayoutDashboard,
-  Mic,
-  Newspaper,
-  Palette,
-  Pause,
-  Play,
-  Plus,
-  Rocket,
-  Scissors,
-  Settings,
-  ShieldCheck,
-  Sparkles,
-  Terminal,
-  UserCheck,
-  Workflow,
-  X,
-} from "lucide-react";
-import { apiFetch, JobRecord, QueueSummary, useWorkspace, Workspace } from "@/lib/api";
-
-const NAV_ITEMS = [
-  { href: "/", label: "Tổng quan", icon: LayoutDashboard },
-  { href: "/trends", label: "Xu hướng & Công thức", icon: Flame },
-  { href: "/products", label: "Sản phẩm & Dữ kiện", icon: FolderKanban },
-  { href: "/footage", label: "Footage & Kho Shot", icon: Film },
-  { href: "/videos", label: "Sản xuất & Kịch bản", icon: Clapperboard },
-  { href: "/localize", label: "Việt hóa & Remix", icon: Languages },
-  { href: "/batch", label: "Batch & A/B Studio", icon: Layers },
-  { href: "/characters", label: "Nhân vật & Ảnh AI", icon: UserCheck },
-  { href: "/news", label: "Tin tức → Video", icon: Newspaper },
-  { href: "/novel", label: "Tiểu thuyết → Video", icon: BookOpen },
-  { href: "/podcast", label: "Podcast Sóng nhạc", icon: Mic },
-  { href: "/editor", label: "Trình dựng FreeCut", icon: Scissors },
-  { href: "/workflows", label: "Workflow Node", icon: Workflow },
-  { href: "/video-style", label: "Video Style & Audio", icon: Palette },
-  { href: "/studio", label: "Remotion Studio AI", icon: Sparkles },
-  { href: "/autopilot", label: "Kênh Autopilot", icon: Bot },
-  { href: "/approval", label: "Duyệt, Kênh & Lịch đăng", icon: CheckCircle2 },
-  { href: "/settings", label: "Cài đặt & AI Keys", icon: Settings },
-  { href: "/welcome", label: "Welcome Wizard", icon: Rocket },
-];
-
-const POLICY_BADGE: Record<Workspace["content_policy"], { label: string; cls: string }> = {
-  strict_footage: {
-    label: "Strict Footage",
-    cls: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
-  },
-  hybrid_remix: {
-    label: "Hybrid Remix",
-    cls: "bg-amber-500/15 text-amber-300 border-amber-500/30",
-  },
-  full_ai: {
-    label: "Full AI",
-    cls: "bg-sky-500/15 text-sky-300 border-sky-500/30",
-  },
-};
+import { Rocket } from "lucide-react";
+import { apiFetch, JobRecord, NavCounts, QueueSummary } from "@/lib/api";
+import { resolveRouteMeta, STORAGE_KEYS } from "@/config/navigation";
+import { Sidebar } from "@/components/shell/Sidebar";
+import { CreateWorkspaceDialog } from "@/components/shell/WorkspaceSwitcher";
+import { CommandPalette } from "@/components/shell/CommandPalette";
+import { QueueBar, ThemeToggle } from "@/components/shell/QueueBar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const {
-    workspaces,
-    activeWorkspaceId,
-    activeWorkspace,
-    activateWorkspace,
-  } = useWorkspace();
+  const routeMeta = resolveRouteMeta(pathname);
 
   const [queue, setQueue] = useState<QueueSummary | null>(null);
   const [recentJobs, setRecentJobs] = useState<JobRecord[]>([]);
+  const [navCounts, setNavCounts] = useState<NavCounts | null>(null);
   const [showLogs, setShowLogs] = useState(false);
   const [logLines, setLogLines] = useState<string[]>([]);
   const [wizardNeeded, setWizardNeeded] = useState(false);
   const [showNewWs, setShowNewWs] = useState(false);
+  const [cmdkOpen, setCmdkOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+  const [manualCollapsed, setManualCollapsed] = useState<boolean | null>(null);
+
+  // Sync active cluster attribute on <html> so portaled dialogs/dropdowns share cluster tokens
+  useEffect(() => {
+    document.documentElement.setAttribute("data-cluster", routeMeta.clusterId);
+  }, [routeMeta.clusterId]);
+
+  const syncSidebarPref = useCallback(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.SIDEBAR_COLLAPSED);
+      if (saved === "1" || saved === "0") {
+        const flag = saved === "1";
+        setManualCollapsed(flag);
+        setCollapsed(flag);
+        return;
+      }
+      setManualCollapsed(null);
+      setCollapsed(window.innerWidth < 1100);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    syncSidebarPref();
+    const onResize = () => {
+      if (manualCollapsed === null) {
+        setCollapsed(window.innerWidth < 1100);
+      }
+    };
+    window.addEventListener("resize", onResize);
+    window.addEventListener("vc:nav-prefs-changed", syncSidebarPref);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("vc:nav-prefs-changed", syncSidebarPref);
+    };
+  }, [manualCollapsed, syncSidebarPref]);
+
+  const handleToggleCollapse = () => {
+    const next = !collapsed;
+    setManualCollapsed(next);
+    setCollapsed(next);
+    try {
+      localStorage.setItem(STORAGE_KEYS.SIDEBAR_COLLAPSED, next ? "1" : "0");
+    } catch {
+      // ignore
+    }
+  };
 
   useEffect(() => {
     const checkWizard = () => {
@@ -97,13 +86,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("vc:onboarding-updated", checkWizard);
   }, []);
 
-  const [wsName, setWsName] = useState("");
-  const [wsNiche, setWsNiche] = useState("general");
-  const [wsPolicy, setWsPolicy] = useState<Workspace["content_policy"]>("strict_footage");
-  const [wsApproval, setWsApproval] = useState<Workspace["approval_mode"]>("single");
-  const [wsRatio, setWsRatio] = useState<Workspace["default_aspect_ratio"]>("9:16");
-  const [wsErr, setWsErr] = useState("");
-
   useEffect(() => {
     let es: EventSource | null = null;
     try {
@@ -113,6 +95,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           const snap = JSON.parse((ev as MessageEvent<string>).data);
           if (snap?.queue) setQueue(snap.queue);
           if (Array.isArray(snap?.recent_jobs)) setRecentJobs(snap.recent_jobs);
+          if (snap?.nav_counts) setNavCounts(snap.nav_counts);
           window.dispatchEvent(new CustomEvent("vc:queue-snapshot", { detail: snap }));
         } catch {
           // ignore malformed heartbeat
@@ -149,313 +132,86 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     setQueue(next);
   };
 
-  const handleCreateWorkspace = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setWsErr("");
-    try {
-      const res = await apiFetch<{ workspace: Workspace }>("/api/v1/workspaces", {
-        method: "POST",
-        body: JSON.stringify({
-          name: wsName,
-          niche: wsNiche,
-          content_policy: wsPolicy,
-          approval_mode: wsApproval,
-          default_aspect_ratio: wsRatio,
-        }),
-      });
-      await activateWorkspace(res.workspace.id);
-      setWsName("");
-      setShowNewWs(false);
-    } catch (err) {
-      setWsErr(err instanceof Error ? err.message : "Không thể tạo Workspace");
-    }
-  };
-
-  const policyBadge = activeWorkspace
-    ? POLICY_BADGE[activeWorkspace.content_policy]
-    : POLICY_BADGE.strict_footage;
-
-  const ioRunning = queue?.by_lane?.io?.running || 0;
-  const ioQueued = queue?.by_lane?.io?.queued || 0;
-  const computeRunning = queue?.by_lane?.compute?.running || 0;
-  const computeQueued = queue?.by_lane?.compute?.queued || 0;
-  const latestActiveJob = recentJobs.find((j) => j.status === "running") || recentJobs[0];
-
   return (
-    <div className="min-h-screen flex bg-[#0b0f17] text-slate-100">
-      {/* Left Studio Sidebar */}
-      <aside className="w-68 shrink-0 bg-[#111827] border-r border-slate-800/80 flex flex-col justify-between">
-        <div>
-          <div className="px-4 py-4 border-b border-slate-800/80 flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-sky-500/20 border border-sky-400/30 flex items-center justify-center text-sky-400">
-              <Layers className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="font-semibold text-sm tracking-tight text-white">
-                Video Creator V2
-              </div>
-              <div className="text-[11px] text-slate-400">AI Multi-Studio Desktop</div>
-            </div>
-          </div>
+    <div
+      data-cluster={routeMeta.clusterId}
+      style={{
+        background:
+          "radial-gradient(640px 320px at 0% 0%, var(--c-soft), transparent 70%), var(--bg-canvas)",
+      }}
+      className="min-h-screen flex text-[var(--text-primary)]"
+    >
+      <a
+        href="#main-studio-content"
+        className="fixed -top-28 left-4 z-50 rounded-lg bg-[var(--c-solid)] px-3.5 py-2 text-[13px] font-semibold text-[var(--c-on)] focus:top-3"
+      >
+        Bỏ qua tới nội dung chính
+      </a>
 
-          {/* Workspace Switcher */}
-          <div className="p-3 border-b border-slate-800/80 space-y-2">
-            <div className="flex items-center justify-between text-[11px] uppercase tracking-wider text-slate-400 px-1">
-              <span>Workspace thương hiệu</span>
-              <button
-                onClick={() => setShowNewWs(true)}
-                className="inline-flex items-center gap-1 text-sky-400 hover:text-sky-300 cursor-pointer"
-                title="Tạo Workspace mới"
-              >
-                <Plus className="w-3.5 h-3.5" /> Tạo mới
-              </button>
-            </div>
-            <select
-              value={activeWorkspaceId}
-              onChange={(e) => void activateWorkspace(Number(e.target.value))}
-              className="w-full bg-[#182235] border border-slate-700/80 rounded-lg px-2.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-sky-400"
-            >
-              {workspaces.map((ws) => (
-                <option key={ws.id} value={ws.id}>
-                  {ws.name} ({ws.niche})
-                </option>
-              ))}
-            </select>
-            {activeWorkspace && (
-              <div className="flex flex-wrap gap-1.5 px-0.5">
-                <span
-                  className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border ${policyBadge.cls}`}
-                >
-                  <ShieldCheck className="w-3 h-3" /> {policyBadge.label}
-                </span>
-                <span className="inline-flex items-center text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
-                  Duyệt: {activeWorkspace.approval_mode}
-                </span>
-              </div>
-            )}
-          </div>
+      <Sidebar
+        collapsed={collapsed}
+        onToggleCollapse={handleToggleCollapse}
+        onOpenCmdk={() => setCmdkOpen(true)}
+        onOpenCreateWs={() => setShowNewWs(true)}
+        wizardNeeded={wizardNeeded}
+        navCounts={navCounts}
+      />
 
-          {/* Navigation */}
-          <nav className="p-2.5 space-y-1">
-            {NAV_ITEMS.map((item) => {
-              const Icon = item.icon;
-              const isActive =
-                item.href === "/"
-                  ? pathname === "/"
-                  : pathname === item.href || pathname.startsWith(`${item.href}/`);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
-                    isActive
-                      ? "bg-sky-500/15 text-sky-300 border border-sky-500/30"
-                      : "text-slate-300 hover:bg-slate-800/70 hover:text-white border border-transparent"
-                  }`}
-                >
-                  <Icon className="w-4 h-4 shrink-0" />
-                  <span>{item.label}</span>
-                </Link>
-              );
-            })}
-          </nav>
-        </div>
-
-        <div className="p-3 border-t border-slate-800/80 text-[11px] text-slate-500">
-          FastAPI + Dual-Lane Worker • Next.js 15
-        </div>
-      </aside>
-
-      {/* Main Content + Persistent Queue Bar */}
       <div className="flex-1 flex flex-col min-w-0">
-        {wizardNeeded && pathname !== "/welcome" && (
-          <div className="bg-sky-500/10 border-b border-sky-500/30 px-6 py-2 flex flex-wrap items-center justify-between gap-2 text-xs">
-            <span className="text-sky-200">
-              Chào mừng bạn đến Video Creator V2! Hãy hoàn tất Welcome Wizard để kiểm tra FFmpeg, Workspace &amp; AI Keys.
+        {/* Top Breadcrumb + Theme Switcher */}
+        <header className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border-subtle)] bg-[var(--bg-canvas)]/86 backdrop-blur-md px-6 py-2.5">
+          <div
+            aria-label="Vị trí hiện tại"
+            className="flex items-center gap-2 text-[13px] text-[var(--text-muted)]"
+          >
+            <Badge tone="cluster">{routeMeta.clusterLabel}</Badge>
+            <span aria-hidden="true">/</span>
+            <span className="font-semibold text-[var(--text-primary)]">
+              {routeMeta.itemLabel}
             </span>
-            <Link
-              href="/welcome"
-              className="inline-flex items-center gap-1 px-3 py-1 rounded bg-sky-500 text-slate-950 font-semibold"
-            >
-              <Rocket className="w-3.5 h-3.5" /> Thiết lập ngay →
-            </Link>
+          </div>
+          <ThemeToggle />
+        </header>
+
+        {wizardNeeded && pathname !== "/welcome" && (
+          <div className="border-b border-[var(--c-bd)] bg-[var(--c-soft)] px-6 py-2 flex flex-wrap items-center justify-between gap-2 text-[13px]">
+            <span className="text-[var(--text-primary)] font-medium">
+              Chào mừng bạn đến Video Creator V2! Hãy hoàn tất Hướng dẫn thiết lập để kiểm tra FFmpeg, Workspace &amp; AI Keys.
+            </span>
+            <Button asChild size="sm">
+              <Link href="/welcome">
+                <Rocket className="w-3.5 h-3.5" /> Thiết lập ngay →
+              </Link>
+            </Button>
           </div>
         )}
-        <main className="flex-1 p-6 pb-20 overflow-y-auto">{children}</main>
 
-        {/* Bottom Live Dual-Lane Queue & Logs Bar */}
-        <footer className="sticky bottom-0 z-20 bg-[#111827]/95 backdrop-blur border-t border-slate-800 px-5 py-2.5">
-          <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
-            <div className="flex flex-wrap items-center gap-4">
-              <div className="flex items-center gap-1.5">
-                <Activity className="w-3.5 h-3.5 text-sky-400" />
-                <span className="text-slate-300 font-medium">Hàng đợi 2 làn:</span>
-              </div>
-              <span className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-200">
-                Làn IO: <strong className="text-sky-300">{ioRunning}</strong> chạy /{" "}
-                {ioQueued} chờ
-              </span>
-              <span className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-200">
-                Làn Compute: <strong className="text-amber-300">{computeRunning}</strong> chạy
-                / {computeQueued} chờ
-              </span>
-              {latestActiveJob && (
-                <span className="text-slate-400 truncate max-w-xs">
-                  Job #{latestActiveJob.id} ({latestActiveJob.kind}):{" "}
-                  <span className="text-slate-200">{latestActiveJob.status}</span>
-                  {latestActiveJob.step ? ` — ${latestActiveJob.step}` : ""}
-                </span>
-              )}
-            </div>
+        <main
+          id="main-studio-content"
+          className="flex-1 px-6 py-5 pb-20 overflow-y-auto"
+        >
+          {children}
+        </main>
 
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => void togglePause()}
-                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-md font-medium border cursor-pointer ${
-                  queue?.paused
-                    ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
-                    : "bg-amber-500/15 text-amber-300 border-amber-500/30"
-                }`}
-              >
-                {queue?.paused ? (
-                  <>
-                    <Play className="w-3.5 h-3.5" /> Chạy tiếp
-                  </>
-                ) : (
-                  <>
-                    <Pause className="w-3.5 h-3.5" /> Tạm dừng
-                  </>
-                )}
-              </button>
-              <button
-                onClick={() => setShowLogs((v) => !v)}
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 cursor-pointer"
-              >
-                <Terminal className="w-3.5 h-3.5" /> Logs ({showLogs ? "Ẩn" : "Mở"})
-              </button>
-            </div>
-          </div>
-
-          {showLogs && (
-            <div className="mt-2.5 bg-[#090d14] border border-slate-800 rounded-lg p-3 max-h-48 overflow-y-auto font-mono text-[11px] text-slate-300 space-y-0.5">
-              {logLines.length === 0 ? (
-                <div className="text-slate-500">Chưa có dòng log nào.</div>
-              ) : (
-                logLines.map((line, i) => (
-                  <div key={i} className="whitespace-pre-wrap break-all">
-                    {line}
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-        </footer>
+        <QueueBar
+          queue={queue}
+          recentJobs={recentJobs}
+          showLogs={showLogs}
+          logLines={logLines}
+          onTogglePause={() => void togglePause()}
+          onToggleLogs={() => setShowLogs((v) => !v)}
+        />
       </div>
 
-      {/* Create Workspace Modal */}
-      {showNewWs && (
-        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
-          <form
-            onSubmit={handleCreateWorkspace}
-            className="w-full max-w-md bg-[#111827] border border-slate-700 rounded-xl p-5 space-y-4 shadow-2xl"
-          >
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-base">Tạo Workspace Mới</h3>
-              <button
-                type="button"
-                onClick={() => setShowNewWs(false)}
-                className="text-slate-400 hover:text-white cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            {wsErr && (
-              <div className="text-xs text-rose-300 bg-rose-500/10 border border-rose-500/30 rounded px-3 py-2">
-                {wsErr}
-              </div>
-            )}
-            <div className="space-y-1">
-              <label className="text-xs text-slate-300">Tên thương hiệu / Dự án</label>
-              <input
-                required
-                value={wsName}
-                onChange={(e) => setWsName(e.target.value)}
-                placeholder="VD: Trang Sức Bạc S925"
-                className="w-full bg-[#182235] border border-slate-700 rounded-lg px-3 py-2 text-sm"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-xs text-slate-300">Ngành hàng</label>
-                <input
-                  value={wsNiche}
-                  onChange={(e) => setWsNiche(e.target.value)}
-                  className="w-full bg-[#182235] border border-slate-700 rounded-lg px-3 py-2 text-sm"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs text-slate-300">Khung hình ưu tiên</label>
-                <select
-                  value={wsRatio}
-                  onChange={(e) =>
-                    setWsRatio(e.target.value as Workspace["default_aspect_ratio"])
-                  }
-                  className="w-full bg-[#182235] border border-slate-700 rounded-lg px-3 py-2 text-sm"
-                >
-                  <option value="9:16">9:16 (Dọc Shorts/Reels)</option>
-                  <option value="16:9">16:9 (Ngang YouTube)</option>
-                  <option value="1:1">1:1 (Vuông)</option>
-                </select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-xs text-slate-300">Kiểm soát nội dung</label>
-                <select
-                  value={wsPolicy}
-                  onChange={(e) =>
-                    setWsPolicy(e.target.value as Workspace["content_policy"])
-                  }
-                  className="w-full bg-[#182235] border border-slate-700 rounded-lg px-3 py-2 text-sm"
-                >
-                  <option value="strict_footage">Strict Footage (Chuẩn hãng)</option>
-                  <option value="hybrid_remix">Hybrid Remix</option>
-                  <option value="full_ai">Full AI (Kênh vệ tinh)</option>
-                </select>
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs text-slate-300">Chế độ duyệt</label>
-                <select
-                  value={wsApproval}
-                  onChange={(e) =>
-                    setWsApproval(e.target.value as Workspace["approval_mode"])
-                  }
-                  className="w-full bg-[#182235] border border-slate-700 rounded-lg px-3 py-2 text-sm"
-                >
-                  <option value="single">Duyệt từng bài</option>
-                  <option value="bulk">Duyệt hàng loạt</option>
-                  <option value="autopilot">Autopilot tự đăng</option>
-                </select>
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowNewWs(false)}
-                className="px-4 py-2 text-xs rounded-lg bg-slate-800 text-slate-300 cursor-pointer"
-              >
-                Hủy
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 text-xs rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold cursor-pointer"
-              >
-                Tạo & Chuyển ngay
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+      <CreateWorkspaceDialog open={showNewWs} onOpenChange={setShowNewWs} />
+      <CommandPalette
+        open={cmdkOpen}
+        onOpenChange={setCmdkOpen}
+        queuePaused={Boolean(queue?.paused)}
+        onTogglePause={() => void togglePause()}
+        onToggleLogs={() => setShowLogs((v) => !v)}
+        onOpenCreateWs={() => setShowNewWs(true)}
+      />
     </div>
   );
 }

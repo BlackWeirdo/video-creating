@@ -1,8 +1,29 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
-import { Check, CheckCheck, Download, Plus, RefreshCw, Share2, Trash2, X } from "lucide-react";
+import {
+  AlertTriangle,
+  Check,
+  CheckCheck,
+  CheckCircle2,
+  Download,
+  Eye,
+  EyeOff,
+  Plus,
+  RefreshCw,
+  Share2,
+  Trash2,
+  X,
+} from "lucide-react";
+import { toast } from "sonner";
 import { apiFetch, useWorkspace } from "@/lib/api";
+import { PageHeader } from "@/components/vc/PageHeader";
+import { EmptyState } from "@/components/vc/StatCard";
+import { Card, CardTitleRow, SectionHeading } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { FieldLabel, SelectBox, TextInput } from "@/components/ui/form-controls";
+import { ModalDialog } from "@/components/ui/overlays";
 
 interface ApprovalVideo {
   id: number;
@@ -61,11 +82,16 @@ export default function ApprovalAndPublishingPage() {
   const [posts, setPosts] = useState<PostItem[]>([]);
   const [perf, setPerf] = useState<PerfItem[]>([]);
 
-  const [plat, setPlat] = useState<"facebook" | "instagram" | "threads" | "tiktok" | "youtube">("youtube");
+  const [plat, setPlat] = useState<
+    "facebook" | "instagram" | "threads" | "tiktok" | "youtube"
+  >("youtube");
   const [extId, setExtId] = useState("");
   const [accName, setAccName] = useState("");
   const [accToken, setAccToken] = useState("");
+  const [showToken, setShowToken] = useState(false);
   const [accMode, setAccMode] = useState("inherit");
+  const [deleteTarget, setDeleteTarget] = useState<ChannelAccount | null>(null);
+
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
 
@@ -78,7 +104,9 @@ export default function ApprovalAndPublishingPage() {
         apiFetch<{ accounts: ChannelAccount[] }>(
           `/api/v1/accounts?workspace_id=${activeWorkspaceId}`
         ),
-        apiFetch<{ posts: PostItem[] }>(`/api/v1/posts?workspace_id=${activeWorkspaceId}`),
+        apiFetch<{ posts: PostItem[] }>(
+          `/api/v1/posts?workspace_id=${activeWorkspaceId}`
+        ),
         apiFetch<{ items: PerfItem[] }>(
           `/api/v1/performance?workspace_id=${activeWorkspaceId}`
         ),
@@ -89,7 +117,9 @@ export default function ApprovalAndPublishingPage() {
       setPerf(mRes.items || []);
       setErr("");
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Lỗi tải dữ liệu duyệt & lịch đăng");
+      setErr(
+        e instanceof Error ? e.message : "Lỗi tải dữ liệu duyệt & lịch đăng"
+      );
     }
   }, [activeWorkspaceId]);
 
@@ -110,7 +140,9 @@ export default function ApprovalAndPublishingPage() {
         method: "POST",
         body: JSON.stringify({}),
       });
-      setMsg(`Đã duyệt Video #${id}.`);
+      const m = `Đã duyệt Video #${id}.`;
+      setMsg(m);
+      toast.success(m);
       await load();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Duyệt thất bại");
@@ -122,26 +154,31 @@ export default function ApprovalAndPublishingPage() {
       method: "POST",
       body: JSON.stringify({ reason: "Cần chỉnh sửa lại" }),
     });
-    setMsg(`Đã từ chối Video #${id}.`);
+    const m = `Đã từ chối Video #${id}.`;
+    setMsg(m);
+    toast.info(m);
     await load();
   };
 
   const handleBulkApprove = async () => {
     if (selectedIds.length === 0) return;
     setErr("");
-    const res = await apiFetch<{ approved_ids: number[]; errors: Record<string, string> }>(
-      "/api/v1/approvals/bulk-approve",
-      {
-        method: "POST",
-        body: JSON.stringify({ video_ids: selectedIds, enforce_policy: true }),
-      }
-    );
+    const res = await apiFetch<{
+      approved_ids: number[];
+      errors: Record<string, string>;
+    }>("/api/v1/approvals/bulk-approve", {
+      method: "POST",
+      body: JSON.stringify({ video_ids: selectedIds, enforce_policy: true }),
+    });
     setSelectedIds([]);
     const errCount = Object.keys(res.errors || {}).length;
-    setMsg(
+    const m =
       `Duyệt hàng loạt: ${res.approved_ids.length} thành công` +
-        (errCount > 0 ? `, ${errCount} bị chặn bởi chính sách strict_footage.` : ".")
-    );
+      (errCount > 0
+        ? `, ${errCount} bị chặn bởi chính sách strict_footage.`
+        : ".");
+    setMsg(m);
+    toast.success(m);
     await load();
   };
 
@@ -164,6 +201,7 @@ export default function ApprovalAndPublishingPage() {
       setAccName("");
       setAccToken("");
       setMsg("Đã lưu kết nối kênh.");
+      toast.success("Đã lưu kết nối kênh.");
       await load();
     } catch (e2) {
       setErr(e2 instanceof Error ? e2.message : "Lỗi thêm kênh");
@@ -182,285 +220,428 @@ export default function ApprovalAndPublishingPage() {
       );
       window.open(res.authorize_url, "_blank");
     } catch (e2) {
-      setErr(e2 instanceof Error ? e2.message : "Chưa cấu hình OAuth App Key trong Settings");
+      setErr(
+        e2 instanceof Error
+          ? e2.message
+          : "Chưa cấu hình khóa OAuth trong trang Cài đặt"
+      );
     }
   };
 
-  const deleteAccount = async (id: number) => {
-    await apiFetch(`/api/v1/accounts/${id}`, { method: "DELETE" });
+  const confirmDeleteAccount = async () => {
+    if (!deleteTarget) return;
+    await apiFetch(`/api/v1/accounts/${deleteTarget.id}`, { method: "DELETE" });
+    toast.success(`Đã gỡ kênh "${deleteTarget.name}".`);
+    setDeleteTarget(null);
     await load();
   };
 
   const retryPost = async (id: number) => {
     await apiFetch(`/api/v1/posts/${id}/retry`, { method: "POST" });
-    setMsg(`Đã xếp lịch chạy lại Post #${id}.`);
+    const m = `Đã xếp lịch đăng lại Bài #${id}.`;
+    setMsg(m);
+    toast.info(m);
     await load();
   };
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <Share2 className="w-6 h-6 text-emerald-400" /> Duyệt bài, Kênh 5 MXH & Lịch đăng
-          </h1>
-          <p className="text-xs text-slate-400 mt-1">
-            Hỗ trợ duyệt từng bài, duyệt hàng loạt, tải Gói `.zip` 5 nền tảng (gồm YouTube Shorts/Video) & Autopilot.
-          </p>
-        </div>
-        {selectedIds.length > 0 && (
-          <button
-            onClick={() => void handleBulkApprove()}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold text-xs cursor-pointer"
-          >
-            <CheckCheck className="w-4 h-4" /> Duyệt Hàng Loạt ({selectedIds.length})
-          </button>
-        )}
-      </div>
+      <PageHeader
+        icon={<Share2 className="w-5 h-5" />}
+        title="Duyệt bài, Kênh 5 Mạng Xã Hội & Lịch đăng"
+        badges={
+          <Badge tone="cluster" className="tabular-nums">
+            {pending.length} chờ duyệt • {posts.length} lịch đăng
+          </Badge>
+        }
+        description="Kiểm duyệt chất lượng từng bài hoặc duyệt hàng loạt, kết nối YouTube, TikTok, Facebook, Instagram, Threads và tải gói xuất bản .zip 5 nền tảng."
+        actions={
+          selectedIds.length > 0 ? (
+            <Button type="button" onClick={() => void handleBulkApprove()}>
+              <CheckCheck className="w-4 h-4" /> Duyệt Hàng Loạt (
+              {selectedIds.length})
+            </Button>
+          ) : undefined
+        }
+      />
 
       {msg && (
-        <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs rounded-lg px-4 py-2.5">
+        <div
+          role="status"
+          className="rounded-[11px] border border-[var(--st-emerald-bd)] bg-[var(--st-emerald-bg)] px-4 py-2.5 text-[13px] text-[var(--st-emerald-tx)]"
+        >
           {msg}
         </div>
       )}
       {err && (
-        <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs rounded-lg px-4 py-2.5">
+        <div
+          role="alert"
+          className="rounded-[11px] border border-[var(--st-rose-bd)] bg-[var(--st-rose-bg)] px-4 py-2.5 text-[13px] text-[var(--st-rose-tx)]"
+        >
           {err}
         </div>
       )}
 
       {/* Pending Approval Queue */}
-      <div className="bg-[#111827] border border-slate-800 rounded-xl p-5 space-y-3 text-xs">
-        <h2 className="text-sm font-semibold text-white">
-          Video Chờ Duyệt ({pending.length})
-        </h2>
+      <Card tinted className="space-y-4">
+        <CardTitleRow>
+          <SectionHeading className="tabular-nums">
+            Video Chờ Duyệt ({pending.length})
+          </SectionHeading>
+          {pending.length > 0 && (
+            <button
+              type="button"
+              onClick={() =>
+                setSelectedIds(
+                  selectedIds.length === pending.length
+                    ? []
+                    : pending.map((v) => v.id)
+                )
+              }
+              className="text-[12.5px] font-semibold text-[var(--c-tx)] hover:underline cursor-pointer"
+            >
+              {selectedIds.length === pending.length
+                ? "Bỏ chọn tất cả"
+                : "Chọn tất cả"}
+            </button>
+          )}
+        </CardTitleRow>
+
         {pending.length === 0 ? (
-          <div className="text-slate-500">Không có video chờ duyệt trong Workspace này.</div>
+          <EmptyState
+            icon={<CheckCircle2 className="w-5 h-5" />}
+            title="Không có video chờ duyệt"
+            description="Tất cả video hoàn tất trong Workspace này đã được kiểm duyệt."
+          />
         ) : (
           <div className="grid md:grid-cols-2 gap-4">
             {pending.map((v) => (
-              <div
+              <article
                 key={v.id}
-                className="bg-[#182235] border border-slate-700/70 rounded-xl p-4 space-y-3"
+                className="rounded-[12px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4 space-y-3"
               >
                 <div className="flex items-start justify-between gap-2">
-                  <label className="flex items-center gap-2 font-semibold text-white cursor-pointer">
+                  <label className="flex items-center gap-2.5 font-semibold text-[14px] text-[var(--text-primary)] cursor-pointer">
                     <input
                       type="checkbox"
                       checked={selectedIds.includes(v.id)}
                       onChange={() => toggleSelect(v.id)}
+                      className="h-4 w-4 accent-[var(--c-solid)]"
                     />
                     <span>
                       #{v.id} — {v.plan?.title || "Chưa đặt tiêu đề"}
                     </span>
                   </label>
-                  <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-300">
+                  <Badge tone="neutral">
                     {v.aspect_ratio} • {v.style_preset}
-                  </span>
+                  </Badge>
                 </div>
+
                 {v.output_url && (
-                  <video
-                    controls
-                    src={v.output_url}
-                    className="w-full h-44 rounded bg-black object-contain"
-                  />
-                )}
-                {v.unsupported_claims?.length > 0 && (
-                  <div className="text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded px-2.5 py-1.5">
-                    Cảnh báo tuyên bố chưa kiểm chứng: {v.unsupported_claims.join(", ")}
+                  <div className="aspect-video w-full overflow-hidden rounded-[9px] bg-black border border-[var(--border-subtle)]">
+                    <video
+                      controls
+                      src={v.output_url}
+                      className="h-full w-full object-contain"
+                    />
                   </div>
                 )}
+
+                {v.unsupported_claims?.length > 0 && (
+                  <div className="flex items-start gap-2 rounded-[9px] border border-[var(--st-amber-bd)] bg-[var(--st-amber-bg)] px-3 py-2 text-[12.5px] text-[var(--st-amber-tx)]">
+                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>
+                      Cảnh báo tuyên bố chưa đối chiếu dữ kiện:{" "}
+                      {v.unsupported_claims.join(", ")}
+                    </span>
+                  </div>
+                )}
+
                 <div className="flex flex-wrap gap-2">
-                  <button
+                  <Button
+                    type="button"
+                    size="sm"
                     onClick={() => void singleApprove(v.id)}
-                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded bg-emerald-500 text-slate-950 font-semibold cursor-pointer"
                   >
-                    <Check className="w-3.5 h-3.5" /> Duyệt
-                  </button>
-                  <button
+                    <Check className="w-3.5 h-3.5" /> Duyệt đăng
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="danger"
                     onClick={() => void singleReject(v.id)}
-                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 cursor-pointer"
                   >
                     <X className="w-3.5 h-3.5" /> Từ chối
-                  </button>
+                  </Button>
                   {v.output_url && (
-                    <a
-                      href={`/api/v1/videos/${v.id}/publish-pack`}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded bg-slate-800 text-sky-300 border border-slate-700"
-                    >
-                      <Download className="w-3.5 h-3.5" /> Gói .zip
-                    </a>
+                    <Button asChild size="sm" variant="secondary">
+                      <a href={`/api/v1/videos/${v.id}/publish-pack`}>
+                        <Download className="w-3.5 h-3.5" /> Gói 5 MXH (.zip)
+                      </a>
+                    </Button>
                   )}
                 </div>
-              </div>
+              </article>
             ))}
           </div>
         )}
-      </div>
+      </Card>
 
       {/* Channels & OAuth */}
-      <div className="grid md:grid-cols-2 gap-4 text-xs">
-        <form
-          onSubmit={addAccount}
-          className="bg-[#111827] border border-slate-800 rounded-xl p-5 space-y-3"
-        >
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-white flex items-center gap-1.5">
-              <Plus className="w-4 h-4 text-sky-400" /> Kết nối Kênh MXH (5 nền tảng)
-            </h2>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => void startOAuth("youtube")}
-                className="text-[11px] text-rose-300 hover:underline cursor-pointer"
-              >
-                OAuth YouTube
-              </button>
-              <button
-                type="button"
-                onClick={() => void startOAuth("tiktok")}
-                className="text-[11px] text-sky-300 hover:underline cursor-pointer"
-              >
-                OAuth TikTok
-              </button>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-2.5">
-            <select
-              value={plat}
-              onChange={(e) => setPlat(e.target.value as typeof plat)}
-              className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-            >
-              <option value="youtube">YouTube (Shorts/Video)</option>
-              <option value="tiktok">TikTok</option>
-              <option value="facebook">Facebook Page</option>
-              <option value="instagram">Instagram Reels</option>
-              <option value="threads">Threads</option>
-            </select>
-            <select
-              value={accMode}
-              onChange={(e) => setAccMode(e.target.value)}
-              className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-            >
-              <option value="inherit">Duyệt theo Workspace</option>
-              <option value="single">Single (Luôn hỏi duyệt)</option>
-              <option value="bulk">Bulk (Duyệt lô)</option>
-              <option value="autopilot">Autopilot (Tự đăng đạt QC)</option>
-            </select>
-          </div>
-          <div className="grid grid-cols-2 gap-2.5">
-            <input
-              required
-              value={extId}
-              onChange={(e) => setExtId(e.target.value)}
-              placeholder="Channel ID / External ID *"
-              className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-            />
-            <input
-              required
-              value={accName}
-              onChange={(e) => setAccName(e.target.value)}
-              placeholder="Tên kênh hiển thị *"
-              className="bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-            />
-          </div>
-          <input
-            type="password"
-            value={accToken}
-            onChange={(e) => setAccToken(e.target.value)}
-            placeholder="Access Token (mã hóa vào secrets_store)"
-            className="w-full bg-[#182235] border border-slate-700 rounded-lg px-3 py-2"
-          />
-          <button
-            type="submit"
-            className="px-4 py-2 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold cursor-pointer"
-          >
-            Thêm Kênh vào Workspace
-          </button>
-        </form>
-
-        <div className="bg-[#111827] border border-slate-800 rounded-xl p-5 space-y-2.5">
-          <h2 className="text-sm font-semibold text-white">
-            Kênh đang gắn Workspace ({accounts.length})
-          </h2>
-          <div className="space-y-2 max-h-60 overflow-y-auto">
-            {accounts.map((a) => (
-              <div
-                key={a.id}
-                className="flex items-center justify-between bg-[#182235] rounded-lg px-3 py-2"
-              >
-                <div>
-                  <span className="uppercase text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-sky-300 mr-2">
-                    {a.platform}
-                  </span>
-                  <strong className="text-white">{a.name}</strong>
-                  <div className="text-[11px] text-slate-400 mt-0.5">
-                    Mode: {a.approval_mode} • Token: {a.has_token ? "Đã lưu" : "Chưa có"}
-                  </div>
-                </div>
-                <button
-                  onClick={() => void deleteAccount(a.id)}
-                  className="text-slate-400 hover:text-rose-400 cursor-pointer"
+      <div className="grid lg:grid-cols-2 gap-4">
+        <Card>
+          <form onSubmit={addAccount} className="space-y-3.5">
+            <CardTitleRow>
+              <SectionHeading>
+                <Plus className="w-4 h-4 text-[var(--c-icon)]" /> Kết nối Kênh MXH
+              </SectionHeading>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="danger"
+                  onClick={() => void startOAuth("youtube")}
                 >
-                  <Trash2 className="w-4 h-4" />
+                  Đăng nhập YouTube
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => void startOAuth("tiktok")}
+                >
+                  Đăng nhập TikTok
+                </Button>
+              </div>
+            </CardTitleRow>
+
+            <div className="grid sm:grid-cols-2 gap-3">
+              <div>
+                <FieldLabel htmlFor="ch-platform">Nền tảng</FieldLabel>
+                <SelectBox
+                  id="ch-platform"
+                  value={plat}
+                  onChange={(e) => setPlat(e.target.value as typeof plat)}
+                >
+                  <option value="youtube">YouTube (Shorts / Video)</option>
+                  <option value="tiktok">TikTok</option>
+                  <option value="facebook">Facebook Page</option>
+                  <option value="instagram">Instagram Reels</option>
+                  <option value="threads">Threads</option>
+                </SelectBox>
+              </div>
+              <div>
+                <FieldLabel htmlFor="ch-mode">Chế độ duyệt kênh</FieldLabel>
+                <SelectBox
+                  id="ch-mode"
+                  value={accMode}
+                  onChange={(e) => setAccMode(e.target.value)}
+                >
+                  <option value="inherit">Theo cài đặt Workspace</option>
+                  <option value="single">Luôn hỏi duyệt từng bài</option>
+                  <option value="bulk">Duyệt theo lô</option>
+                  <option value="autopilot">Tự đăng khi đạt kiểm định QC</option>
+                </SelectBox>
+              </div>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-3">
+              <div>
+                <FieldLabel htmlFor="ch-ext-id">Mã định danh kênh (ID) *</FieldLabel>
+                <TextInput
+                  id="ch-ext-id"
+                  required
+                  value={extId}
+                  onChange={(e) => setExtId(e.target.value)}
+                  placeholder="VD: UC_x925..."
+                />
+              </div>
+              <div>
+                <FieldLabel htmlFor="ch-name">Tên kênh hiển thị *</FieldLabel>
+                <TextInput
+                  id="ch-name"
+                  required
+                  value={accName}
+                  onChange={(e) => setAccName(e.target.value)}
+                  placeholder="VD: Trang Sức Bạc Official"
+                />
+              </div>
+            </div>
+
+            <div>
+              <FieldLabel htmlFor="ch-token">
+                Mã truy cập (Access Token — mã hóa cục bộ)
+              </FieldLabel>
+              <div className="relative">
+                <TextInput
+                  id="ch-token"
+                  type={showToken ? "text" : "password"}
+                  value={accToken}
+                  onChange={(e) => setAccToken(e.target.value)}
+                  placeholder="Dán mã truy cập nếu cấu hình thủ công..."
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowToken((v) => !v)}
+                  aria-label={showToken ? "Ẩn mã truy cập" : "Hiện mã truy cập"}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+                >
+                  {showToken ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
                 </button>
               </div>
-            ))}
-          </div>
-        </div>
+            </div>
+
+            <Button type="submit">Thêm Kênh vào Workspace</Button>
+          </form>
+        </Card>
+
+        <Card className="space-y-3">
+          <SectionHeading className="tabular-nums">
+            Kênh đang gắn Workspace ({accounts.length})
+          </SectionHeading>
+          {accounts.length === 0 ? (
+            <EmptyState
+              title="Chưa kết nối kênh mạng xã hội nào"
+              description="Thêm kênh ở khung bên trái hoặc đăng nhập OAuth để lên lịch đăng tự động."
+            />
+          ) : (
+            <div className="space-y-2 max-h-72 overflow-y-auto">
+              {accounts.map((a) => (
+                <div
+                  key={a.id}
+                  className="flex items-center justify-between gap-2 rounded-[10px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3.5 py-2.5"
+                >
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Badge tone="sky" className="uppercase text-[11px] px-2 py-0">
+                        {a.platform}
+                      </Badge>
+                      <strong className="text-[13.5px] text-[var(--text-primary)]">
+                        {a.name}
+                      </strong>
+                    </div>
+                    <div className="mt-0.5 text-[12px] text-[var(--text-muted)]">
+                      Chế độ: {a.approval_mode} • Khóa truy cập:{" "}
+                      {a.has_token ? "Đã mã hóa" : "Chưa đặt"}
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    aria-label={`Xóa kênh ${a.name}`}
+                    onClick={() => setDeleteTarget(a)}
+                  >
+                    <Trash2 className="w-4 h-4 text-rose-400" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
       </div>
 
       {/* Posts Schedule & Performance */}
-      <div className="grid md:grid-cols-2 gap-4 text-xs">
-        <div className="bg-[#111827] border border-slate-800 rounded-xl p-5 space-y-3">
-          <h2 className="text-sm font-semibold text-white">Lịch đăng ({posts.length})</h2>
-          <div className="space-y-2 max-h-64 overflow-y-auto">
-            {posts.map((p) => (
-              <div
-                key={p.id}
-                className="flex items-center justify-between bg-[#182235] rounded-lg px-3 py-2"
-              >
-                <div>
-                  <div className="text-white font-medium">
-                    Video #{p.video_id} → {p.platform} ({p.account_name})
+      <div className="grid lg:grid-cols-2 gap-4">
+        <Card className="space-y-3">
+          <SectionHeading className="tabular-nums">
+            Lịch đăng ({posts.length})
+          </SectionHeading>
+          {posts.length === 0 ? (
+            <EmptyState title="Chưa có bài đăng nào trong lịch" />
+          ) : (
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {posts.map((p) => (
+                <div
+                  key={p.id}
+                  className="flex items-center justify-between gap-2 rounded-[10px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3.5 py-2.5"
+                >
+                  <div>
+                    <div className="text-[13.5px] font-semibold text-[var(--text-primary)]">
+                      Video #{p.video_id} → {p.platform} ({p.account_name})
+                    </div>
+                    <div className="text-[12px] text-[var(--text-muted)] tabular-nums">
+                      {p.status} • {p.scheduled_at}
+                    </div>
                   </div>
-                  <div className="text-[11px] text-slate-400">
-                    {p.status} • {p.scheduled_at}
-                  </div>
+                  {["failed", "missed"].includes(p.status) && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="amber"
+                      onClick={() => void retryPost(p.id)}
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" /> Thử lại
+                    </Button>
+                  )}
                 </div>
-                {["failed", "missed"].includes(p.status) && (
-                  <button
-                    onClick={() => void retryPost(p.id)}
-                    className="inline-flex items-center gap-1 text-amber-300 hover:underline cursor-pointer"
-                  >
-                    <RefreshCw className="w-3 h-3" /> Thử lại
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
+              ))}
+            </div>
+          )}
+        </Card>
 
-        <div className="bg-[#111827] border border-slate-800 rounded-xl p-5 space-y-3">
-          <h2 className="text-sm font-semibold text-white">
-            Hiệu quả 24h / 72h / 7d ({perf.length})
-          </h2>
-          <div className="space-y-2 max-h-64 overflow-y-auto">
-            {perf.map((item) => (
-              <div key={item.post_id} className="bg-[#182235] rounded-lg px-3 py-2 space-y-1">
-                <div className="font-medium text-white">
-                  {item.title} ({item.platform})
+        <Card className="space-y-3">
+          <SectionHeading className="tabular-nums">
+            Hiệu quả sau 24 giờ / 72 giờ / 7 ngày ({perf.length})
+          </SectionHeading>
+          {perf.length === 0 ? (
+            <EmptyState title="Chưa có số liệu hiệu quả bài đăng" />
+          ) : (
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {perf.map((item) => (
+                <div
+                  key={item.post_id}
+                  className="rounded-[10px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3.5 py-2.5 space-y-1"
+                >
+                  <div className="text-[13.5px] font-semibold text-[var(--text-primary)]">
+                    {item.title} ({item.platform})
+                  </div>
+                  <div className="text-[12px] text-[var(--text-muted)] tabular-nums">
+                    24h: {item.checkpoints?.["24h"]?.views ?? "—"} lượt xem • 72h:{" "}
+                    {item.checkpoints?.["72h"]?.views ?? "—"} lượt xem • 7d:{" "}
+                    {item.checkpoints?.["7d"]?.views ?? "—"} lượt xem
+                  </div>
                 </div>
-                <div className="text-[11px] text-slate-400">
-                  24h: {item.checkpoints?.["24h"]?.views ?? "—"} views • 72h:{" "}
-                  {item.checkpoints?.["72h"]?.views ?? "—"} views • 7d:{" "}
-                  {item.checkpoints?.["7d"]?.views ?? "—"} views
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+              ))}
+            </div>
+          )}
+        </Card>
       </div>
+
+      <ModalDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(o) => {
+          if (!o) setDeleteTarget(null);
+        }}
+        title="Xác nhận gỡ kết nối kênh"
+        description={
+          deleteTarget
+            ? `Bạn có chắc muốn gỡ kênh "${deleteTarget.name}" (${deleteTarget.platform}) khỏi Workspace hiện tại không?`
+            : ""
+        }
+      >
+        <div className="flex justify-end gap-2 pt-2">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => setDeleteTarget(null)}
+          >
+            Hủy
+          </Button>
+          <Button
+            type="button"
+            variant="danger"
+            onClick={() => void confirmDeleteAccount()}
+          >
+            Gỡ kênh
+          </Button>
+        </div>
+      </ModalDialog>
     </div>
   );
 }
