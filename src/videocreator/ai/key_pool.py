@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import secrets as _secrets
+import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -220,7 +221,7 @@ def acquire_api_key(
             """,
             (clean_provider, now_iso),
         )
-    except Exception:
+    except sqlite3.Error:
         rows = []
 
     for r in rows:

@@ -313,7 +313,7 @@ class JobWorker:
                     if processed:
                         continue
             except Exception as exc:
-                logger.error("Unexpected worker loop error (lane=%s): %s", lane, exc)
+                logger.error("Unexpected worker loop error (lane=%s): %s", lane, exc, exc_info=True)
             try:
                 await asyncio.wait_for(
                     self._stop_event.wait(), timeout=self.poll_interval_s

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import shutil
 import subprocess
 from pathlib import Path
@@ -10,6 +11,8 @@ from typing import Any, Literal
 from videocreator.db import get_conn, record_audit
 from videocreator.paths import AppPaths, find_ffmpeg_binary
 from videocreator.workspaces import DEFAULT_WORKSPACE_ID, require_workspace
+
+logger = logging.getLogger("videocreator.services.assets")
 
 ALLOWED_AUDIO_EXTENSIONS: set[str] = {".mp3", ".wav", ".m4a", ".aac", ".ogg", ".flac"}
 MAX_AUDIO_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB
@@ -69,8 +72,8 @@ def import_audio_asset(
             from videocreator.pipeline.audio_beats import analyse_music_beats
 
             meta.update(analyse_music_beats(source_file, title_hint=clean_title))
-        except Exception:
-            pass
+        except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
+            logger.warning("Music beat analysis skipped for %s: %s", source_file.name, exc)
 
     with get_conn(paths.db_file) as conn:
         cur = conn.execute(

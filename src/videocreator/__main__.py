@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import ctypes
+import http.client
 import json
 import os
 import subprocess
@@ -87,7 +88,7 @@ class SingleInstanceLock:
                 import fcntl
 
                 fcntl.flock(self._fd, fcntl.LOCK_UN)
-            except Exception:
+            except OSError:
                 pass
             os.close(self._fd)
             self._fd = None
@@ -110,7 +111,7 @@ def wait_for_health(
             with opener.open(url, timeout=1.0) as resp:
                 if resp.status == 200:
                     return True
-        except Exception:
+        except (OSError, ValueError, http.client.HTTPException):
             time.sleep(0.15)
     return False
 
@@ -130,7 +131,7 @@ def _verify_videocreator_ui(ui_base_url: str, timeout_s: float = 5.0) -> bool:
                     payload = json.loads(resp.read().decode("utf-8", errors="replace"))
                     if payload.get("status") == "ok" and payload.get("api_version") == "v1":
                         return True
-        except Exception:
+        except (OSError, ValueError, http.client.HTTPException):
             time.sleep(0.15)
     return False
 
@@ -148,11 +149,11 @@ def stop_nextjs_standalone(proc: subprocess.Popen[Any] | None) -> None:
     try:
         proc.terminate()
         proc.wait(timeout=3.0)
-    except Exception:
+    except (OSError, subprocess.SubprocessError):
         try:
             proc.kill()
             proc.wait(timeout=2.0)
-        except Exception:
+        except (OSError, subprocess.SubprocessError):
             pass
 
 
@@ -221,7 +222,7 @@ def _notify_windows_error(message: str) -> None:
         return
     try:
         ctypes.windll.user32.MessageBoxW(0, message, "Video Creator - Lỗi khởi động", 0x10)  # type: ignore[attr-defined]
-    except Exception:
+    except (AttributeError, OSError):
         pass
 
 
@@ -353,7 +354,7 @@ def _run_desktop_window(
                 ),
                 encoding="utf-8",
             )
-        except Exception:
+        except OSError:
             pass
 
     print(f"Video Creator V2 ready at {display_url} (API: {base_url})", flush=True)
@@ -408,7 +409,7 @@ def main(argv: list[str] | None = None) -> int:
                 cand_ui = str(saved.get("display_url") or "")
                 if cand_ui and cand_api and wait_for_health(f"{cand_api}/health", timeout_s=2.0):
                     open_url = cand_ui
-            except Exception:
+            except (OSError, ValueError, TypeError):
                 open_url = ""
         if not open_url:
             cand_ui = f"http://{url_host}:{args.ui_port}"

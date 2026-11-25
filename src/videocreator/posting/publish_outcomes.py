@@ -1,5 +1,7 @@
 """What happens to a post after a publish attempt: missed, retried with backoff, failed, or announced."""
 from __future__ import annotations
+
+import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -12,6 +14,8 @@ from videocreator.state_posts import recompute_video_status_from_posts, transiti
 from videocreator.tg.messages import KeyboardRows
 from videocreator.tg.sender import send_text
 from videocreator.timeutil import UTC_ISO_FORMAT, utc_now
+
+logger = logging.getLogger("videocreator.posting.outcomes")
 
 BACKOFF_MINUTES: tuple[int, ...] = (1, 5, 30)
 MAX_POST_ATTEMPTS = 3
@@ -43,8 +47,8 @@ def _send_alert(paths: AppPaths, text: str, *, topic: str, keyboard: KeyboardRow
     """Telegram notice about a post; a failed send never changes the outcome of publishing."""
     try:
         send_text(paths, text, keyboard=keyboard, topic=topic)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Telegram post alert skipped: %s", exc)
 
 
 def _retry_keyboard(post_id: int) -> KeyboardRows:

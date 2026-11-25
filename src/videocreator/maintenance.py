@@ -61,8 +61,8 @@ def check_expiring_tokens(
         msg_lines.append("Vào trang Tài khoản để làm mới hoặc kết nối lại.")
         try:
             send_text(paths, "\n".join(msg_lines), topic="alerts")
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Telegram token expiry alert skipped: %s", exc)
 
     return expiring
 
@@ -85,8 +85,8 @@ def _backup_database(paths: AppPaths, stamp: str) -> Path:
         logger.error("Nightly backup failed: %s", exc)
         try:
             send_text(paths, f"❌ Lỗi sao lưu tự động ban đêm: {exc}")
-        except Exception:
-            pass
+        except Exception as send_exc:
+            logger.debug("Telegram backup failure alert skipped: %s", send_exc)
         raise
     return db_backup_path
 
@@ -156,8 +156,8 @@ def _alert_if_disk_low(paths: AppPaths, free_bytes: int) -> bool:
             f"⚠️ Cảnh báo ổ đĩa sắp đầy: chỉ còn {free_bytes / (1024**3):.1f} GB trống (< 10 GB).",
             topic="alerts",
         )
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Telegram low disk alert skipped: %s", exc)
     return True
 
 

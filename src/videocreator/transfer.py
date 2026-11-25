@@ -4,6 +4,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import logging
 import os
 import shutil
 import sqlite3
@@ -19,6 +20,9 @@ from videocreator.job_store import recover_interrupted_jobs, set_queue_paused
 from videocreator.paths import AppPaths
 from videocreator.secrets_store import SecretsStore
 from videocreator.studio.session import recover_stuck_studio_sessions
+
+
+logger = logging.getLogger("videocreator.transfer")
 
 
 class ExportPasswordError(ValueError):
@@ -169,8 +173,8 @@ def import_config_bundle(
         if paths.db_file.exists():
             try:
                 set_queue_paused(paths.db_file, True)
-            except Exception:
-                pass
+            except sqlite3.Error as exc:
+                logger.debug("Could not mark pre-restore DB paused: %s", exc)
 
         extracted_cfg = tmp_dir / "config.toml"
         if extracted_cfg.exists():
